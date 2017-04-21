@@ -31,6 +31,8 @@ The generation of output visualization files (.vtk, .pvtu, .pvd) is a parallel
 process (as explained in step-18). That might have to be checked according to step-40 it is not
 or at least not completely.	
 
+Finally, some minor improvements could be done (see comments in code).
+
 ## Local stiffness computation
 
 ## Standard virtual testing box

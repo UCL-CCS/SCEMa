@@ -45,10 +45,16 @@ Created branch...
 
 ### Future work:
 
-Instead of using a constant stiffness tensor, when the stiffness tensor is required, a function should be called to provide it.
+Instead of using a constant stiffness tensor, when the stiffness tensor is required, a function 
+should be called to provide it.
 
-The function should retrieve the identifier of the position in the sample (quadrature point) and its strain state. The strain state should be formatted to be readable by a LAMMPS instance. The LAMMPS instance returns the stress state, which should be formatted back to a similar format as the strain state.
+The function should retrieve the identifier of the position in the sample (quadrature point) and
+its strain state. The strain state should be formatted to be readable by a LAMMPS instance. The 
+LAMMPS instance returns the stress state, which should be formatted back to a similar format as 
+the strain state.
 
-Based on these two states, the function should compute the stiffness tensor, that will be used to compute the 'newton_update' vector, namely the incremental strain update. Care must be paid to the type of stiffness tensor used: global, secant, or tangent?
+Based on these two states, the function should compute the stiffness tensor, that will be used 
+to compute the 'newton_update' vector, namely the incremental strain update. Care must be paid 
+to the type of stiffness tensor used: global, secant, or tangent?
 
 ## Standard virtual testing box

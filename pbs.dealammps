@@ -1,0 +1,15 @@
+#!/bin/bash --login
+#PBS -N dealammps
+#PBS -l select=1
+#PBS -l walltime=0:3:0
+#PBS -A e283
+#PBS -q short
+#PBS -e error.dealammps
+#PBS -o output.dealammps
+
+# This shifts to the directory that you submitted the job from
+cd $PBS_O_WORKDIR
+# Make sure LD_LIBRARY_PATH etc is set up correctly
+module load deal_II lammps/lammps-17Nov16
+
+aprun -n 24 ./dealammps

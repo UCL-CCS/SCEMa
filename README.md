@@ -16,9 +16,10 @@ mostly those in step-18.
 
 ### Future work: 
 
-The solution vectors (newton-update, incremental-displacement, and solution) are
-local vectors (namely not shared or distributed in between the processes), this is not scalable
-in terms of memory usage. This must be looked upon (see step-17 or step-40, or maybe elsewhere:
+The solution vectors (newton-update, incremental-displacement, and solution) and stresses 
+vectors (quadrature_point_history) are local vectors (namely not shared or distributed in
+between the processes), this is not scalable in terms of memory usage. This must be looked 
+upon (see step-17 or step-40, or maybe elsewhere:
 http://www.dealii.org/8.4.1/doxygen/deal.II/group__distributed.html).
 
 The mesh is shared between processes (a complete copy of the mesh is available on
@@ -29,3 +30,7 @@ p4est).
 The generation of output visualization files (.vtk, .pvtu, .pvd) is a parallel
 process (as explained in step-18). That might have to be checked according to step-40 it is not
 or at least not completely.	
+
+## Local stiffness computation
+
+## Standard virtual testing box

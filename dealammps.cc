@@ -63,7 +63,6 @@
 
 #include <deal.II/base/symmetric_tensor.h>
 #include <deal.II/grid/filtered_iterator.h>
-#include <deal.II/physics/transformations.h>
 
 #include <deal.II/base/mpi.h>
 
@@ -72,7 +71,7 @@
 #include <sstream>
 #include <iomanip>
 
-namespace Step8
+namespace DeaLAMMPS
 {
   using namespace dealii;
 
@@ -229,37 +228,37 @@ namespace Step8
 
     double compute_residual () const;
 
-    parallel::shared::Triangulation<dim>	triangulation;
-    DoFHandler<dim>      			 dof_handler;
-    FESystem<dim>        			 fe;
-    ConstraintMatrix     			 hanging_node_constraints;
+    parallel::shared::Triangulation<dim> triangulation;
+    DoFHandler<dim>      				dof_handler;
+    FESystem<dim>        				fe;
+    ConstraintMatrix     				hanging_node_constraints;
 
-    const QGauss<dim>   			 quadrature_formula;
-    std::vector<PointHistory<dim> >  quadrature_point_history;
+    const QGauss<dim>   				quadrature_formula;
+    std::vector<PointHistory<dim> > 	quadrature_point_history;
 
-    PETScWrappers::MPI::SparseMatrix system_matrix;
-    PETScWrappers::MPI::Vector       system_rhs;
+    PETScWrappers::MPI::SparseMatrix	system_matrix;
+    PETScWrappers::MPI::Vector      	system_rhs;
 
-    Vector<double> 		     		 newton_update;
-    Vector<double> 		     		 incremental_displacement;
-    Vector<double> 		     		 solution;
+    Vector<double> 		     			newton_update;
+    Vector<double> 		     			incremental_displacement;
+    Vector<double> 		     			solution;
 
-    Vector<float> 					 error_per_cell;
+    Vector<float> 						error_per_cell;
 
-    double              			 present_time;
-    double              			 present_timestep;
-    double              			 end_time;
-    unsigned int        			 timestep_no;
+    double              				present_time;
+    double              				present_timestep;
+    double              				end_time;
+    unsigned int        				timestep_no;
 
-    MPI_Comm mpi_communicator;
-    const unsigned int n_mpi_processes;
-    const unsigned int this_mpi_process;
-    ConditionalOStream pcout;
+    MPI_Comm 							mpi_communicator;
+    const unsigned int 					n_mpi_processes;
+    const unsigned int 					this_mpi_process;
+    ConditionalOStream 					pcout;
 
     std::vector<types::global_dof_index> local_dofs_per_process;
-    IndexSet locally_owned_dofs;
-    IndexSet locally_relevant_dofs;
-    unsigned int n_local_cells;
+    IndexSet 							locally_owned_dofs;
+    IndexSet 							locally_relevant_dofs;
+    unsigned int 						n_local_cells;
 
     // This will not be so constant anymore in our HMM: position dependent,
     // history dependent, and computed in an specific function using LAMMPS
@@ -411,8 +410,8 @@ namespace Step8
   ElasticProblem<dim>::ElasticProblem ()
     :
 	  triangulation(MPI_COMM_WORLD),
-	  fe (FE_Q<dim>(1), dim),
 	  dof_handler (triangulation),
+	  fe (FE_Q<dim>(1), dim),
 	  quadrature_formula (2),
 	  mpi_communicator (MPI_COMM_WORLD),
 	  n_mpi_processes (Utilities::MPI::n_mpi_processes(mpi_communicator)),
@@ -685,8 +684,9 @@ namespace Step8
   template <int dim>
   double ElasticProblem<dim>::compute_residual () const
   {
-    Vector<double> residual (dof_handler.n_dofs());
-    
+	PETScWrappers::MPI::Vector residual
+								(locally_owned_dofs, mpi_communicator);
+
     residual = 0;
     
     FEValues<dim> fe_values (fe, quadrature_formula,
@@ -739,17 +739,19 @@ namespace Step8
             }
 
           cell->get_dof_indices (local_dof_indices);
-//          for (unsigned int i=0; i<dofs_per_cell; ++i)
-//                residual(local_dof_indices[i]) += cell_residual(i);
-          // Could the following line allow to remove the two previous line
-          // and the following one?
           hanging_node_constraints.distribute_local_to_global
 		  	  	  	  (cell_residual, local_dof_indices, residual);
         }
 
-//    hanging_node_constraints.condense (residual);
     residual.compress(VectorOperation::add);
 
+    // This manner to remove lines concerned with boundary conditions in the
+    // residual vector does not yield the same norm for the residual vector
+    // and the system_rhs vector (for which boundary conditions are applied
+    // differently).
+    // Is the value obtained with this method correct?
+    // Should we proceed differently to obtain the same norm value? Although
+    // localizing the vector (see step-17) does not change the norm value.
     std::vector<bool> boundary_dofs (dof_handler.n_dofs());
     DoFTools::extract_boundary_dofs (dof_handler,
                                      ComponentMask(),
@@ -770,8 +772,9 @@ namespace Step8
     
     do
       { 
+    	previous_res = compute_residual();
         pcout << "  Initial residual: "
-                  << compute_residual()
+                  << previous_res
                   << std::endl;
 
         for (unsigned int inner_iteration=0; inner_iteration<5; ++inner_iteration)
@@ -779,14 +782,12 @@ namespace Step8
 
             pcout << "    Assembling system..." << std::flush;
             assemble_system ();
-            previous_res = system_rhs.l2_norm();
             
-            compute_residual();
+            pcout << "    System - norm of rhs is " << system_rhs.l2_norm()
+                  << std::endl;
 
             const unsigned int n_iterations = solve_linear_problem ();
             
-            pcout << "    Solver - norm of rhs is " << system_rhs.l2_norm()
-                  << std::endl;  
             pcout << "    Solver - norm of newton update is " << newton_update.l2_norm()
                   << std::endl;  
             pcout << "    Solver converged in " << n_iterations
@@ -1038,7 +1039,7 @@ namespace Step8
 
 	  DynamicSparsityPattern sparsity_pattern (locally_relevant_dofs);
 	  DoFTools::make_sparsity_pattern (dof_handler, sparsity_pattern,
-	                                   hanging_node_constraints, /false);
+	                                   hanging_node_constraints, false);
 	  SparsityTools::distribute_sparsity_pattern (sparsity_pattern,
 	                                              local_dofs_per_process,
 	                                              mpi_communicator,
@@ -1128,15 +1129,17 @@ namespace Step8
 
 
 
-int main ()
+int main (int argc, char **argv)
 {
   try
     {
+      using namespace DeaLAMMPS;
+
       using namespace dealii;
-      using namespace Step17;
+
       Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
-      Step8::ElasticProblem<2> elastic_problem;
+      DeaLAMMPS::ElasticProblem<2> elastic_problem;
       elastic_problem.deal ();
     }
   catch (std::exception &exc)

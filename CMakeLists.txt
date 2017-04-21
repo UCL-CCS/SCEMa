@@ -1,25 +1,8 @@
-##
-#  CMake script for the iterative-incremental-lshaped_step-8 tutorial program:
-##
+SET(TARGET "dealammps")
 
-# Set the name of the project and target:
-SET(TARGET "iterative-incremental-lshaped_step-8")
-
-# Declare all source files the target consists of. Here, this is only
-# the one step-X.cc file, but as you expand your project you may wish
-# to add other source files as well. If your project becomes much larger,
-# you may want to either replace the following statement by something like
-#    FILE(GLOB_RECURSE TARGET_SRC  "source/*.cc")
-#    FILE(GLOB_RECURSE TARGET_INC  "include/*.h")
-#    SET(TARGET_SRC ${TARGET_SRC}  ${TARGET_INC}) 
-# or switch altogether to the large project CMakeLists.txt file discussed
-# in the "CMake in user projects" page accessible from the "User info"
-# page of the documentation.
 SET(TARGET_SRC
   ${TARGET}.cc
   )
-
-# Usually, you will not need to modify anything beyond this point...
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
@@ -35,5 +18,41 @@ IF(NOT ${deal.II_FOUND})
 ENDIF()
 
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
+
 PROJECT(${TARGET})
+
 DEAL_II_INVOKE_AUTOPILOT()
+
+## Include LAMMPS sources repository
+INCLUDE_DIRECTORIES(
+  /usr/local/packages/lammps/lammps-17Nov16/lammps-17Nov16/src/
+  )
+
+## Include LAMMPS library shared (or static)
+SET(CMAKE_CXX_FLAGS "-dynamic /work/e283/e283/vassaux/lib/liblammps.so")
+#SET(CMAKE_CXX_FLAGS "/work/e283/e283/vassaux/lib/liblammps.a")
+
+## Create additional targets to the standard DEAL.II targets
+## Use "aprun" as follow: e.g "make aprun NTHR=24"
+ADD_CUSTOM_TARGET(aprun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
+                      DEPENDS ${TARGET}
+                      COMMAND @echo "... APRUN on $(NTHR) threads ..."
+                      COMMAND aprun -n $(NTHR) ${TARGET}
+  )
+
+ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
+                             DEPENDS buildclean
+                             COMMAND rm
+                             ARGS -rf CMakeFiles cmake_install.cmake CMakeCache.txt Makefile
+  )
+
+ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
+                             DEPENDS outclean
+                             COMMAND rm
+                             ARGS -rf ${TARGET}
+  )
+
+ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
+                           COMMAND rm
+                           ARGS -rf solution*.vtk log.* stp17simple_CC.e* stp17simple_CC.o*
+  )

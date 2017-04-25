@@ -6,6 +6,9 @@
 ##  reference testing box, which will the be evolved using the in.lammps.strain
 ##  input file.
 
+## Should we optimize the lammps call depending on the computer setup?
+## suffix OMP 
+
 #  Setting units convention for the rest of the file
 units           real            # default
 

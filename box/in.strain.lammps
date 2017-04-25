@@ -2,7 +2,8 @@
 # The system is polyethane, using the CVFF forcefield
 # the simulation will heat up to 500K, cooldown to 200K and then perform unixial stretching in the x direction
 
-
+## Should we optimize the lammps call depending on the computer setup?
+## suffix OMP
 
 ##  -------------------------------------------
 #   Initialization settings
@@ -61,16 +62,11 @@ undump          xyz_dump
 dump            xyz_dump all xyz 5000    PE_stress_strain_x.xyz
 dump_modify     xyz_dump element  C C H
 
-#  Setting a strain constraint every 1 steps in the x-direction on the box at a strain rate of 1e-7 fs-1, position of
-#  all atoms positions are remapped following an affine transformation, namely proportional to the box deformation.
-##  This command might be moved to the C++ wrapper file (as well as all the
-##  commands that can not be set before, probably just the run command).
-fix             1 all deform 1 x erate 0.0000001 remap x
+#thermo_style    custom step temp pxx pyy pzz lx ly lz epair ebond eangle edihed
+#thermo          100
 
-#  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is set constant at 200k
-#  with a relaxation time of 100fs and the normal pressures on z and y faces are set constant at 1.0 bar with
-#  a relaxation time of 1000fs
-fix             3 all npt temp 200.0 200.0 100 z 1.0 1.0 1000 y 1.0 1.0 1000
+#  Setting the step counter to 0
+reset_timestep  0
 
 #  Building output files using the fix command applied to all the atoms of the box, to display every 100 steps stress
 #  tensor components evolution with the x strain, and total energy constituents with the x strain, screen display is
@@ -78,14 +74,30 @@ fix             3 all npt temp 200.0 200.0 100 z 1.0 1.0 1000 y 1.0 1.0 1000
 fix             def1 all print 100 "${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8}" file ${simname}.def1.dat screen no  # stress strain data
 fix             def2 all print 100 "${p1} ${t2} ${t3} ${t4} ${t5}" file ${simname}.def2.dat screen no  # energetics for stress strain
 
-#thermo_style    custom step temp pxx pyy pzz lx ly lz epair ebond eangle edihed
-#thermo          100
+#  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is set constant at 200k
+#  with a relaxation time of 100fs and the normal pressures on z and y faces are set constant at 1.0 bar with
+#  a relaxation time of 1000fs
+fix             3 all npt temp 200.0 200.0 100 z 1.0 1.0 1000 y 1.0 1.0 1000
+
+#  Setting a strain constraint every 1 steps in the x-direction on the box at a strain rate of 1e-7 fs-1, position of
+#  all atoms positions are remapped following an affine transformation, namely proportional to the box deformation.
+##  Is it pertinent to remap the coordinates proportionaly to the applied
+##  strains? Should we remap velocities? Or none?
+##  This command might be moved to the C++ wrapper file (as well as all the
+##  commands that can not be set before, probably just the run command, and
+##  maybe timestep for practicality).
+fix             1 all deform 1  x erate (eps_xx/(nts*dts)) remap x &
+                                y erate (eps_yy/(nts*dts)) remap x &
+                                z erate (eps_zz/(nts*dts)) remap x &
+                               xy erate (eps_xy/(nts*dts)) remap x &
+                               xz erate (eps_xz/(nts*dts)) remap x &
+                               yz erate (eps_yz/(nts*dts)) remap x
+
 
 #  Setting 2fs timesteps
-timestep        2.0 # SHAKE
-
-#  Setting the step counter to 0
-reset_timestep  0
+timestep        dts #2.0
 
 #  Running a molecular dynamics simulation for 2000000 timesteps
-run             2000000
+run             nts #2000000
+
+##  Compute pressure should also be called from the wrapper.

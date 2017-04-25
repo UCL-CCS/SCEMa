@@ -1175,7 +1175,7 @@ namespace DeaLAMMPS
 	  FILE *fp;
 	  if (me == 0)
 	  {
-		  fp = fopen("./in.lj","r");
+		  fp = fopen("./in.lammps.strain","r");
 		  if (fp == NULL)
 		  {
 			  printf("ERROR: Could not open LAMMPS input script\n");

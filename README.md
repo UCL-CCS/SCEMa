@@ -53,7 +53,7 @@ linear affine or secant fashion.
 For the computation of the secant stiffness tensor, a choice must be made regarding the old
 stress/strain chosen: either the last iteration state (k-1), or the last converged step (t-1).
 
-The strain state should be formatted to be readable by a LAMMPS instance. The 
+The strain state should be formatted to be readable by a LAMMPS instance: a 6-elements vector (xx,yy,zz,xy,xz,yz). The 
 LAMMPS instance returns the stress state, which should be formatted back to a similar format as 
 the strain state.
 

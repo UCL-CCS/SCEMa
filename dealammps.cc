@@ -1154,7 +1154,8 @@ namespace DeaLAMMPS
   }
 
 
-
+  // Declare this function out of the DeaLAMMPS namespace if possible. 
+  // That would complete the uncoupling of Deal and LAMMPS.
   template <int dim>
   SymmetricTensor<2,dim> ElasticProblem<dim>::
   lammps_local_testing (const SymmetricTensor<2,dim> strains)
@@ -1173,9 +1174,6 @@ namespace DeaLAMMPS
 	  MPI_Comm comm_lammps;
 	  MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
 
-	  // Open LAMMPS input script describing the reference polymer box on
-	  // which we are going to apply strains
-
 	  FILE *fp;
 	  if (me == 0)
 	  {
@@ -1186,11 +1184,6 @@ namespace DeaLAMMPS
 			  MPI_Abort(MPI_COMM_WORLD,1);
 		  }
 	  }
-
-	  // Run the input script thru LAMMPS one line at a time until end-of-file
-	  // driver proc 0 reads a line, Bcasts it to all procs
-	  // (could just send it to proc 0 of comm_lammps and let it Bcast)
-	  // all LAMMPS procs call input->one() on the line
 
 	  LAMMPS *lmp = NULL;
 

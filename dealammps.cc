@@ -1136,6 +1136,10 @@ namespace DeaLAMMPS
     incremental_displacement = 0;
     
     set_boundary_values ();
+    // The call of the update of stresses here is quite odd, since 'incremental_displacement'
+    // is null with the exception of the applied boundary conditions.
+    // Should we call LAMMPS to compute the stresses update induced by this displacement
+    // increment?
     update_quadrature_point_history (incremental_displacement);
     
     solve_timestep ();

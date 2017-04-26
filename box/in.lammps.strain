@@ -81,6 +81,16 @@ fix             def2 all print 100 "${p1} ${t2} ${t3} ${t4} ${t5}" file ${simnam
 #thermo_style    custom step temp pxx pyy pzz lx ly lz epair ebond eangle edihed
 #thermo          100
 
+#  Computing the temperature for all atoms, and using the result of this temp
+#  compute for the compute of the pressure (including as well the stress tensor)
+#  which requires the temperature to compute the part induced by kinetic energy.
+compute         th1 all temp
+compute         pr1 all pressure thermo_temp
+
+# Present by default in any input script
+#compute thermo_press all temp
+#compute thermo_press all pressure thermo_temp
+
 #  Setting 2fs timesteps
 timestep        2.0 # SHAKE
 

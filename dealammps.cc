@@ -108,14 +108,28 @@ namespace macro
     MPI_Comm comm_lammps;
     MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
 
+    double dts = 2.0; // timestep length
+    int nts; // number of timesteps
+
     FILE *fp;
     if (me == 0)
     {
-      fp = fopen("./in.lammps.strain","r");
+      fp = fopen("../box/in.lammps.strain","r");
       if (fp == NULL)
       {
         printf("ERROR: Could not open LAMMPS input script\n");
         MPI_Abort(MPI_COMM_WORLD,1);
+
+        // Append fp with lines corresponding to applying fix deform, timestep, and run
+        //blah='run/timestep/fix deform blablabla'
+        // fp +='fix             1 all deform 1  x erate (strains[0]/(nts*dts)) remap x &
+                                      //   y erate (strains[1]/(nts*dts)) remap x &
+                                      //   z erate (strains[2]/(nts*dts)) remap x &
+                                      //  xy erate (strains[3]/(nts*dts)) remap x &
+                                      //  xz erate (strains[4]/(nts*dts)) remap x &
+                                      //  yz erate (strains[5]/(nts*dts)) remap x'
+       // fp +='timestep        dts'
+       // fp +='run             nts'
       }
     }
 

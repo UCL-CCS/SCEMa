@@ -96,15 +96,15 @@ compute         pr1 all pressure thermo_temp
 ##  This command might be moved to the C++ wrapper file (as well as all the
 ##  commands that can not be set before, probably just the run command, and
 ##  maybe timestep for practicality).
-fix             1 all deform 1  x erate (eps_xx/(nts*dts)) remap x &
-                                y erate (eps_yy/(nts*dts)) remap x &
-                                z erate (eps_zz/(nts*dts)) remap x &
-                               xy erate (eps_xy/(nts*dts)) remap x &
-                               xz erate (eps_xz/(nts*dts)) remap x &
-                               yz erate (eps_yz/(nts*dts)) remap x
+#fix             1 all deform 1  x erate (eps_xx/(nts*dts)) remap x &
+#                                y erate (eps_yy/(nts*dts)) remap x &
+#                                z erate (eps_zz/(nts*dts)) remap x &
+#                               xy erate (eps_xy/(nts*dts)) remap x &
+#                               xz erate (eps_xz/(nts*dts)) remap x &
+#                               yz erate (eps_yz/(nts*dts)) remap x
 
 #  Setting 2fs timesteps
-timestep        dts #2.0
+#timestep        dts #2.0
 
 #  Running a molecular dynamics simulation for 2000000 timesteps
-run             nts #2000000
+#run             nts #2000000

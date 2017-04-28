@@ -79,9 +79,21 @@ namespace micro
   using namespace LAMMPS_NS;
 
   // How to access 'dim' ?
-  template <int dim> std::vector<double>
+
+}
+
+
+
+
+namespace macro
+{
+  using namespace dealii;
+
+  template <int dim>
+  std::vector<double>
   lammps_local_testing (const std::vector<double> strains)
   {
+    using namespace LAMMPS_NS;
     std::vector<double> stresses (2*dim);
 
     int me,nprocs;
@@ -129,14 +141,6 @@ namespace micro
 
     return stresses;
   }
-}
-
-
-
-
-namespace macro
-{
-  using namespace dealii;
 
   template <int dim>
   struct PointHistory
@@ -714,7 +718,9 @@ namespace macro
   void ElasticProblem<dim>::update_quadrature_point_history
         (const Vector<double>& displacement_update)
   {
-    std::vector<double> strain_vector (2*dim), stress_vector (2*dim);
+    std::vector<double> strain_vector (2*dim),
+                        stress_vector (2*dim);
+
     FEValues<dim> fe_values (fe, quadrature_formula,
                              update_values | update_gradients);
     std::vector<std::vector<Tensor<1,dim> > >
@@ -759,7 +765,7 @@ namespace macro
         	  // microstructure and applying the complete new_strain or starting from
         	  // the microstructure at the old_strain and applying the difference between
         	  // the new_ and _old_strains, returns the new_stress state.
-        	  stress_vector = micro::lammps_local_testing (strain_vector);
+        	  stress_vector = lammps_local_testing (strain_vector);
 
             // Convert 2*dim component vector new_stress to a SymmetricTensor<2,dim>
             //local_quadrature_points_history[q].new_stress = stress_vector;

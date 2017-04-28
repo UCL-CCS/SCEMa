@@ -12,12 +12,10 @@ Not started...
 
 ## Future work:
 
-In order to use data that has been computed for one quadrature point, for an other one, one has to know if the strain tensor applied and the initial sample state (or atom positions or microstates) are identical.
+Before starting any work on mananging a Database of Microstates, one might find usefull to estimate an initial linear elastic behaviour of the material sample, and a strain range for which it remains true. This would avoid running automaticly LAMMPS calls at low strain amplitudes and from the beginning of the simulation.
 
-While one can compare two strain tensors, one might find difficult to compare two sample states.
+Then, in order to use data that has been computed for one quadrature point, for an other one, one has to know if the strain tensor applied and the initial sample state (or atom positions or microstates) are identical. While one can compare two strain tensors, one might find difficult to compare two sample states.
 
-Therefore, we have to define indicators that allow to compare two samples state. Ideally, if the indicators are sufficiently well defined, when the indacators are equal, the two samples states are identical.
-
-These indicators would serve as metadata for our database of the samples states (or atom positions or microstates).
+Therefore, we have to define indicators that allow to compare two samples state. Ideally, if the indicators are sufficiently well defined, when the indacators are equal, the two samples states are identical. These indicators would serve as metadata for our database of the samples states (or atom positions or microstates).
 
 Once these indicators are defined, one might find interesting to implement extrapolation techniques (such as Kriging), to avoid throwing lammps call when the samples states or applied strains are not completely identical but quite close.

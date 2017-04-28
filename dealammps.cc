@@ -74,10 +74,69 @@
 #include "library.h"
 #include "atom.h"
 
-namespace DeaLAMMPS
+namespace micro
+{
+  using namespace LAMMPS_NS;
+
+  // How to access 'dim' ?
+  template <int dim> std::vector<double>
+  lammps_local_testing (const std::vector<double> strains)
+  {
+    std::vector<double> stresses (2*dim);
+
+    int me,nprocs;
+    MPI_Comm_rank(MPI_COMM_WORLD,&me);
+    MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
+
+    int nprocs_lammps = nprocs;
+
+    int lammps;
+    if (me < nprocs_lammps) lammps = 1;
+    else lammps = MPI_UNDEFINED;
+    MPI_Comm comm_lammps;
+    MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
+
+    FILE *fp;
+    if (me == 0)
+    {
+      fp = fopen("./in.lammps.strain","r");
+      if (fp == NULL)
+      {
+        printf("ERROR: Could not open LAMMPS input script\n");
+        MPI_Abort(MPI_COMM_WORLD,1);
+      }
+    }
+
+    LAMMPS *lmp = NULL;
+
+    if (lammps == 1) lmp = new LAMMPS(0,NULL,comm_lammps);
+
+    int n;
+    char line[1024];
+    while (1)
+    {
+      if (me == 0)
+      {
+        if (fgets(line,1024,fp) == NULL) n = 0;
+        else n = strlen(line) + 1;
+        if (n == 0) fclose(fp);
+      }
+      MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
+      if (n == 0) break;
+      MPI_Bcast(line,n,MPI_CHAR,0,MPI_COMM_WORLD);
+      if (lammps == 1) lammps_command(lmp,line);
+    }
+
+    return stresses;
+  }
+}
+
+
+
+
+namespace macro
 {
   using namespace dealii;
-  using namespace LAMMPS_NS;
 
   template <int dim>
   struct PointHistory
@@ -162,7 +221,7 @@ namespace DeaLAMMPS
 
     return strain;
   }
-  
+
 
   Tensor<2,2>
   get_rotation_matrix (const std::vector<Tensor<1,2> > &grad_u)
@@ -230,7 +289,7 @@ namespace DeaLAMMPS
   public:
     ElasticProblem ();
     ~ElasticProblem ();
-    void run ();
+    void run (int argc, char **argv);
 
   private:
     void make_grid ();
@@ -243,7 +302,7 @@ namespace DeaLAMMPS
     void error_estimation ();
     double determine_step_length () const;
     void move_mesh ();
-    
+
     void setup_quadrature_point_history ();
 
     void update_quadrature_point_history (const Vector<double>& displacement_update);
@@ -251,8 +310,6 @@ namespace DeaLAMMPS
     void output_results () const;
 
     double compute_residual () const;
-
-    SymmetricTensor<2,dim> lammps_local_testing (const SymmetricTensor<2,dim> strains);
 
     parallel::shared::Triangulation<dim> triangulation;
     DoFHandler<dim>      				dof_handler;
@@ -443,7 +500,7 @@ namespace DeaLAMMPS
   {
     dof_handler.clear ();
   }
-  
+
 
 
   template <int dim>
@@ -476,9 +533,9 @@ namespace DeaLAMMPS
 
     Assert (history_index == quadrature_point_history.size(),
             ExcInternalError());
-  }    
-  
-  
+  }
+
+
 
   template <int dim>
   void ElasticProblem<dim>::set_boundary_values ()
@@ -498,7 +555,7 @@ namespace DeaLAMMPS
                                                                 present_timestep),
                                  boundary_values,
                                  fe.component_mask(v_component));
-                                        
+
     for (std::map<types::global_dof_index, double>::const_iterator
        p = boundary_values.begin();
        p != boundary_values.end(); ++p)
@@ -528,7 +585,7 @@ namespace DeaLAMMPS
     BodyForce<dim>      body_force;
     std::vector<Vector<double> > body_force_values (n_q_points,
                                                     Vector<double>(dim));
-                                                    
+
     typename DoFHandler<dim>::active_cell_iterator
     cell = dof_handler.begin_active(),
     endc = dof_handler.end();
@@ -618,7 +675,7 @@ namespace DeaLAMMPS
                                         system_rhs,
 										false);
     newton_update = tmp;
-                                        
+
   }
 
 
@@ -654,9 +711,10 @@ namespace DeaLAMMPS
   // How to proceed such that the update of the stres state of each
   // quadrature point is run concurrently?
   template <int dim>
-  void ElasticProblem<dim>::update_quadrature_point_history 
+  void ElasticProblem<dim>::update_quadrature_point_history
         (const Vector<double>& displacement_update)
   {
+    std::vector<double> strain_vector (2*dim), stress_vector (2*dim);
     FEValues<dim> fe_values (fe, quadrature_formula,
                              update_values | update_gradients);
     std::vector<std::vector<Tensor<1,dim> > >
@@ -693,14 +751,18 @@ namespace DeaLAMMPS
 
         	  local_quadrature_points_history[q].old_stress =
         			  local_quadrature_points_history[q].new_stress;
-        	  // The lammps function first transforms the new_strain state in a format
-        	  // suitable for lammps to apply to a given box.
+
+            // Convert SymmetricTensor<2,dim> new_strain to a 2*dim component vector
+            //local_quadrature_points_history[q].new_strain = strain_vector;
+
         	  // Then the lammps function instanciates lammps, starting from an initial
         	  // microstructure and applying the complete new_strain or starting from
         	  // the microstructure at the old_strain and applying the difference between
         	  // the new_ and _old_strains, returns the new_stress state.
-        	  local_quadrature_points_history[q].new_stress =
-        	     lammps_local_testing (local_quadrature_points_history[q].new_strain);
+        	  stress_vector = micro::lammps_local_testing (strain_vector);
+
+            // Convert 2*dim component vector new_stress to a SymmetricTensor<2,dim>
+            //local_quadrature_points_history[q].new_stress = stress_vector;
 
         	  // Apply rotation of the sample to all the state tensors
               /*const Tensor<2,dim> rotation
@@ -747,7 +809,7 @@ namespace DeaLAMMPS
 								(locally_owned_dofs, mpi_communicator);
 
     residual = 0;
-    
+
     FEValues<dim> fe_values (fe, quadrature_formula,
                              update_values   | update_gradients |
                              update_quadrature_points | update_JxW_values);
@@ -826,11 +888,11 @@ namespace DeaLAMMPS
 
   template <int dim>
   void ElasticProblem<dim>::solve_timestep ()
-  {    
+  {
     double previous_res;
-    
+
     do
-      { 
+      {
     	previous_res = compute_residual();
         pcout << "  Initial residual: "
                   << previous_res
@@ -841,21 +903,21 @@ namespace DeaLAMMPS
 
             pcout << "    Assembling system..." << std::flush;
             assemble_system ();
-            
+
             pcout << "    System - norm of rhs is " << system_rhs.l2_norm()
                   << std::endl;
 
             const unsigned int n_iterations = solve_linear_problem ();
-            
+
             pcout << "    Solver - norm of newton update is " << newton_update.l2_norm()
-                  << std::endl;  
+                  << std::endl;
             pcout << "    Solver converged in " << n_iterations
                   << " iterations." << std::endl;
-            
+
             pcout << "    Updating quadrature point data..." << std::flush;
             update_quadrature_point_history (newton_update);
             pcout << std::endl;
-            
+
             previous_res = compute_residual();
 
             pcout << "  Residual: "
@@ -910,9 +972,9 @@ namespace DeaLAMMPS
   {
     return 1.0;
   }
-  
-  
-  
+
+
+
 
   template <int dim>
   void ElasticProblem<dim>::move_mesh ()
@@ -937,8 +999,8 @@ namespace DeaLAMMPS
             cell->vertex(v) += vertex_displacement;
           }
   }
-  
-  
+
+
 
   template <int dim>
   void ElasticProblem<dim>::output_results () const
@@ -1064,7 +1126,7 @@ namespace DeaLAMMPS
   {
     GridGenerator::hyper_L (triangulation, -1, 1);
     for (typename Triangulation<dim>::active_cell_iterator cell = triangulation.begin_active();
-             cell != triangulation.end(); 
+             cell != triangulation.end();
                 ++cell)
        for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
           if (cell->face(f)->at_boundary())
@@ -1116,13 +1178,13 @@ namespace DeaLAMMPS
 
 	  setup_quadrature_point_history ();
   }
-  
-  
+
+
 
   template <int dim>
   void ElasticProblem<dim>::do_timestep ()
   {
-    
+
     present_time += present_timestep;
     ++timestep_no;
     pcout << "Timestep " << timestep_no << " at time " << present_time
@@ -1134,14 +1196,14 @@ namespace DeaLAMMPS
       }
 
     incremental_displacement = 0;
-    
+
     set_boundary_values ();
     // The call of the update of stresses here is quite odd, since 'incremental_displacement'
     // is null with the exception of the applied boundary conditions.
     // Should we call LAMMPS to compute the stresses update induced by this displacement
     // increment?
     update_quadrature_point_history (incremental_displacement);
-    
+
     solve_timestep ();
 
     solution+=incremental_displacement;
@@ -1154,70 +1216,17 @@ namespace DeaLAMMPS
   }
 
 
-  // Declare this function out of the DeaLAMMPS namespace if possible. 
-  // That would complete the uncoupling of Deal and LAMMPS.
+
   template <int dim>
-  SymmetricTensor<2,dim> ElasticProblem<dim>::
-  lammps_local_testing (const SymmetricTensor<2,dim> strains)
+  void ElasticProblem<dim>::run (int argc, char **argv)
   {
-	  SymmetricTensor<2,dim> stresses;
+    dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
-	  int me,nprocs;
-	  MPI_Comm_rank(MPI_COMM_WORLD,&me);
-	  MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
-
-	  int nprocs_lammps = nprocs;
-
-	  int lammps;
-	  if (me < nprocs_lammps) lammps = 1;
-	  else lammps = MPI_UNDEFINED;
-	  MPI_Comm comm_lammps;
-	  MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
-
-	  FILE *fp;
-	  if (me == 0)
-	  {
-		  fp = fopen("./in.lammps.strain","r");
-		  if (fp == NULL)
-		  {
-			  printf("ERROR: Could not open LAMMPS input script\n");
-			  MPI_Abort(MPI_COMM_WORLD,1);
-		  }
-	  }
-
-	  LAMMPS *lmp = NULL;
-
-	  if (lammps == 1) lmp = new LAMMPS(0,NULL,comm_lammps);
-
-	  int n;
-	  char line[1024];
-	  while (1)
-	  {
-		  if (me == 0)
-		  {
-			  if (fgets(line,1024,fp) == NULL) n = 0;
-			  else n = strlen(line) + 1;
-			  if (n == 0) fclose(fp);
-		  }
-		  MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
-		  if (n == 0) break;
-		  MPI_Bcast(line,n,MPI_CHAR,0,MPI_COMM_WORLD);
-		  if (lammps == 1) lammps_command(lmp,line);
-	  }
-
-	  return stresses;
-  }
- 
-  
-  
-  template <int dim>
-  void ElasticProblem<dim>::run ()
-  {
     present_time = 0;
     present_timestep = 1;
     end_time = 10;
     timestep_no = 0;
-    
+
     make_grid ();
 
     pcout << "    Number of active cells:       "
@@ -1228,7 +1237,7 @@ namespace DeaLAMMPS
             << (GridTools::
                 count_cells_with_subdomain_association (triangulation,p));
     pcout << ")" << std::endl;
-              
+
     setup_system ();
 
     pcout << "    Number of degrees of freedom: "
@@ -1243,7 +1252,7 @@ namespace DeaLAMMPS
     while (present_time < end_time)
       do_timestep ();
   }
-}  
+}
 
 
 
@@ -1251,14 +1260,10 @@ int main (int argc, char **argv)
 {
   try
     {
-      using namespace DeaLAMMPS;
+      using namespace macro;
 
-      using namespace dealii;
-
-      Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-
-      DeaLAMMPS::ElasticProblem<2> elastic_problem;
-      elastic_problem.run ();
+      ElasticProblem<2> elastic_problem;
+      elastic_problem.run (argc, argv);
     }
   catch (std::exception &exc)
     {

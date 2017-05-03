@@ -44,3 +44,8 @@ pbs.*
 .project
 .ptp-sync/
 .settings/
+
+# OSX hidden files
+.DS_Store
+._.DS_Store
+

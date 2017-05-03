@@ -76,10 +76,118 @@
 
 namespace micro
 {
-  using namespace LAMMPS_NS;
+	using namespace LAMMPS_NS;
 
-  // How to access 'dim' ?
+	// The initiation, namely the preparation of the data from which will
+	// be ran the later tests at every quadrature point, should be ran on
+	// as many processes as available, since it will be the only on going
+	// task at the time it will be called.
+	template <int dim>
+	void
+	lammps_initiation ()
+	{
+		int me,nprocs;
+		MPI_Comm_rank(MPI_COMM_WORLD,&me);
+		MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
 
+		// Meaning all the processes should be used (good idea!)
+		int nprocs_lammps = nprocs;
+
+		int lammps;
+		// I am not quite sure of this condition...
+		if (me < nprocs_lammps) lammps = 1;
+		else lammps = MPI_UNDEFINED;
+		MPI_Comm comm_lammps;
+		MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
+
+		LAMMPS *lmp = NULL;
+		if (lammps == 1) lmp = new LAMMPS(0,NULL,comm_lammps);
+
+		char *infile = "../box/in.init.lammps";
+		lammps_file(lmp,infile);
+
+		// close down LAMMPS
+		delete lmp;
+
+		// close down MPI
+		if (lammps == 1) MPI_Comm_free(&comm_lammps);
+		MPI_Barrier(MPI_COMM_WORLD);
+		MPI_Finalize();
+	}
+
+
+	// The local_testing function is ran on every quadrature point which
+	// requires a stress_update, therefore as long as there is more than
+	// one quadrature point per process, there can only be one process per
+	// lammps instantiation of local_testing.
+	template <int dim>
+	std::vector<double>
+	lammps_local_testing (const std::vector<double>& strains)
+	{
+		std::vector<double> stresses (2*dim);
+
+		int me,nprocs;
+		MPI_Comm_rank(MPI_COMM_WORLD,&me);
+		MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
+
+		// Meaning all the processes should be used (not a good idea...)
+		int nprocs_lammps = nprocs;
+
+		int lammps;
+		// I am not quite sure of this condition...
+		if (me < nprocs_lammps) lammps = 1;
+		else lammps = MPI_UNDEFINED;
+		MPI_Comm comm_lammps;
+		MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
+
+
+		double dts = 2.0; // timestep length
+		int nts = 1000; // number of timesteps
+
+//		strains[0] = 0.147414; strains[1] = 0.2582258; strains[2] = 0.363693;
+//		strains[3] = 0.123133; strains[4] = 0.4564564; strains[5] = 0.789789;
+
+		// run the input script thru LAMMPS one line at a time until end-of-file
+		// driver proc 0 reads a line, Bcasts it to all procs
+		// (could just send it to proc 0 of comm_lammps and let it Bcast)
+		// all LAMMPS procs call input->one() on the line
+
+		LAMMPS *lmp = NULL;
+		if (lammps == 1) lmp = new LAMMPS(0,NULL,comm_lammps);
+
+		char *infile = "../box/in.strain.lammps";
+		lammps_file(lmp,infile);
+
+		int ncmds = 3;
+		char lines[ncmds][1024];
+		char *cmds[ncmds];
+
+		sprintf(lines[0],
+				"fix 1 all deform 1  x erate %f  y erate %f  z erate %f"
+				" xy erate %f xz erate %f yz erate %f"
+				" remap x",
+				strains[0]/(nts*dts),strains[1]/(nts*dts),strains[2]/(nts*dts),
+				strains[3]/(nts*dts),strains[4]/(nts*dts),strains[5]/(nts*dts));
+
+		sprintf(lines[1], "timestep %f", dts);
+		sprintf(lines[2], "run %d", nts);
+		for(int i=0;i<ncmds;i++) cmds[i]=lines[i];
+//		for(int i=0;i<ncmds;i++) printf("%s\n",cmds[i]);
+
+		// Avoid multiple "runs" with one command_list as the second and successive
+		// "runs" are not executed for an unkown reason...
+		if (lammps == 1) lammps_commands_list(lmp,ncmds,cmds);
+
+		// close down LAMMPS
+		delete lmp;
+
+		// close down MPI
+		if (lammps == 1) MPI_Comm_free(&comm_lammps);
+		MPI_Barrier(MPI_COMM_WORLD);
+		MPI_Finalize();
+
+		return stresses;
+	}
 }
 
 
@@ -90,73 +198,6 @@ namespace macro
   using namespace dealii;
 
   template <int dim>
-  std::vector<double>
-  lammps_local_testing (const std::vector<double> strains)
-  {
-    using namespace LAMMPS_NS;
-    std::vector<double> stresses (2*dim);
-
-    int me,nprocs;
-    MPI_Comm_rank(MPI_COMM_WORLD,&me);
-    MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
-
-    int nprocs_lammps = nprocs;
-
-    int lammps;
-    if (me < nprocs_lammps) lammps = 1;
-    else lammps = MPI_UNDEFINED;
-    MPI_Comm comm_lammps;
-    MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
-
-    double dts = 2.0; // timestep length
-    int nts; // number of timesteps
-
-    FILE *fp;
-    if (me == 0)
-    {
-      fp = fopen("../box/in.lammps.strain","r");
-      if (fp == NULL)
-      {
-        printf("ERROR: Could not open LAMMPS input script\n");
-        MPI_Abort(MPI_COMM_WORLD,1);
-
-        // Append fp with lines corresponding to applying fix deform, timestep, and run
-        //blah='run/timestep/fix deform blablabla'
-        // fp +='fix             1 all deform 1  x erate (strains[0]/(nts*dts)) remap x &
-                                      //   y erate (strains[1]/(nts*dts)) remap x &
-                                      //   z erate (strains[2]/(nts*dts)) remap x &
-                                      //  xy erate (strains[3]/(nts*dts)) remap x &
-                                      //  xz erate (strains[4]/(nts*dts)) remap x &
-                                      //  yz erate (strains[5]/(nts*dts)) remap x'
-       // fp +='timestep        dts'
-       // fp +='run             nts'
-      }
-    }
-
-    LAMMPS *lmp = NULL;
-
-    if (lammps == 1) lmp = new LAMMPS(0,NULL,comm_lammps);
-
-    int n;
-    char line[1024];
-    while (1)
-    {
-      if (me == 0)
-      {
-        if (fgets(line,1024,fp) == NULL) n = 0;
-        else n = strlen(line) + 1;
-        if (n == 0) fclose(fp);
-      }
-      MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
-      if (n == 0) break;
-      MPI_Bcast(line,n,MPI_CHAR,0,MPI_COMM_WORLD);
-      if (lammps == 1) lammps_command(lmp,line);
-    }
-
-    return stresses;
-  }
-
-  template <int dim>
   struct PointHistory
   {
     SymmetricTensor<2,dim> old_stress;
@@ -165,6 +206,13 @@ namespace macro
     SymmetricTensor<2,dim> new_strain;
   };
 
+  template <int dim>
+  double
+  test_function (double strains)
+  {
+	  double stresses = strains;
+	  return stresses;
+  }
 
   template <int dim>
   SymmetricTensor<4,dim>
@@ -728,12 +776,15 @@ namespace macro
 
   // How to proceed such that the update of the stres state of each
   // quadrature point is run concurrently?
+  // It should be fine, every process on which the mesh is split will
+  // run concurrently the lammps call forthe quadrature points which
+  // are allocated to it.
   template <int dim>
   void ElasticProblem<dim>::update_quadrature_point_history
         (const Vector<double>& displacement_update)
   {
     std::vector<double> strain_vector (2*dim),
-                        stress_vector (2*dim);
+    					stress_vector (2*dim);
 
     FEValues<dim> fe_values (fe, quadrature_formula,
                              update_values | update_gradients);
@@ -772,17 +823,21 @@ namespace macro
         	  local_quadrature_points_history[q].old_stress =
         			  local_quadrature_points_history[q].new_stress;
 
-            // Convert SymmetricTensor<2,dim> new_strain to a 2*dim component vector
-            //local_quadrature_points_history[q].new_strain = strain_vector;
+              // Convert SymmetricTensor<2,dim> new_strain to a 2*dim component vector
+              //strain_vector=local_quadrature_points_history[q].new_strain;
 
         	  // Then the lammps function instanciates lammps, starting from an initial
         	  // microstructure and applying the complete new_strain or starting from
         	  // the microstructure at the old_strain and applying the difference between
         	  // the new_ and _old_strains, returns the new_stress state.
-        	  stress_vector = lammps_local_testing (strain_vector);
 
-            // Convert 2*dim component vector new_stress to a SymmetricTensor<2,dim>
-            //local_quadrature_points_history[q].new_stress = stress_vector;
+			  // When more than one process will be available for each lammps testing
+        	  // there should be a counter on the number of parallel instantiations (N)
+        	  // to provide the correct number of processes (i)/(N) to each lammps testing.
+        	  stress_vector = micro::lammps_local_testing<dim> (strain_vector);
+
+              // Convert 2*dim component vector new_stress to a SymmetricTensor<2,dim>
+              //local_quadrature_points_history[q].new_stress = stress_vector;
 
         	  // Apply rotation of the sample to all the state tensors
               /*const Tensor<2,dim> rotation
@@ -1240,7 +1295,14 @@ namespace macro
   template <int dim>
   void ElasticProblem<dim>::run (int argc, char **argv)
   {
+	// The MPI communicator should be initialized with the maximum value between
+	// (argv[0] which is (i)?) and the most efficient parallelization of deal.ii.
     dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
+
+    // Since LAMMPS is highly scalable, the initiation number of processes (iii)
+    // can basically be equal to the maximum number of available processes (i) which
+    // can directly be found in the MPI_COMM.
+    micro::lammps_initiation<dim> ();
 
     present_time = 0;
     present_timestep = 1;
@@ -1275,7 +1337,11 @@ namespace macro
 }
 
 
-
+// There are several number of processes encountered: (i) the highest provided
+// as an argument to aprun, (ii) the number of processes provided to deal.ii
+// [arbitrary], (iii) the number of processes provided to the lammps initiation
+// [as close as possible to (i)], and the number of processes provided to lammps
+// testing [(i) divided by the number of concurrent testing boxes].
 int main (int argc, char **argv)
 {
   try

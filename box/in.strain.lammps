@@ -6,15 +6,15 @@
 ## suffix OMP
 
 ##  -------------------------------------------
+#   Reading data from the initialization simulation which computes a minimization
+#   and a succession of heatup and cooldown processes.
+#read_data      PE_init_end.lammps05 #(in wrapper)
+
+##  -------------------------------------------
 #   Initialization settings
 
 variable fname index PE_stress_strain_x.dat
 variable simname index PE_stress_strain_x
-
-##  -------------------------------------------
-#   Reading data from the initialization simulation which computes a minimization
-#   and a succession of heatup and cooldown processes.
-read_data      PE_init_end.lammps05
 
 ##  -------------------------------------------
 #   Calculate the stress-strain curve for uniaxial extension in the x direction
@@ -79,15 +79,15 @@ fix             def2 all print 100 "${p1} ${t2} ${t3} ${t4} ${t5}" file ${simnam
 #  a relaxation time of 1000fs
 fix             3 all npt temp 200.0 200.0 100 z 1.0 1.0 1000 y 1.0 1.0 1000
 
+# Note: these computes are present by default in any input script
+#compute thermo_press all temp
+#compute thermo_press all pressure thermo_temp
+
 #  Computing the temperature for all atoms, and using the result of this temp
 #  compute for the compute of the pressure (including as well the stress tensor)
 #  which requires the temperature to compute the part induced by kinetic energy.
 compute         th1 all temp
-compute         pr1 all pressure thermo_temp
-
-# Present by default in any input script
-#compute thermo_press all temp
-#compute thermo_press all pressure thermo_temp
+#compute         pr1 all pressure thermo_temp  #(in wrapper)
 
 #  Setting a strain constraint every 1 steps in the x-direction on the box at a strain rate of 1e-7 fs-1, position of
 #  all atoms positions are remapped following an affine transformation, namely proportional to the box deformation.
@@ -101,10 +101,10 @@ compute         pr1 all pressure thermo_temp
 #                                z erate (eps_zz/(nts*dts)) remap x &
 #                               xy erate (eps_xy/(nts*dts)) remap x &
 #                               xz erate (eps_xz/(nts*dts)) remap x &
-#                               yz erate (eps_yz/(nts*dts)) remap x
+#                               yz erate (eps_yz/(nts*dts)) remap x  #(in wrapper)
 
 #  Setting 2fs timesteps
-#timestep        dts #2.0
+#timestep        dts #2.0  #(in wrapper)
 
 #  Running a molecular dynamics simulation for 2000000 timesteps
-#run             nts #2000000
+#run             nts #2000000  #(in wrapper)

@@ -10,8 +10,12 @@ A second file is available, that should be called by DeaLAMMPS at every stress u
 
 The second file applies the given strain (fix deform) to an existing sample box and returns the homogenized stress (compute pressure).
 
+The initial state of the testing box is restored from the binary data recorded either at the end of the initialization simulation or at the end of the previous stress update from that exact quadrature point. The choice is given in the C++ wrapper.
+
+The wrapper retrieves the compute stress as a vector and converts it to a standard square rank 2 tensor.
+
 ## Future work:
 
-The box should be restored from the binary data recorded either at the end of the initialization simulation or at the end of the previous stress update from that exact quadrature point.
+Define a unique ID for each quadrature point (e.q. composed of cell_id and local_quad_point_id).
 
-The definition of the given strain and the choice of the restored data should be left to be set by the main C++ wrapper (dealammps.cpp).
+Check the whole interplay of the two namespaces and write tests...

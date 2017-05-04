@@ -892,6 +892,7 @@ namespace macro
               int narg = 2;
               char *larg[1024];
               int nprocs = 1;
+              // Check that nprocs * nlammps calls is lower than total allocated processes.
               sprintf(larg[1], "%d", nprocs);
 
               // Rather than an int, build an ID as cell_num.quad_num

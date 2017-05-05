@@ -571,8 +571,8 @@ namespace macro
     Assert (values.size() == dim,
             ExcDimensionMismatch (values.size(), dim));
 
-    values = 0;
-    values(dim-1) = -present_timestep * velocity;
+    // All parts of the vector values are initiated to the given scalar.
+    values = present_timestep * velocity;
   }
 
 
@@ -655,21 +655,23 @@ namespace macro
   template <int dim>
   void ElasticProblem<dim>::set_boundary_values ()
   {
+    FEValuesExtractors::Scalar t_component (dim-3);
     FEValuesExtractors::Scalar h_component (dim-2);
     FEValuesExtractors::Scalar v_component (dim-1);
     std::map<types::global_dof_index,double> boundary_values;
     VectorTools::
     interpolate_boundary_values (dof_handler,
-                                 1,
-                                 ZeroFunction<dim> (dim),
+                                 12,
+								 ZeroFunction<dim>(dim),
                                  boundary_values);
+
     VectorTools::
     interpolate_boundary_values (dof_handler,
-                                 2,
+                                 22,
                                  IncrementalBoundaryValues<dim>(present_time,
                                                                 present_timestep),
                                  boundary_values,
-                                 fe.component_mask(v_component));
+                                 fe.component_mask(h_component));
 
     for (std::map<types::global_dof_index, double>::const_iterator
        p = boundary_values.begin();
@@ -771,18 +773,24 @@ namespace macro
     system_matrix.compress(VectorOperation::add);
     system_rhs.compress(VectorOperation::add);
 
+    FEValuesExtractors::Scalar t_component (dim-3);
     FEValuesExtractors::Scalar h_component (dim-2);
     FEValuesExtractors::Scalar v_component (dim-1);
     std::map<types::global_dof_index,double> boundary_values;
-    VectorTools::interpolate_boundary_values (dof_handler,
-                                              1,
-                                              ZeroFunction<dim>(dim),
-                                              boundary_values);
-    VectorTools::interpolate_boundary_values (dof_handler,
-                                              2,
-                                              ZeroFunction<dim>(dim),
-                                              boundary_values,
-                                              fe.component_mask(v_component));
+
+    VectorTools::
+    interpolate_boundary_values (dof_handler,
+                                 12,
+								 ZeroFunction<dim>(dim),
+                                 boundary_values);
+
+    VectorTools::
+    interpolate_boundary_values (dof_handler,
+                                 22,
+								 ZeroFunction<dim>(dim),
+                                 boundary_values,
+                                 fe.component_mask(h_component));
+
     PETScWrappers::MPI::Vector tmp (locally_owned_dofs,mpi_communicator);
     MatrixTools::apply_boundary_values (boundary_values,
                                         system_matrix,
@@ -1269,17 +1277,29 @@ namespace macro
   template <int dim>
   void ElasticProblem<dim>::make_grid ()
   {
-    GridGenerator::hyper_L (triangulation, -1, 1);
+	std::vector< unsigned int > sizes (GeometryInfo<dim>::faces_per_cell);
+	sizes[0] = 0; sizes[1] = 1;
+	sizes[2] = 0; sizes[3] = 1;
+	sizes[4] = 0; sizes[5] = 0;
+	GridGenerator::hyper_cross(triangulation, sizes);
     for (typename Triangulation<dim>::active_cell_iterator cell = triangulation.begin_active();
              cell != triangulation.end();
                 ++cell)
        for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
           if (cell->face(f)->at_boundary())
            {
-             if (cell->face(f)->center()[0] == 1.0)
-                cell->face(f)->set_boundary_id (1);
-             if (cell->face(f)->center()[1] == 1.0)
-                cell->face(f)->set_boundary_id (2);
+              if (cell->face(f)->center()[0] == -0.5)
+                 cell->face(f)->set_boundary_id (11);
+              if (cell->face(f)->center()[0] == 1.5)
+                 cell->face(f)->set_boundary_id (12);
+              if (cell->face(f)->center()[1] == -0.5)
+                 cell->face(f)->set_boundary_id (21);
+              if (cell->face(f)->center()[1] == 1.5)
+                 cell->face(f)->set_boundary_id (22);
+              if (cell->face(f)->center()[2] == -0.5)
+                 cell->face(f)->set_boundary_id (31);
+              if (cell->face(f)->center()[2] == 0.5)
+                 cell->face(f)->set_boundary_id (32);
            }
     triangulation.refine_global (3);
   }
@@ -1418,7 +1438,7 @@ int main (int argc, char **argv)
     {
       using namespace macro;
 
-      ElasticProblem<2> elastic_problem;
+      ElasticProblem<3> elastic_problem;
       elastic_problem.run (argc, argv);
     }
   catch (std::exception &exc)

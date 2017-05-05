@@ -17,7 +17,22 @@
  * Author: Wolfgang Bangerth, University of Heidelberg, 2000
  */
 
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <iomanip>
 
+#include "mpi.h"
+#include "lammps.h"
+#include "input.h"
+#include "library.h"
+#include "atom.h"
+
+// To avoid conflicts...
+// pointers.h in input.h defines MIN and MAX
+// which are later redefined in petsc headers
+#undef  MIN
+#undef  MAX
 
 #include <deal.II/grid/tria_boundary_lib.h>
 #include <deal.II/fe/fe_tools.h>
@@ -62,17 +77,6 @@
 #include <deal.II/grid/filtered_iterator.h>
 
 #include <deal.II/base/mpi.h>
-
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <iomanip>
-
-#include "mpi.h"
-#include "lammps.h"
-#include "input.h"
-#include "library.h"
-#include "atom.h"
 
 namespace micro
 {
@@ -185,9 +189,11 @@ namespace micro
 		char infile[1024] = "../box/in.strain.lammps";
 		lammps_file(lmp,infile);
 
+		// Implementation to be checked...
 		int ncmds = 4;
-		char lines[ncmds][1024];
-		char *cmds[ncmds];
+		char **cmds = new char*[ncmds];
+		char **lines = new char*[ncmds];
+		for(int i=0;i<ncmds;i++)  lines[i] = new char[1024];
 
 		char cmptid[1024] = "pr1";
 		double *pressure_scalar;

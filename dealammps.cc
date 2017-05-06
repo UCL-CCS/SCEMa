@@ -140,7 +140,7 @@ namespace micro
 	lammps_local_testing (int narg,
 						  char **arg,
 						  const std::vector<std::vector<double> >& strains,
-						  int qptid)
+						  char* qptid)
 	{
 		std::vector<std::vector<double> >
 			stresses (dim, std::vector<double> (dim));
@@ -183,7 +183,7 @@ namespace micro
 //		char indata[1024] = "PE_strain_end.lammps05";
 
 		sprintf(linit, "read_data %s", indata);
-//		sprintf(linit, "read_data %d.%s", qptid, indata);
+//		sprintf(linit, "read_data %s.%s", qptid, indata);
 		lammps_command(lmp,linit);
 
 		char infile[1024] = "../box/in.strain.lammps";
@@ -229,7 +229,7 @@ namespace micro
 		char lend[1024];
 		char outdata[1024] = "PE_strain_end.lammps05";
 
-		sprintf(lend, "write_data %d.%s", qptid, outdata);
+		sprintf(lend, "write_data %s.%s", qptid, outdata);
 		lammps_command(lmp,linit);
 
 		// close down LAMMPS
@@ -887,15 +887,9 @@ namespace macro
         	  local_quadrature_points_history[q].old_stress =
         			  local_quadrature_points_history[q].new_stress;
 
-              // Convert SymmetricTensor<2,dim> new_strain to a 2*dim component vector
-//        	  int n = 0, p = 2;
-//        	  for (unsigned int k=0; k<dim; k++)
-//        	  {
-//        		  if ((k+1)%2) n++;
-//        		  if ((k)%2) p++;
-//        		  strain_vector[k] = local_quadrature_points_history[q].new_strain[k][k];
-//        		  strain_vector[dim+k] = local_quadrature_points_history[q].new_strain[n][p];
-//        	  }
+        	  // Conversion of the dealii::symmetrictensor into a std::vector<vector>
+        	  // in order to pass it to the lammps function without using deal.ii depepent
+        	  // types.
               for(unsigned int k=0;k<dim;k++)
                 for(unsigned int l=0;l<dim;l++)
                   strain_vvector[k][l] = local_quadrature_points_history[q].new_strain[k][l];
@@ -904,13 +898,15 @@ namespace macro
         	  // there should be a counter on the number of parallel instantiations (N)
         	  // to provide the correct number of processes (i)/(N) to each lammps testing.
               int narg = 2;
-              char *larg[1024];
+              char **larg = new char*[narg];
+              		for(int i=0;i<narg;i++)  larg[i] = new char[1024];
               int nprocs = 1;
               // Check that nprocs * nlammps calls is lower than total allocated processes.
               sprintf(larg[1], "%d", nprocs);
 
-              // Rather than an int, build an ID as cell_num.quad_num
-              int quad_id = 0;
+              // Rather than an int, build an ID as a unique string cell_num.quad_loc_num
+              char *quad_id = new char[1024];
+              sprintf(quad_id, "%d.%d", cell->index(), q);
 
         	  // Then the lammps function instanciates lammps, starting from an initial
         	  // microstructure and applying the complete new_strain or starting from

@@ -88,7 +88,9 @@ namespace micro
 	// task at the time it will be called.
 	template <int dim>
 	void
-	lammps_initiation (int narg, char **arg)
+	lammps_initiation (int narg, char **arg,
+					   std::vector<std::vector<double> >& init_strains,
+					   std::vector<std::vector<double> >& init_stress)
 	{
 		MPI_Init(&narg,&arg);
 
@@ -120,6 +122,9 @@ namespace micro
 
 		char infile[1024] = "../box/in.init.lammps";
 		lammps_file(lmp,infile);
+
+		// In order to compute an initial elastic stiffness tensor, determine a couple
+		// strain/stress tensors to return to the calling function in deal.ii
 
 		// close down LAMMPS
 		delete lmp;
@@ -271,9 +276,7 @@ namespace macro
 
   template <int dim>
   SymmetricTensor<4,dim>
-  linear_stress_strain_tensor (const SymmetricTensor<2,dim> old_epsilon,
-		  	  	  	  	  	   const SymmetricTensor<2,dim> old_sigma,
-							   const SymmetricTensor<2,dim> new_epsilon,
+  linear_stress_strain_tensor (const SymmetricTensor<2,dim> new_epsilon,
 		  	  	  	  	  	   const SymmetricTensor<2,dim> new_sigma)
   {
     SymmetricTensor<4,dim> tmp;
@@ -1391,10 +1394,26 @@ namespace macro
 	// (argv[0] which is (i)?) and the most efficient parallelization of deal.ii.
     dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
+    //
+    SymmetricTensor<2,dim> init_strain, init_stress;
+    std::vector<std::vector<double> >
+    		init_strain_vvector (dim, std::vector<double> (dim)),
+    	    init_stress_vvector (dim, std::vector<double> (dim));
+
     // Since LAMMPS is highly scalable, the initiation number of processes (iii)
     // can basically be equal to the maximum number of available processes (i) which
     // can directly be found in the MPI_COMM.
-    micro::lammps_initiation<dim> (argc, argv);
+    micro::lammps_initiation<dim> (argc, argv, init_strain_vvector, init_stress_vvector);
+
+    // Using the returned data (stress and strain tensors) compute an elastic
+    // stiffness tensor.
+    // How many tests should we run to get a complete elastic stiffness tensor? In a
+    // completely anisotrpic material there are 36 parameters to identify. We therefore
+    // need 36 independent equations.
+    // If we assume an elastic Hookean material, only 2 parameters are necessary. Can
+    // LAMMPS provide directly the Lamé coefficients?
+    SymmetricTensor<4,dim> elastic_stifness
+		= linear_stress_strain_tensor(init_strain, init_stress);
 
     present_time = 0;
     present_timestep = 1;

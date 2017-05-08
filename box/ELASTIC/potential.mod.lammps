@@ -1,0 +1,24 @@
+# NOTE: This script can be modified for different pair styles
+# See in.elastic for more info.
+
+# Choose potential
+#pair_style	sw
+pair_style      lj/cut/coul/long 12.0 9.0
+#pair_coeff * * Si.sw Si
+
+# Setup neighbor style
+#neighbor 1.0 nsq
+neighbor        2.0 bin
+#neigh_modify once no every 1 delay 0 check yes
+neigh_modify    every 1 delay 5 check yes
+
+kspace_style    pppm 0.0001
+
+# Setup minimization style
+#min_style	     cg
+#min_modify	     dmax ${dmax} line quadratic
+
+# Setup output
+#thermo		1
+#thermo_style custom step temp pe press pxx pyy pzz pxy pxz pyz lx ly lz vol
+#thermo_modify norm no

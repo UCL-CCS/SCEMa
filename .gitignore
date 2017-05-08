@@ -44,6 +44,7 @@ pbs.*
 .project
 .ptp-sync/
 .settings/
+.pydevproject
 
 # OSX hidden files
 .DS_Store

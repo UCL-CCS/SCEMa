@@ -42,17 +42,13 @@
 #  that minimization is not required, you can set maxiter = 0.0 in
 #  init.mod.
 #
-print "========================================="
-variable location equal "../box/ELASTIC"
-include ${location}/init.mod.lammps
-
-print "========================================="
-
-#include ${location}/potential.mod.lammps
+print "Location = ${locbe}"
+include ${locbe}/init.mod.lammps
+include ${locbe}/potential.mod.lammps
 
 # Compute initial state
-#fix 3 all box/relax  aniso 0.0
-#minimize ${etol} ${ftol} ${maxiter} ${maxeval} # Should be done already
+fix 3 all box/relax  aniso 0.0
+minimize ${etol} ${ftol} ${maxiter} ${maxeval} # Should be done already
 
 variable tmp equal pxx
 variable pxx0 equal ${tmp}
@@ -76,15 +72,12 @@ variable lz0 equal ${tmp}
 
 # These formulas define the derivatives w.r.t. strain components
 # Constants uses $, variables use v_
-# What is "cfac"??
 variable d1 equal -(v_pxx1-${pxx0})/(v_delta/v_len0)*${cfac}
 variable d2 equal -(v_pyy1-${pyy0})/(v_delta/v_len0)*${cfac}
 variable d3 equal -(v_pzz1-${pzz0})/(v_delta/v_len0)*${cfac}
 variable d4 equal -(v_pyz1-${pyz0})/(v_delta/v_len0)*${cfac}
 variable d5 equal -(v_pxz1-${pxz0})/(v_delta/v_len0)*${cfac}
 variable d6 equal -(v_pxy1-${pxy0})/(v_delta/v_len0)*${cfac}
-
-print "========================================="
 
 displace_atoms all random ${atomjiggle} ${atomjiggle} ${atomjiggle} 87287 units box
 
@@ -95,32 +88,32 @@ write_restart restart.equil
 # uxx Perturbation
 
 variable dir equal 1
-include ${location}/displace.mod.lammps
+include ${locbe}/displace.mod.lammps
 
 # uyy Perturbation
 
 variable dir equal 2
-include ${location}/displace.mod.lammps
+include ${locbe}/displace.mod.lammps
 
 # uzz Perturbation
 
 variable dir equal 3
-include ${location}/displace.mod.lammps
+include ${locbe}/displace.mod.lammps
 
 # uyz Perturbation
 
 variable dir equal 4
-include ${location}/displace.mod.lammps
+include ${locbe}/displace.mod.lammps
 
 # uxz Perturbation
 
 variable dir equal 5
-include ${location}/displace.mod.lammps
+include ${locbe}/displace.mod.lammps
 
 # uxy Perturbation
 
 variable dir equal 6
-include ${location}/displace.mod.lammps
+include ${locbe}/displace.mod.lammps
 
 # Output final values
 

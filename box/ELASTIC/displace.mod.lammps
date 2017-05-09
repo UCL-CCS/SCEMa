@@ -21,8 +21,7 @@ if "${dir} == 6" then &
 clear
 box tilt large
 read_restart restart.equil
-# Why do you need to reinclude this configuration???
-#include ${location}/potential.mod.lammps
+include ${locbe}/potential.mod.lammps
 
 # Negative deformation
 
@@ -30,6 +29,7 @@ variable delta equal -${up}*${len0}
 variable deltaxy equal -${up}*xy
 variable deltaxz equal -${up}*xz
 variable deltayz equal -${up}*yz
+
 if "${dir} == 1" then &
    "change_box all x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap units box"
 if "${dir} == 2" then &
@@ -76,7 +76,7 @@ variable C6neg equal ${d6}
 clear
 box tilt large
 read_restart restart.equil
-#include ${location}/potential.mod.lammps
+include ${locbe}/potential.mod.lammps
 
 # Positive deformation
 

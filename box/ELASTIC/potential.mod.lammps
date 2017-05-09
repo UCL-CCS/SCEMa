@@ -2,23 +2,18 @@
 # See in.elastic for more info.
 
 # Choose potential
-#pair_style	sw
-pair_style      lj/cut/coul/long 12.0 9.0
-#pair_coeff * * Si.sw Si
+pair_style      lj/cut/coul/long 12.0 9.0   # Might have to redefine after restart
 
 # Setup neighbor style
-#neighbor 1.0 nsq
-neighbor        2.0 bin
-#neigh_modify once no every 1 delay 0 check yes
-neigh_modify    every 1 delay 5 check yes
+neighbor        2.0 bin   # Might have to redefine after restart
+neigh_modify    every 1 delay 5 check yes   # Might have to redefine after restart
 
-kspace_style    pppm 0.0001
+kspace_style    pppm 0.0001   # Might have to redefine after restart
 
 # Setup minimization style
-#min_style	     cg
-#min_modify	     dmax ${dmax} line quadratic
+min_style	     sd
 
 # Setup output
-#thermo		1
-#thermo_style custom step temp pe press pxx pyy pzz pxy pxz pyz lx ly lz vol
-#thermo_modify norm no
+thermo	     	500
+thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz
+thermo_modify   flush yes line multi format float %g format 3 %15.8g

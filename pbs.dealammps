@@ -2,7 +2,7 @@
 #PBS -N dealammps
 #PBS -l select=1
 #PBS -l walltime=0:15:0
-#PBS -A e283
+#PBS -A e283-maxime
 #PBS -q short
 #PBS -e error.dealammps
 #PBS -o output.dealammps

@@ -7,7 +7,7 @@
 ##  input file.
 
 ## Should we optimize the lammps call depending on the computer setup?
-## suffix OMP 
+## suffix OMP
 
 #  Setting units convention for the rest of the file
 units           real            # default
@@ -57,7 +57,7 @@ dihedral_style  harmonic
 improper_style  none
 
 #  Setting data input source for atoms initial positions, masses, bonds, and potential parameters
-read_data       PE.lammps05   # read LAMMPS data file
+read_data       ${locb}/PE.lammps05   # read LAMMPS data file
 
 ##  Triclinic box: the current box generated from the above data file
 ##  'PE.lammps05' is an orthogonal box. It is necessary to force switch to
@@ -108,7 +108,7 @@ min_style       sd   # energy minimisation
 
 #  Running a free energy minimization simulation with stopping criteria in energy and force, and iteration number
 #  limitations (purpose: finding atoms position)
-minimize        1.0e-7 1.0e-11 3000   50000
+minimize        1.0e-7 1.0e-11 1000   50000   # 1.0e-7 1.0e-11 3000   50000
 
 
 
@@ -118,44 +118,43 @@ minimize        1.0e-7 1.0e-11 3000   50000
 
 #  Setting printing position information on all atoms every 5000 steps in PE_heatup.xyz file specifying
 #  atom type 1, 2 and 3 with names respectively C, C and H
-dump            xyz_dump all xyz 5000    PE_heatup.xyz   # XYZ dump files for visualisation with VMD
-dump_modify     xyz_dump element  C C H
+#dump            xyz_dump all xyz 5000    PE_heatup.xyz   # XYZ dump files for visualisation with VMD
+#dump_modify     xyz_dump element  C C H
 
 #  Setting a displacement constraint on all atoms which mass is 1.0 (hydrogen), constraint consist in maintaining
 #  bond length or angles involving these atoms constant, the iterative solution algorithm to apply these constraint
 #  is terminated after error below 0.001 or 20 iterations, information printed every 1000 steps
-fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixed
+#fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixed
 
 #  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is brought from 100K
 #  to 500K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with a relaxation time of
 #  1000fs
-fix             3 all npt temp 100.0 500.0 100.0  iso 1.0 1.0 1000
+#fix             3 all npt temp 100.0 500.0 100.0  iso 1.0 1.0 1000
 
 #  Setting 2fs timesteps for a Verlet time solution algorithm/integrator
-timestep        2.0 # 2fs - when used with SHAKE
-run_style       verlet
+#timestep        2.0 # 2fs - when used with SHAKE
+#run_style       verlet
 
 #  Running a molecular dynamics simulation for 100000 timesteps
-run             100000
+#run             100000
 
 #  Releasing previxou fix 3 and setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature
 #  is brought from 500K to 500K (constant) with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant)
 #  with a relaxation time of 1000fs
-unfix           3
-fix             3 all npt temp 500.0 500.0 100.0  iso 1.0 1.0 1000
+#unfix           3
+#fix             3 all npt temp 500.0 500.0 100.0  iso 1.0 1.0 1000
 
 #  Running a molecular dynamics simulation for 100000 timesteps
-run             100000
+#run             100000
 
 #  Releasing previxou fix 3 and setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature
 #  is brought from 500K to 200K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with
 #  a relaxation time of 1000fs
-unfix           3
-fix             3 all npt temp 500.0 200.0 100.0  iso 1.0 1.0 1000
+#unfix           3
+#fix             3 all npt temp 500.0 200.0 100.0  iso 1.0 1.0 1000
 
 #  Running a molecular dynamics simulation for 100000 timesteps
-run             100000
+#run             100000
 
-#  Writing simulation data in a format readable by read_data in the file polymer_200K.lammps05, to do restart a writing in
-#  a binary format is more appropriate to avoid divergence from the original simulation
-write_data      PE_init_end.lammps05
+#unfix           3
+#unfix           4

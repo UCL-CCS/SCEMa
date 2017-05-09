@@ -88,19 +88,26 @@ namespace micro
 	// task at the time it will be called.
 	template <int dim>
 	std::vector<std::vector<double> >
-	lammps_initiation (int narg, char **arg)
+	lammps_initiation ()
 	{
-		MPI_Init(&narg,&arg);
+		std::vector<std::vector<double> >
+					voigt_stiffness (2*dim, std::vector<double> (2*dim));
+
+		char location[1024] = "../box";
+
+		//MPI_Init();
 
 		int me,nprocs;
 		MPI_Comm_rank(MPI_COMM_WORLD,&me);
 		MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
 
+		printf("Process availability: %d - %d \n", me, nprocs);
+
 		// All the processes should be used (good idea!) therefore "arg[1]"
 		// should be equal to the number of processes allocated to "aprun"
 		// (that is &nprocs?).
-		int nprocs_lammps = atoi(arg[1]);
-		//int nprocs_lammps = nprocs;
+		//int nprocs_lammps = 24;
+		int nprocs_lammps = nprocs;
 		if (nprocs_lammps > nprocs) {
 			if (me == 0)
 				printf("ERROR: LAMMPS cannot use more procs than available\n");
@@ -116,33 +123,55 @@ namespace micro
 		MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
 
 		LAMMPS *lmp = NULL;
-		if (lammps == 1) lmp = new LAMMPS(0,NULL,comm_lammps);
+		if (lammps == 1){
+			lmp = new LAMMPS(0,NULL,comm_lammps);
 
-		std::cout << "   reading and executing in.init.lammps...       " << std::endl;
-		char infile[1024] = "../box/in.init.lammps";
-		lammps_file(lmp,infile);
+			char infile[1024];
+			char linec[1024];
 
-		// Save data to specific file for this quadrature point
-		char lend[1024];
-		char outdata[1024] = "PE_init_end.mstate";
+			sprintf(linec, "variable locb string %s", location);
+			lammps_command(lmp,linec);
+			if (me == 0) std::cout << "   reading and executing in.init.lammps...       " << std::endl;
+			sprintf(infile, "%s/%s", location, "in.init.lammps");
+			lammps_file(lmp,infile);
 
-		sprintf(lend, "write_restart %s", outdata);
-		lammps_command(lmp,lend);
+			sprintf(linec, "write_restart %s", "PE_init_end.mstate");
+			lammps_command(lmp,linec);
 
-		// From a given state, use the 'in.stiffness.lammps' input file that computes
-		// the 21 constants of the 6x6 symmetrical Voigt stiffness tensor.
-		char stfile[1024] = "../box/ELASTIC/in.elastic.lammps";
-		lammps_file(lmp,stfile);
+			/*sprintf(linec, "read_restart %s", "storage/PE_init_end.mstate");
+			lammps_command(lmp,linec);*/
+
+			sprintf(linec, "variable locbe string %s/%s", location, "ELASTIC");
+			lammps_command(lmp,linec);
+			// From a given state, use the 'in.stiffness.lammps' input file that computes
+			// the 21 constants of the 6x6 symmetrical Voigt stiffness tensor.
+			sprintf(infile, "%s/%s", location, "ELASTIC/in.elastic.lammps");
+			lammps_file(lmp,infile);
+		}
+
+	    MPI_Barrier(comm_lammps);
+
+	    if (me == 0) std::cout << "   retrieving stiffness tensor components...     " << std::endl;
+
+	    MPI_Comm_rank(MPI_COMM_WORLD,&me);
+	    std::cout << "    Hello from " << me << std::endl;
+
+	    if (me == 0) std::cout << "   -------     " << std::endl;
+	    MPI_Barrier(MPI_COMM_WORLD);
+
+	    MPI_Comm_rank(comm_lammps,&me);
+	    std::cout << "    Hi from " << me << std::endl;
 
 		// Retrieve the 6x6 Voigt symmetrical stiffness tensor
-		std::vector<std::vector<double> >
-					voigt_stiffness (2*dim, std::vector<double> (2*dim));
-		for(unsigned int k=0;k<dim;k++)
-		   for(unsigned int l=0;l<dim;l++){
+	    if (me == 0) for(unsigned int k=0;k<2*dim;k++)
+		   for(unsigned int l=0;l<2*dim;l++)
+		   {
+			   printf("        ... is C%d%dall", k+1, l+1);
 			   char vcoef[1024];
 			   sprintf(vcoef, "C%d%dall", k+1, l+1);
 			   double *val = (double *) lammps_extract_variable(lmp,vcoef,NULL);
-			   voigt_stiffness[k][l] = *val;
+			   //voigt_stiffness[k][l] = *val;
+			   std::cout << "        ... read " << *val;
 		   }
 
 		// close down LAMMPS
@@ -150,8 +179,7 @@ namespace micro
 
 		// close down MPI
 		if (lammps == 1) MPI_Comm_free(&comm_lammps);
-		MPI_Barrier(MPI_COMM_WORLD);
-		MPI_Finalize();
+		//MPI_Finalize();
 
 		return voigt_stiffness;
 	}
@@ -163,21 +191,19 @@ namespace micro
 	// lammps instantiation of local_testing.
 	template <int dim>
 	std::vector<std::vector<double> >
-	lammps_local_testing (int narg,
-						  char **arg,
-						  const std::vector<std::vector<double> >& strains,
+	lammps_local_testing (const std::vector<std::vector<double> >& strains,
 						  char* qptid)
 	{
 		std::vector<std::vector<double> >
 			stresses (dim, std::vector<double> (dim));
 
-		MPI_Init(&narg,&arg);
+		//MPI_Init(&narg,&arg);
 
 		int me,nprocs;
 		MPI_Comm_rank(MPI_COMM_WORLD,&me);
 		MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
 
-		int nprocs_lammps = atoi(arg[1]);
+		int nprocs_lammps = 12;
 		//int nprocs_lammps = nprocs;
 		if (nprocs_lammps > nprocs) {
 			if (me == 0)
@@ -272,8 +298,7 @@ namespace micro
 
 		// close down MPI
 		if (lammps == 1) MPI_Comm_free(&comm_lammps);
-		MPI_Barrier(MPI_COMM_WORLD);
-		MPI_Finalize();
+		//MPI_Finalize();
 
 		return stresses;
 	}
@@ -435,7 +460,7 @@ namespace macro
   public:
     ElasticProblem ();
     ~ElasticProblem ();
-    void run (int argc, char **argv);
+    void run ();
 
   private:
     void make_grid ();
@@ -937,7 +962,8 @@ namespace macro
         	  // microstructure and applying the complete new_strain or starting from
         	  // the microstructure at the old_strain and applying the difference between
         	  // the new_ and _old_strains, returns the new_stress state.
-        	  stress_vvector = micro::lammps_local_testing<dim> (narg, larg, strain_vvector, quad_id);
+        	  stress_vvector = micro::lammps_local_testing<dim> (strain_vvector, quad_id);
+        	  MPI_Barrier(MPI_COMM_WORLD);
 
               // Convert 2*dim component vector new_stress to a SymmetricTensor<2,dim>
               for(unsigned int k=0;k<dim;k++)
@@ -1413,14 +1439,14 @@ namespace macro
 
 
   template <int dim>
-  void ElasticProblem<dim>::run (int argc, char **argv)
+  void ElasticProblem<dim>::run ()
   {
     // Since LAMMPS is highly scalable, the initiation number of processes (iii)
     // can basically be equal to the maximum number of available processes (i) which
     // can directly be found in the MPI_COMM.
 	pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
     std::vector<std::vector<double> >
-    		voigt_stiffness = micro::lammps_initiation<dim> (argc, argv);
+    		voigt_stiffness = micro::lammps_initiation<dim> ();
 
     pcout << "    Voigt tensor:       " << std::endl;
     for (unsigned int k=0; k<2*dim; ++k){
@@ -1429,10 +1455,16 @@ namespace macro
     	pcout << std::endl;
     }
 
-    // Conversion to 3x3x3x3 stiffness tensor.
-    SymmetricTensor<4,dim> initial_stress_strain_tensor;
+    MPI_Barrier(MPI_COMM_WORLD);
 
-    /*present_time = 0;
+    int me;
+    MPI_Comm_rank(MPI_COMM_WORLD,&me);
+    std::cout << "    Hello from " << me << std::endl;
+
+    // Conversion to 3x3x3x3 stiffness tensor.
+    /*SymmetricTensor<4,dim> initial_stress_strain_tensor;
+
+    present_time = 0;
     present_timestep = 1;
     end_time = 10;
     timestep_no = 0;
@@ -1481,7 +1513,7 @@ int main (int argc, char **argv)
       dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
       ElasticProblem<3> elastic_problem;
-      elastic_problem.run (argc, argv);
+      elastic_problem.run ();
     }
   catch (std::exception &exc)
     {

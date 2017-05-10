@@ -147,32 +147,19 @@ namespace micro
 			// the 21 constants of the 6x6 symmetrical Voigt stiffness tensor.
 			sprintf(infile, "%s/%s", location, "ELASTIC/in.elastic.lammps");
 			lammps_file(lmp,infile);
+
+			// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
+			// by LAMMPS
+			if (me == 0) std::cout << "   retrieving stiffness tensor components...     " << std::endl;
+			for(unsigned int k=0;k<2*dim;k++)
+			   for(unsigned int l=k;l<2*dim;l++)
+			   {
+				   char vcoef[1024];
+				   sprintf(vcoef, "C%d%dall", k+1, l+1);
+				   voigt_stiffness[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
+				   if(k!=l) voigt_stiffness[l][k] = voigt_stiffness[k][l];
+			   }
 		}
-
-	    MPI_Barrier(comm_lammps);
-
-	    if (me == 0) std::cout << "   retrieving stiffness tensor components...     " << std::endl;
-
-	    MPI_Comm_rank(MPI_COMM_WORLD,&me);
-	    std::cout << "    Hello from " << me << std::endl;
-
-	    if (me == 0) std::cout << "   -------     " << std::endl;
-	    MPI_Barrier(MPI_COMM_WORLD);
-
-	    MPI_Comm_rank(comm_lammps,&me);
-	    std::cout << "    Hi from " << me << std::endl;
-
-		// Retrieve the 6x6 Voigt symmetrical stiffness tensor
-	    if (me == 0) for(unsigned int k=0;k<2*dim;k++)
-		   for(unsigned int l=0;l<2*dim;l++)
-		   {
-			   printf("        ... is C%d%dall", k+1, l+1);
-			   char vcoef[1024];
-			   sprintf(vcoef, "C%d%dall", k+1, l+1);
-			   double *val = (double *) lammps_extract_variable(lmp,vcoef,NULL);
-			   //voigt_stiffness[k][l] = *val;
-			   std::cout << "        ... read " << *val;
-		   }
 
 		// close down LAMMPS
 		delete lmp;
@@ -1456,10 +1443,6 @@ namespace macro
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
-
-    int me;
-    MPI_Comm_rank(MPI_COMM_WORLD,&me);
-    std::cout << "    Hello from " << me << std::endl;
 
     // Conversion to 3x3x3x3 stiffness tensor.
     /*SymmetricTensor<4,dim> initial_stress_strain_tensor;

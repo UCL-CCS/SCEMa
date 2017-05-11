@@ -140,22 +140,25 @@ namespace micro
 
 
 	// The local_testing function is ran on every quadrature point which
-	// requires a stress_update, therefore as long as there is more than
-	// one quadrature point per process, there can only be one process per
-	// lammps instantiation of local_testing.
+	// requires a stress_update. Since a quandrature point is only reached*
+	// by a subset of processes N, we should automatically see lammps be
+	// parallelized on the N processes.
 	template <int dim>
 	void
 	lammps_local_testing (const std::vector<std::vector<double> >& strains,
 						  std::vector<std::vector<double> >& stresses,
 						  std::vector<std::vector<double> >& voigt_stiffness,
-						  char* qptid)
+						  char* qptid,
+						  MPI_Comm comm_lammps)
 	{
+
+		int me,nprocs;
+		MPI_Comm_rank(comm_lammps,&me);
+		MPI_Comm_size(comm_lammps,&nprocs);
+
+		/*
 		// Preparation of the local MPI communicators should be prepared in
 		// advance...
-		int me,nprocs;
-		MPI_Comm_rank(MPI_COMM_WORLD,&me);
-		MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
-
 		// Checking the validity of the amount of processes requested
 		int nprocs_lammps = 1;
 		if (nprocs_lammps > nprocs) {
@@ -167,16 +170,18 @@ namespace micro
 		// Selecting the nprocs_lammps first processes for this parallel
 		// instanciation of lammps assigning color lammps=1 and comm_lammps
 		// communicator
-		int lammps;
-		if (me < nprocs_lammps) lammps = 1;
-		else lammps = MPI_UNDEFINED;
+		int is_proc_concerned;
+		if (me < nprocs_lammps) is_proc_concerned = 1;
+		else is_proc_concerned = MPI_UNDEFINED;
 		MPI_Comm comm_lammps;
-		MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
+		MPI_Comm_split(MPI_COMM_WORLD,is_proc_concerned,0,&comm_lammps);
+		*/
 
 		// Creating the corresponding lammps instantiation
 		LAMMPS *lmp = NULL;
 
-		if (lammps == 1){
+		int is_proc_concerned = 1;
+		if (is_proc_concerned == 1){
 			lmp = new LAMMPS(0,NULL,comm_lammps);
 
 			char location[1024] = "../box";
@@ -266,7 +271,7 @@ namespace micro
 		delete lmp;
 
 		// close down the specific MPI communicator
-		if (lammps == 1) MPI_Comm_free(&comm_lammps);
+		//if (is_proc_concerned == 1) MPI_Comm_free(&comm_lammps);
 	}
 }
 
@@ -449,8 +454,8 @@ namespace macro
 
     // This will not be so constant anymore in our HMM: position dependent,
     // history dependent, and computed in an specific function using LAMMPS
-    SymmetricTensor<4,dim> initial_stress_strain_tensor,
-						   stress_strain_tensor;
+    SymmetricTensor<4,dim> 				initial_stress_strain_tensor,
+						   	   	   	   	stress_strain_tensor;
   };
 
 
@@ -591,11 +596,11 @@ namespace macro
   template <int dim>
   ElasticProblem<dim>::ElasticProblem ()
     :
-	  triangulation(MPI_COMM_WORLD),
+	  triangulation(mpi_communicator/*or MPI_COMM_WORLD*/),
 	  dof_handler (triangulation),
 	  fe (FE_Q<dim>(1), dim),
 	  quadrature_formula (2),
-	  mpi_communicator (MPI_COMM_WORLD),
+  	  mpi_communicator (MPI_COMM_WORLD),
 	  n_mpi_processes (Utilities::MPI::n_mpi_processes(mpi_communicator)),
 	  this_mpi_process (Utilities::MPI::this_mpi_process(mpi_communicator)),
 	  pcout (std::cout,(this_mpi_process == 0))
@@ -817,11 +822,7 @@ namespace macro
   }
 
 
-  // How to proceed such that the update of the stres state of each
-  // quadrature point is run concurrently?
-  // It should be fine, every process on which the mesh is split will
-  // run concurrently the lammps call forthe quadrature points which
-  // are allocated to it.
+
   template <int dim>
   void ElasticProblem<dim>::update_quadrature_point_history
         (const Vector<double>& displacement_update)
@@ -843,9 +844,6 @@ namespace macro
     for (typename DoFHandler<dim>::active_cell_iterator
          cell = dof_handler.begin_active();
          cell != dof_handler.end(); ++cell)
-    	// Does that mean that what follows is casted only on max process?
-    	// Meaning that all this loops is sequentially ran for all cell owned
-    	// by the process
     	if (cell->is_locally_owned())
           {
           PointHistory<dim> *local_quadrature_points_history
@@ -877,27 +875,38 @@ namespace macro
                 for(unsigned int l=0;l<dim;l++)
                   strain_vvector[k][l] = local_quadrature_points_history[q].new_strain[k][l];
 
-			  // When more than one process will be available for each lammps testing
-        	  // there should be a counter on the number of parallel instantiations (N)
-        	  // to provide the correct number of processes (i)/(N) to each lammps testing.
-              // Here should be split the MPI_COMM_WORLD communicator as well as lists of
-              // processes on which should be ran the different lammps calls.
+            }
+          }
 
+	MPI_Barrier(mpi_communicator);
+
+    // Regroup here all split strain_vvector in between processes in one main vvector
+
+	// Each cell will be allocated NB processes, to create one instance of lammps for
+	// each quad_point sequentially. Hopefully treating a new one each time one has been
+	// treated. We should create a new flag and replace the "is_locally_owned". A cell
+	// should be owned by NB processes.
+    for (typename DoFHandler<dim>::active_cell_iterator
+         cell = dof_handler.begin_active();
+         cell != dof_handler.end(); ++cell){
+
+		// Selecting the NB processes for this parallel instanciation of
+		// lammps assigning color lammps=1 and comm_lammps communicator
+		int lammps = MPI_UNDEFINED;
+		/*if (cell->proc_locally_owned_by()) lammps = 1;
+		else lammps = MPI_UNDEFINED;*/
+		MPI_Comm comm_cell;
+		MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_cell);
+
+    	if (cell->is_locally_owned())
+    	//if (cell->proc_locally_owned_by())
+          {
+
+          for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+            {
               // Rather than an int, build an ID as a unique string cell_num.quad_loc_num
               char *quad_id = new char[1024];
               sprintf(quad_id, "%d.%d", cell->index(), q);
-
-        	  MPI_Barrier(MPI_COMM_WORLD);
-        	  // Instead of launching several instances of lammps separately here, a new
-        	  // programm should be launched with all strains in input and all stresses as
-        	  // an output.
-        	  // Or maybe one program by subdomain !!
-        	  // The loops on locally owned cells should be closed here and reopend after
-        	  // calling the programm.
-        	  // How to give this programm access to a larger COMM than the one used by
-        	  // Deal.ii?
-        	  // Actually once we are out of the cells loop we are back to all the processes
-        	  // if we can just spread the cells on part of the processes that would be perfect!
 
         	  // Then the lammps function instanciates lammps, starting from an initial
         	  // microstructure and applying the complete new_strain or starting from
@@ -906,9 +915,34 @@ namespace macro
         	  micro::lammps_local_testing<dim> (strain_vvector,
 												stress_vvector,
 												local_voigt_stiffness,
-												quad_id);
-        	  MPI_Barrier(MPI_COMM_WORLD);
+												quad_id,
+												comm_cell);
 
+            }
+          }
+    }
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+    for (typename DoFHandler<dim>::active_cell_iterator
+         cell = dof_handler.begin_active();
+         cell != dof_handler.end(); ++cell)
+    	if (cell->is_locally_owned())
+          {
+          PointHistory<dim> *local_quadrature_points_history
+            = reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+          Assert (local_quadrature_points_history >=
+                  &quadrature_point_history.front(),
+                  ExcInternalError());
+          Assert (local_quadrature_points_history <
+                  &quadrature_point_history.back(),
+                  ExcInternalError());
+          fe_values.reinit (cell);
+          fe_values.get_function_gradients (displacement_update,
+                                            displacement_update_grads);
+
+          for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+            {
               // Convert 2*dim component vector new_stress to a SymmetricTensor<2,dim>
               for(unsigned int k=0;k<dim;k++)
                 for(unsigned int l=0;l<dim;l++)
@@ -943,6 +977,8 @@ namespace macro
                 = rotated_new_strain;
             }
           }
+	MPI_Barrier(MPI_COMM_WORLD);
+
   }
 
 
@@ -1354,10 +1390,7 @@ namespace macro
     incremental_displacement = 0;
 
     set_boundary_values ();
-    // The call of the update of stresses here is quite odd, since 'incremental_displacement'
-    // is null with the exception of the applied boundary conditions.
-    // Should we call LAMMPS to compute the stresses update induced by this displacement
-    // increment?
+
     update_quadrature_point_history (incremental_displacement);
 
     solve_timestep ();
@@ -1376,8 +1409,8 @@ namespace macro
   template <int dim>
   void ElasticProblem<dim>::run ()
   {
-    // Since LAMMPS is highly scalable, the initiation number of processes (iii)
-    // can basically be equal to the maximum number of available processes (i) which
+    // Since LAMMPS is highly scalable, the initiation number of processes NI
+    // can basically be equal to the maximum number of available processes NT which
     // can directly be found in the MPI_COMM.
 	pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
     std::vector<std::vector<double> >
@@ -1430,20 +1463,24 @@ namespace macro
 }
 
 
-// There are several number of processes encountered: (i) the highest provided
-// as an argument to aprun, (ii) the number of processes provided to deal.ii
-// [arbitrary], (iii) the number of processes provided to the lammps initiation
-// [as close as possible to (i)], and the number of processes provided to lammps
-// testing [(i) divided by the number of concurrent testing boxes].
+// There are several number of processes encountered: (i) NT the highest provided
+// as an argument to aprun, (ii) ND the number of processes provided to deal.ii
+// [arbitrary], (iii) NI the number of processes provided to the lammps initiation
+// [as close as possible to NT], and (iv) NB the number of processes provided to lammps
+// testing [NT divided by the number of concurrent testing boxes].
 int main (int argc, char **argv)
 {
   try
     {
       using namespace macro;
 
-  	// The MPI communicator should be initialized with the maximum value between
-  	// (argv[0] which is (i)?) and the most efficient parallelization of deal.ii.
       dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
+
+      // Create a subset of MPI_WORLD_COMM for the reduced amount of processes
+      // deal.ii will run on 'comm_dealii' known to that subset of processes only.
+
+      // Split MPI_WORLD_COMM into NC comm_lammps of an equal amount of processes NB,
+      // so that NB=NT/NC (thus NC%N=0) and min(|N-100|) for all NB.
 
       ElasticProblem<3> elastic_problem;
       elastic_problem.run ();

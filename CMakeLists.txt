@@ -54,5 +54,5 @@ ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
 
 ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
                            COMMAND rm
-                           ARGS -rf core output.* error.* PE_* log.* 
+                           ARGS -rf core output.* error.* PE_* restart.equil log.* solution-* 
   )

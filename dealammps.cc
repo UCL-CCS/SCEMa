@@ -22,6 +22,7 @@
 #include <sstream>
 #include <iomanip>
 
+#include <math.h>
 #include "mpi.h"
 #include "lammps.h"
 #include "input.h"
@@ -78,10 +79,19 @@
 
 #include <deal.II/base/mpi.h>
 
+int NT, NB, NC;
+
 namespace HMM
 {
   using namespace dealii;
   using namespace LAMMPS_NS;
+
+  struct TaskForce
+  {
+	MPI_Comm comm;
+    std::vector<int> lprocs;
+    bool used;
+  };
 
   template <int dim>
   struct PointHistory
@@ -289,7 +299,7 @@ namespace HMM
 	  initial_stress_strain_tensor = 0.0;
 	  */
 
-	  initial_stress_strain_tensor = lammps_stiffness(lmp,location);
+	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp,location);
 
 	  // close down LAMMPS
 	  delete lmp;
@@ -428,7 +438,7 @@ namespace HMM
 		  initial_stress_strain_tensor = 0.0;
 		  */
 
-		  initial_stress_strain_tensor = lammps_stiffness(lmp, location);
+		  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp, location);
 	  }
 
 	  // close down LAMMPS
@@ -637,9 +647,7 @@ namespace HMM
 
 
   // In order to modify the processes used by the deal.ii run, another
-  // communicator should be used (e.g split from MPI_COMM_WORLD) and a
-  // specific tag/color should be associated to the list of used processes
-  // such as done in lammps_functions...
+  // communicator should be used (e.g split from MPI_COMM_WORLD)
   template <int dim>
   ElasticProblem<dim>::ElasticProblem ()
     :
@@ -666,19 +674,18 @@ namespace HMM
   template <int dim>
   void ElasticProblem<dim>::setup_quadrature_point_history ()
   {
-	unsigned int our_cells = 0;
+	/*unsigned int our_cells = 0;
     for (typename Triangulation<dim>::active_cell_iterator
 		 cell = triangulation.begin_active();
 		 cell != triangulation.end(); ++cell)
-    	if (cell->is_locally_owned()) ++our_cells;
+    	if (cell->is_locally_owned()) ++our_cells;*/
 
 	triangulation.clear_user_data();
-
     {
       std::vector<PointHistory<dim> > tmp;
       tmp.swap (quadrature_point_history);
     }
-    quadrature_point_history.resize (our_cells *
+    quadrature_point_history.resize (n_local_cells *
                                      quadrature_formula.size());
 
     unsigned int history_index = 0;
@@ -909,17 +916,98 @@ namespace HMM
 
         	  local_quadrature_points_history[q].old_stress =
         			  local_quadrature_points_history[q].new_stress;
+
+        	  // Store strains in a file named ./strain_storage/strn.cellid.qid.time
             }
           }
 
 	MPI_Barrier(mpi_communicator);
 
-    // Regroup here all split strain_vvector in between processes in one main vvector
-
 	// Each cell will be allocated NB processes, to create one instance of lammps for
 	// each quad_point sequentially. Hopefully treating a new one each time one has been
 	// treated. We should create a new flag and replace the "is_locally_owned". A cell
 	// should be owned by NB processes.
+
+	// Design a scheduler that manages the attribution of the processes to the LAMMPS
+	// calls.
+
+    // Ideally, split MPI_WORLD_COMM into NC comm_lammps of an equal amount of processes NB,
+    // so that NB=NT/NC (thus NC%N=0) and min(|N-100|) for all NB.
+    // For now, allways use the same number of procs per lammps call NB=96 (4*nodes) and choose
+	// NC as the biggest integer such as NB*NC < NT
+
+	int me;
+	MPI_Comm_rank(MPI_COMM_WORLD,&me);
+	NB = 3;
+	NC = int(NT/NB);
+	if(NC == 0) {NC=1; NB=NT;}
+	if(me == 0) std::cout << "NT:  " << NT << " -  NC:  " << NC << " -  NB:  " << NB << std::endl;
+
+	// Create an array[NC] which contains each row contains a communicator, the list of processes
+	// associated and the current occupancy status
+	std::vector<TaskForce> list_task_forces (NC);
+
+	int proc_count = 0;
+	for (unsigned int i=0; i<list_task_forces.size(); ++i)
+	{
+		list_task_forces[i].used = false;
+		list_task_forces[i].lprocs.resize(NB);
+		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
+		{
+			list_task_forces[i].lprocs[j] = proc_count;
+			proc_count++;
+		}
+	}
+
+	for (unsigned int i=0; i<list_task_forces.size(); ++i)
+	{
+		pcout << "TaskForce: " << i << "  -  Size: "
+			  << list_task_forces[i].lprocs.size() << std::endl;
+		pcout << "ListProcs: ";
+		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
+			pcout << list_task_forces[i].lprocs[j] << " ";
+		pcout << std::endl;
+	}
+
+	MPI_Comm comm_tf;
+
+	/*for (unsigned int i=0; i<list_task_forces.size(); ++i)
+		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
+			if (me == list_task_forces[i].lprocs[j])
+			{
+				MPI_Comm_split(MPI_COMM_WORLD,i,me,&comm_tf);
+				list_task_forces[i].comm = comm_tf;
+			}
+
+	int tf_rank, tf_size;
+	for (unsigned int i=0; i<list_task_forces.size(); ++i)
+		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
+			if (me == list_task_forces[i].lprocs[j])
+			{
+				MPI_Comm_rank(comm_tf, &tf_rank);
+				MPI_Comm_size(comm_tf, &tf_size);
+				std::cout << "Glob Rank: " << me << " - Tf Rank: " << tf_rank << "/" << tf_size << std::endl;
+			}*/
+
+	int me_tf_color = -1;
+	for (unsigned int i=0; i<list_task_forces.size(); ++i)
+		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
+			if (me == list_task_forces[i].lprocs[j])
+			{
+				me_tf_color = i;
+			}
+
+	if (me_tf_color > -1)
+		{
+			MPI_Comm_split(MPI_COMM_WORLD,me_tf_color,me,&comm_tf);
+			int tf_rank, tf_size;
+			MPI_Comm_rank(comm_tf, &tf_rank);
+			MPI_Comm_size(comm_tf, &tf_size);
+			std::cout << "Glob Rank: " << me << " - Tf Rank: " << tf_rank << "/" << tf_size << std::endl;
+		}
+	MPI_Barrier(MPI_COMM_WORLD);
+	std::cout << "Glob Glob" << std::endl;
+
     for (typename DoFHandler<dim>::active_cell_iterator
          cell = dof_handler.begin_active();
          cell != dof_handler.end(); ++cell){
@@ -927,40 +1015,35 @@ namespace HMM
 		// Selecting the NB processes for this parallel instanciation of
 		// lammps assigning color lammps=1 and comm_lammps communicator
 		int lammps = MPI_UNDEFINED;
-		/*if (cell->proc_locally_owned_by()) lammps = 1;
-		else lammps = MPI_UNDEFINED;*/
+		//if (cell->proc_locally_owned_by()) lammps = 1;
+		//else lammps = MPI_UNDEFINED;
 		MPI_Comm comm_cell;
 		MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_cell);
 
-    	if (cell->is_locally_owned())
+    	if (1)
+		//if (cell->is_locally_owned())
     	//if (cell->proc_locally_owned_by())
           {
-            PointHistory<dim> *local_quadrature_points_history
-              = reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
-            Assert (local_quadrature_points_history >=
-                    &quadrature_point_history.front(),
-                    ExcInternalError());
-            Assert (local_quadrature_points_history <
-                    &quadrature_point_history.back(),
-                    ExcInternalError());
-
-          for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+            /*for (unsigned int q=0; q<quadrature_formula.size(); ++q)
             {
-              // Rather than an int, build an ID as a unique string cell_num.quad_loc_num
-              char *quad_id = new char[1024];
-              sprintf(quad_id, "%d.%d", cell->index(), q);
+            	// Restore the strain tensor from the file ./strain_storage/strn.cellid.qid.time
+            	// into a SymmetricTensor<2,dim>
 
-        	  // Then the lammps function instanciates lammps, starting from an initial
-        	  // microstructure and applying the complete new_strain or starting from
-        	  // the microstructure at the old_strain and applying the difference between
-        	  // the new_ and _old_strains, returns the new_stress state.
-        	  lammps_local_testing<dim> (local_quadrature_points_history[q].new_strain,
-        			  	  	  	  	  	 local_quadrature_points_history[q].new_stress,
-										 local_quadrature_points_history[q].stiffness,
-										 quad_id,
-										 comm_cell);
+            	// Rather than an int, build an ID as a unique string cell_num.quad_loc_num
+            	char *quad_id = new char[1024];
+            	sprintf(quad_id, "%d.%d", cell->active_cell_index(), q);
 
-            }
+            	// Then the lammps function instanciates lammps, starting from an initial
+            	// microstructure and applying the complete new_strain or starting from
+            	// the microstructure at the old_strain and applying the difference between
+            	// the new_ and _old_strains, returns the new_stress state.
+            	lammps_local_testing<dim> (strain,
+            							   stress,
+										   stiffness,
+										   quad_id,
+										   comm_cell);
+
+            }*/
           }
     }
 
@@ -988,8 +1071,10 @@ namespace HMM
               // Or maybe we should compute the new stiffness tensor and compute the new
               // stress using it instead of asking lammps to return the stress.
               // Check what kind of tensor we compute with lammps: linear, secant, or tangent?
-              /*const SymmetricTensor<2,dim> local_quadrature_points_history[q].new_strain
-                = stress_strain_tensor * local_quadrature_points_history[q].new_strain;*/
+        	  stress_strain_tensor = initial_stress_strain_tensor;
+
+              local_quadrature_points_history[q].new_stress
+                = stress_strain_tensor * local_quadrature_points_history[q].new_strain;
 
         	  // Apply rotation of the sample to the new state tensors
               const Tensor<2,dim> rotation
@@ -1363,7 +1448,7 @@ namespace HMM
               if (cell->face(f)->center()[2] == 0.5)
                  cell->face(f)->set_boundary_id (32);
            }
-    triangulation.refine_global (3);
+    triangulation.refine_global (1);
   }
 
 
@@ -1428,13 +1513,13 @@ namespace HMM
 
     update_quadrature_point_history (incremental_displacement);
 
-    solve_timestep ();
+    /*solve_timestep ();
 
     solution+=incremental_displacement;
 
     error_estimation ();
 
-    output_results ();
+    output_results ();*/
 
     pcout << std::endl;
   }
@@ -1449,13 +1534,23 @@ namespace HMM
     // can directly be found in the MPI_COMM.
 	pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
 
-    lammps_initiation<dim> (initial_stress_strain_tensor);
+    //lammps_initiation<dim> (initial_stress_strain_tensor);
+
+    double mu = 9.695e10, lambda = 7.617e10;
+    for (unsigned int i=0; i<dim; ++i)
+      for (unsigned int j=0; j<dim; ++j)
+        for (unsigned int k=0; k<dim; ++k)
+          for (unsigned int l=0; l<dim; ++l)
+        	  initial_stress_strain_tensor[i][j][k][l]
+							= (((i==k) && (j==l) ? mu : 0.0) +
+                               ((i==l) && (j==k) ? mu : 0.0) +
+                               ((i==j) && (k==l) ? lambda : 0.0));
 
     MPI_Barrier(MPI_COMM_WORLD);
 
     present_time = 0;
     present_timestep = 1;
-    end_time = 10;
+    end_time = 1;
     timestep_no = 0;
 
     make_grid ();
@@ -1498,12 +1593,10 @@ int main (int argc, char **argv)
       using namespace HMM;
 
       dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
+      MPI_Comm_size(MPI_COMM_WORLD,&NT);
 
       // Create a subset of MPI_WORLD_COMM for the reduced amount of processes
       // deal.ii will run on 'comm_dealii' known to that subset of processes only.
-
-      // Split MPI_WORLD_COMM into NC comm_lammps of an equal amount of processes NB,
-      // so that NB=NT/NC (thus NC%N=0) and min(|N-100|) for all NB.
 
       ElasticProblem<3> elastic_problem;
       elastic_problem.run ();

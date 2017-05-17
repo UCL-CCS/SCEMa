@@ -10,3 +10,6 @@ HMM implementation featuring Deal.II (FE) and LAMMPS (MD)
 ### 3. Standard virtual testing box
 
 ### 4. Database of Microstates
+
+### 5. Message Passing and Scheduling
+ 

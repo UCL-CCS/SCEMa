@@ -88,7 +88,6 @@ namespace HMM
 
   struct TaskForce
   {
-	MPI_Comm comm;
     std::vector<int> lprocs;
     bool used;
   };
@@ -256,7 +255,7 @@ namespace HMM
 	  lmp = new LAMMPS(0,NULL,MPI_COMM_WORLD);
 
 	  char location[1024] = "../box";
-	  char storloc[1024] = "./storage";
+	  char storloc[1024] = "./microstate_storage";
 	  char outdata[1024] = "PE_strain_end.mstate";
 
 	  char infile[1024];
@@ -323,27 +322,6 @@ namespace HMM
 	  int me,nprocs;
 	  MPI_Comm_rank(comm_lammps,&me);
 	  MPI_Comm_size(comm_lammps,&nprocs);
-
-	  /*
-		// Preparation of the local MPI communicators should be prepared in
-		// advance...
-		// Checking the validity of the amount of processes requested
-		int nprocs_lammps = 1;
-		if (nprocs_lammps > nprocs) {
-			if (me == 0)
-				printf("ERROR: LAMMPS cannot use more procs than available\n");
-			MPI_Abort(MPI_COMM_WORLD,1);
-		}
-
-		// Selecting the nprocs_lammps first processes for this parallel
-		// instanciation of lammps assigning color lammps=1 and comm_lammps
-		// communicator
-		int is_proc_concerned;
-		if (me < nprocs_lammps) is_proc_concerned = 1;
-		else is_proc_concerned = MPI_UNDEFINED;
-		MPI_Comm comm_lammps;
-		MPI_Comm_split(MPI_COMM_WORLD,is_proc_concerned,0,&comm_lammps);
-	   */
 
 	  // Creating the corresponding lammps instantiation
 	  LAMMPS *lmp = NULL;
@@ -443,9 +421,6 @@ namespace HMM
 
 	  // close down LAMMPS
 	  delete lmp;
-
-	  // close down the specific MPI communicator
-	  //if (is_proc_concerned == 1) MPI_Comm_free(&comm_lammps);
   }
 
 
@@ -509,8 +484,6 @@ namespace HMM
     IndexSet 							locally_relevant_dofs;
     unsigned int 						n_local_cells;
 
-    // This will not be so constant anymore in our HMM: position dependent,
-    // history dependent, and computed in an specific function using LAMMPS
     SymmetricTensor<4,dim> 				initial_stress_strain_tensor,
 						   	   	   	   	stress_strain_tensor;
   };
@@ -920,7 +893,7 @@ namespace HMM
         	  // Store strains in a file named ./strain_storage/strn.cellid.qid.time
             }
           }
-
+    /*
 	MPI_Barrier(mpi_communicator);
 
 	// Each cell will be allocated NB processes, to create one instance of lammps for
@@ -930,6 +903,8 @@ namespace HMM
 
 	// Design a scheduler that manages the attribution of the processes to the LAMMPS
 	// calls.
+	// Discuss this point with James and abstract the design of the scheduler into the XMML
+	// of ComPat
 
     // Ideally, split MPI_WORLD_COMM into NC comm_lammps of an equal amount of processes NB,
     // so that NB=NT/NC (thus NC%N=0) and min(|N-100|) for all NB.
@@ -943,8 +918,9 @@ namespace HMM
 	if(NC == 0) {NC=1; NB=NT;}
 	if(me == 0) std::cout << "NT:  " << NT << " -  NC:  " << NC << " -  NB:  " << NB << std::endl;
 
-	// Create an array[NC] which contains each row contains a communicator, the list of processes
+	// Create an array[NC] which contains each row contains the list of processes
 	// associated and the current occupancy status
+	// The occupancy status might be irrelevant... Better use some MPI functions..
 	std::vector<TaskForce> list_task_forces (NC);
 
 	int proc_count = 0;
@@ -970,41 +946,23 @@ namespace HMM
 	}
 
 	MPI_Comm comm_tf;
-
-	/*for (unsigned int i=0; i<list_task_forces.size(); ++i)
-		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
-			if (me == list_task_forces[i].lprocs[j])
-			{
-				MPI_Comm_split(MPI_COMM_WORLD,i,me,&comm_tf);
-				list_task_forces[i].comm = comm_tf;
-			}
-
-	int tf_rank, tf_size;
+	int proc_tf_color = -1;
 	for (unsigned int i=0; i<list_task_forces.size(); ++i)
 		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
 			if (me == list_task_forces[i].lprocs[j])
 			{
-				MPI_Comm_rank(comm_tf, &tf_rank);
-				MPI_Comm_size(comm_tf, &tf_size);
-				std::cout << "Glob Rank: " << me << " - Tf Rank: " << tf_rank << "/" << tf_size << std::endl;
-			}*/
-
-	int me_tf_color = -1;
-	for (unsigned int i=0; i<list_task_forces.size(); ++i)
-		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
-			if (me == list_task_forces[i].lprocs[j])
-			{
-				me_tf_color = i;
+				proc_tf_color = i;
 			}
 
-	if (me_tf_color > -1)
+	if (proc_tf_color > -1)
 		{
-			MPI_Comm_split(MPI_COMM_WORLD,me_tf_color,me,&comm_tf);
-			int tf_rank, tf_size;
-			MPI_Comm_rank(comm_tf, &tf_rank);
+			MPI_Comm_split(MPI_COMM_WORLD,proc_tf_color,me,&comm_tf);
+			int proc_tf_rank, tf_size;
+			MPI_Comm_rank(comm_tf, &proc_tf_rank);
 			MPI_Comm_size(comm_tf, &tf_size);
-			std::cout << "Glob Rank: " << me << " - Tf Rank: " << tf_rank << "/" << tf_size << std::endl;
+			std::cout << "Glob Rank: " << me << " - Tf Rank: " << proc_tf_rank << "/" << tf_size << std::endl;
 		}
+
 	MPI_Barrier(MPI_COMM_WORLD);
 	std::cout << "Glob Glob" << std::endl;
 
@@ -1024,7 +982,7 @@ namespace HMM
 		//if (cell->is_locally_owned())
     	//if (cell->proc_locally_owned_by())
           {
-            /*for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+            for (unsigned int q=0; q<quadrature_formula.size(); ++q)
             {
             	// Restore the strain tensor from the file ./strain_storage/strn.cellid.qid.time
             	// into a SymmetricTensor<2,dim>
@@ -1043,11 +1001,12 @@ namespace HMM
 										   quad_id,
 										   comm_cell);
 
-            }*/
+            }
           }
     }
 
 	MPI_Barrier(MPI_COMM_WORLD);
+	*/
 
     for (typename DoFHandler<dim>::active_cell_iterator
          cell = dof_handler.begin_active();
@@ -1448,7 +1407,7 @@ namespace HMM
               if (cell->face(f)->center()[2] == 0.5)
                  cell->face(f)->set_boundary_id (32);
            }
-    triangulation.refine_global (1);
+    triangulation.refine_global (3);
   }
 
 
@@ -1513,13 +1472,13 @@ namespace HMM
 
     update_quadrature_point_history (incremental_displacement);
 
-    /*solve_timestep ();
+    solve_timestep ();
 
     solution+=incremental_displacement;
 
     error_estimation ();
 
-    output_results ();*/
+    output_results ();
 
     pcout << std::endl;
   }
@@ -1550,7 +1509,7 @@ namespace HMM
 
     present_time = 0;
     present_timestep = 1;
-    end_time = 1;
+    end_time = 10;
     timestep_no = 0;
 
     make_grid ();

@@ -5,10 +5,6 @@
 ## Should we optimize the lammps call depending on the computer setup?
 ## suffix OMP
 
-##  -------------------------------------------
-#   Reading data from the initialization simulation which computes a minimization
-#   and a succession of heatup and cooldown processes.
-#read_data      PE_init_end.lammps05 #(in wrapper)
 
 ##  -------------------------------------------
 #   Initialization settings
@@ -18,9 +14,6 @@ variable simname index PE_stress_strain_x
 
 ##  -------------------------------------------
 #   Calculate the stress-strain curve for uniaxial extension in the x direction
-
-#  Releasing previxou fix 3
-unfix           3
 
 #  Setting to display thermodynamical information on the system every 100 steps
 thermo          100
@@ -53,8 +46,8 @@ variable        t4 equal "eangle"
 variable        t5 equal "edihed"
 
 #  Stopping the printing of information on velocities and positions
-undump          lammps_dump
-undump          xyz_dump
+#undump          lammps_dump   # to remove...
+#undump          xyz_dump   # to remove...
 
 #  Setting printing position information on all atoms every 5000 steps PE_stress_strain_x.xyz
 #  file specifying atom type 1, 2 and 3 with names respectively C, C and H  (identical as
@@ -67,6 +60,9 @@ dump_modify     xyz_dump element  C C H
 
 #  Setting the step counter to 0
 reset_timestep  0
+
+#  Loading the same fix 4 as in the init.lammps set of commands.
+fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
 
 #  Building output files using the fix command applied to all the atoms of the box, to display every 100 steps stress
 #  tensor components evolution with the x strain, and total energy constituents with the x strain, screen display is

@@ -469,6 +469,7 @@ namespace HMM
     void run ();
 
   private:
+    void set_procs_colors ();
     void make_grid ();
     void setup_system ();
     void do_timestep ();
@@ -492,6 +493,8 @@ namespace HMM
     const unsigned int 					n_mpi_processes;
     const unsigned int 					this_mpi_process;
     ConditionalOStream 					pcout;
+    int 								dealii_pcolor;
+    int 								lammps_pcolor;
 
     parallel::shared::Triangulation<dim> triangulation;
     DoFHandler<dim>      				dof_handler;
@@ -974,166 +977,110 @@ namespace HMM
 
 				// Check if this is a good position for setting criterion of elastic regime?
 				// Or maybe a separate loop?
+				// If parallel task, need to retrieve information...
     		}
     	}
-    /*
+
 	MPI_Barrier(mpi_communicator);
 
-	// Each cell will be allocated NB processes, to create one instance of lammps for
-	// each quad_point sequentially. Hopefully treating a new one each time one has been
-	// treated. We should create a new flag and replace the "is_locally_owned". A cell
-	// should be owned by NB processes.
-
-	// Design a scheduler that manages the attribution of the processes to the LAMMPS
-	// calls.
-	// Discuss this point with James and abstract the design of the scheduler into the XMML
-	// of ComPat
-
-    // Ideally, split MPI_WORLD_COMM into NC comm_lammps of an equal amount of processes NB,
-    // so that NB=NT/NC (thus NC%N=0) and min(|N-100|) for all NB.
-    // For now, allways use the same number of procs per lammps call NB=96 (4*nodes) and choose
-	// NC as the biggest integer such as NB*NC < NT
-
-	int me;
-	MPI_Comm_rank(MPI_COMM_WORLD,&me);
-	NB = 3;
-	NC = int(NT/NB);
-	if(NC == 0) {NC=1; NB=NT;}
-	if(me == 0) std::cout << "NT:  " << NT << " -  NC:  " << NC << " -  NB:  " << NB << std::endl;
-
-	// Create an array[NC] which contains each row contains the list of processes
-	// associated and the current occupancy status
-	// The occupancy status might be irrelevant... Better use some MPI functions..
-	std::vector<TaskForce> list_task_forces (NC);
-
-	int proc_count = 0;
-	for (unsigned int i=0; i<list_task_forces.size(); ++i)
-	{
-		list_task_forces[i].used = false;
-		list_task_forces[i].lprocs.resize(NB);
-		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
-		{
-			list_task_forces[i].lprocs[j] = proc_count;
-			proc_count++;
-		}
-	}
-
-	for (unsigned int i=0; i<list_task_forces.size(); ++i)
-	{
-		pcout << "TaskForce: " << i << "  -  Size: "
-			  << list_task_forces[i].lprocs.size() << std::endl;
-		pcout << "ListProcs: ";
-		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
-			pcout << list_task_forces[i].lprocs[j] << " ";
-		pcout << std::endl;
-	}
-
-	MPI_Comm comm_tf;
-	int proc_tf_color = -1;
-	for (unsigned int i=0; i<list_task_forces.size(); ++i)
-		for (unsigned int j=0; j<list_task_forces[i].lprocs.size(); ++j)
-			if (me == list_task_forces[i].lprocs[j])
-			{
-				proc_tf_color = i;
-			}
-
-	if (proc_tf_color > -1)
-		{
-			MPI_Comm_split(MPI_COMM_WORLD,proc_tf_color,me,&comm_tf);
-			int proc_tf_rank, tf_size;
-			MPI_Comm_rank(comm_tf, &proc_tf_rank);
-			MPI_Comm_size(comm_tf, &tf_size);
-			std::cout << "Glob Rank: " << me << " - Tf Rank: " << proc_tf_rank << "/" << tf_size << std::endl;
-		}
-
-	MPI_Barrier(MPI_COMM_WORLD);
-	std::cout << "Glob Glob" << std::endl;*/
-
+	int nqptbu = 0;
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
     		cell != dof_handler.end(); ++cell)
     {
     	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
     	{
-    		SymmetricTensor<2,dim> loc_strain, loc_stress;
-    		SymmetricTensor<4,dim> loc_stiffness;
-
-    		// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
-    		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
-    		char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
-    		char filename[1024];
-
-    		sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
-    		ifile.open (filename);
-    		if (ifile.is_open())
+    		//test_if q must be updated...
+    		int q_to_be_updated = 1;
+    		if (q_to_be_updated)
     		{
-    			for(unsigned int k=0;k<dim;k++)
-    				for(unsigned int l=k;l<dim;l++)
+    			nqptbu++;
+    			// check returned value...
+    			pcout << (1+(nqptbu%NC)) << std::endl;
+    		}
+    	}
+    }
+
+	nqptbu = 0;
+    for (typename DoFHandler<dim>::active_cell_iterator
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
+    {
+    	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+    	{
+    		//test_if q must be updated...
+    		int q_to_be_updated = 1;
+    		if (q_to_be_updated)
+    		{
+    			nqptbu++;
+    			if (lammps_pcolor == (1+(nqptbu%NC)))
+    			{
+    				SymmetricTensor<2,dim> loc_strain, loc_stress;
+    				SymmetricTensor<4,dim> loc_stiffness;
+
+    				// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+    				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+    				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+    				char filename[1024];
+
+    				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+    				ifile.open (filename);
+    				if (ifile.is_open())
     				{
-    					char line[1024];
-    					if(ifile.getline(line, sizeof(line)))
-    					{
-    						loc_strain[k][l] = std::strtod(line, NULL);
-    					}
+    					for(unsigned int k=0;k<dim;k++)
+    						for(unsigned int l=k;l<dim;l++)
+    						{
+    							char line[1024];
+    							if(ifile.getline(line, sizeof(line)))
+    								loc_strain[k][l] = std::strtod(line, NULL);
+    						}
+    					ifile.close();
     				}
-    			ifile.close();
-    		}
-    		else std::cout << "Unable to open strain file to read" << std::endl;
+    				else std::cout << "Unable to open strain file to read" << std::endl;
 
-    		/*// For debugg...
-    		if(cell->active_cell_index() == 20 && q == 3)
-            	{
-            		pcout << "2 - Tensor read for cell " << cell->active_cell_index() << " and qp " << q << std::endl;
-    				for(unsigned int k=0;k<dim;k++)
+    				// Then the lammps function instanciates lammps, starting from an initial
+    				// microstructure and applying the complete new_strain or starting from
+    				// the microstructure at the old_strain and applying the difference between
+    				// the new_ and _old_strains, returns the new_stress state.
+    				//lammps_local_testing<dim> (loc_strain,
+    				//		loc_stress,
+    				//		loc_stiffness,
+    				//		quad_id,
+    				//		mpi_communicator);
+
+    				// For debugg...
+    				loc_stiffness = initial_stress_strain_tensor;
+    				loc_stress
+					= loc_stiffness
+					* loc_strain;
+
+    				// Write the new stress and stiffness tensors into two files, respectively
+    				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
+    				sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+    				ofile.open (filename);
+    				if (ofile.is_open())
     				{
-    					for(unsigned int l=0;l<dim;l++) pcout << loc_strain[k][l] << "  ";
-    					pcout << std::endl;
-
+    					for(unsigned int k=0;k<dim;k++)
+    						for(unsigned int l=k;l<dim;l++)
+    							ofile << std::setprecision(16) << loc_stress[k][l] << std::endl;
+    					ofile.close();
     				}
-            	}*/
+    				else std::cout << "Unable to open stress file to write" << std::endl;
 
-    		// Then the lammps function instanciates lammps, starting from an initial
-    		// microstructure and applying the complete new_strain or starting from
-    		// the microstructure at the old_strain and applying the difference between
-    		// the new_ and _old_strains, returns the new_stress state.
-    		//if (cell->active_cell_index() == 1 && (q == 4 || q == 5)) // For debugg...
-    		//lammps_local_testing<dim> (loc_strain,
-    		//		loc_stress,
-			//		loc_stiffness,
-			//		quad_id,
-			//		mpi_communicator);
-
-    		// For debugg...
-    		loc_stiffness = initial_stress_strain_tensor;
-			loc_stress
-			= loc_stiffness
-			* loc_strain;
-
-    		// Write the new stress and stiffness tensors into two files, respectively
-    		// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
-			sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
-    		ofile.open (filename);
-    		if (ofile.is_open())
-    		{
-    			for(unsigned int k=0;k<dim;k++)
-    				for(unsigned int l=k;l<dim;l++)
-    					ofile << std::setprecision(16) << loc_stress[k][l] << std::endl;
-    			ofile.close();
+    				sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+    				ofile.open (filename);
+    				if (ofile.is_open())
+    				{
+    					for(unsigned int k=0;k<dim;k++)
+    						for(unsigned int l=k;l<dim;l++)
+    							for(unsigned int m=0;m<dim;m++)
+    								for(unsigned int n=m;n<dim;n++)
+    									ofile << std::setprecision(16) << loc_stiffness[k][l][m][n] << std::endl;
+    					ofile.close();
+    				}
+    				else std::cout << "Unable to open stiffness file to write" << std::endl;
+    			}
     		}
-    		else std::cout << "Unable to open stress file to write" << std::endl;
-
-    		sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
-    		ofile.open (filename);
-    		if (ofile.is_open())
-    		{
-    			for(unsigned int k=0;k<dim;k++)
-    				for(unsigned int l=k;l<dim;l++)
-    					for(unsigned int m=0;m<dim;m++)
-    						for(unsigned int n=m;n<dim;n++)
-    							ofile << std::setprecision(16) << loc_stiffness[k][l][m][n] << std::endl;
-    			ofile.close();
-    		}
-    		else std::cout << "Unable to open stiffness file to write" << std::endl;
     	}
     }
 
@@ -1171,10 +1118,8 @@ namespace HMM
     					{
         					char line[1024];
         					if(ifile.getline(line, sizeof(line)))
-        					{
         						local_quadrature_points_history[q].new_stress[k][l]
 								= std::strtod(line, NULL);
-        					}
     					}
     				ifile.close();
     			}
@@ -1191,10 +1136,8 @@ namespace HMM
     	    					{
     	        					char line[1024];
     	        					if(ifile.getline(line, sizeof(line)))
-    	        					{
     	        						local_quadrature_points_history[q].new_stiff[k][l][m][n]
     									= std::strtod(line, NULL);
-    	        					}
     	    					}
     				ifile.close();
     			}
@@ -1546,6 +1489,37 @@ namespace HMM
 
 
 
+  // There are several number of processes encountered: (i) NT the highest provided
+  // as an argument to aprun, (ii) ND the number of processes provided to deal.ii
+  // [arbitrary], (iii) NI the number of processes provided to the lammps initiation
+  // [as close as possible to NT], and (iv) NB the number of processes provided to one lammps
+  // testing [NT divided by NC the number of concurrent testing boxes].
+  template <int dim>
+  void ElasticProblem<dim>::set_procs_colors ()
+  {
+	  int me;
+	  MPI_Comm_rank(MPI_COMM_WORLD,&me);
+	  MPI_Comm_size(MPI_COMM_WORLD,&NT);
+
+	  // Arbitrary setting of NB and NT
+	  NB = 4;
+	  NC = int(NT/NB);
+	  if(NC == 0) {NC=1; NB=NT;}
+
+	  // Define several procs colors: deal_color = 0/1 and lammps_color = 0/../NC
+	  // DEAL.II processes color: all processes
+	  dealii_pcolor = 1;
+
+	  // LAMMPS processes color: regroup processes by batches of size NB, except
+	  // the last ones (me >= NB*NC) to create batches of only NB processes, nor smaller.
+	  lammps_pcolor = 0;
+	  if(me < NB*NC) lammps_pcolor = 1 + int(me/NB);
+
+	  std::cout << "proc: " << me << " " << dealii_pcolor << " " << lammps_pcolor << std::endl;
+  }
+
+
+
 
   template <int dim>
   void ElasticProblem<dim>::make_grid ()
@@ -1657,6 +1631,8 @@ namespace HMM
   template <int dim>
   void ElasticProblem<dim>::run ()
   {
+	set_procs_colors();
+
     // Since LAMMPS is highly scalable, the initiation number of processes NI
     // can basically be equal to the maximum number of available processes NT which
     // can directly be found in the MPI_COMM.
@@ -1707,11 +1683,7 @@ namespace HMM
 }
 
 
-// There are several number of processes encountered: (i) NT the highest provided
-// as an argument to aprun, (ii) ND the number of processes provided to deal.ii
-// [arbitrary], (iii) NI the number of processes provided to the lammps initiation
-// [as close as possible to NT], and (iv) NB the number of processes provided to lammps
-// testing [NT divided by the number of concurrent testing boxes].
+
 int main (int argc, char **argv)
 {
   try
@@ -1719,12 +1691,6 @@ int main (int argc, char **argv)
       using namespace HMM;
 
       dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-      MPI_Comm_size(MPI_COMM_WORLD,&NT);
-
-      // Define several procs colors: deal_color = 0/1 and lammps_color = 0/../NC
-
-      // Create a subset of MPI_WORLD_COMM for the reduced amount of processes
-      // deal.ii will run on 'comm_dealii' known to that subset of processes only.
 
       ElasticProblem<3> elastic_problem;
       elastic_problem.run ();

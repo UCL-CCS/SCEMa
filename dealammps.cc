@@ -248,7 +248,7 @@ namespace HMM
 		  else  /*(i<3)*/{k=i; l=i;}
 
 
-		  for(unsigned int j=k;j<2*dim;j++)
+		  for(unsigned int j=0;j<2*dim;j++)
 		  {
 			  int m, n;
 
@@ -261,13 +261,19 @@ namespace HMM
 			  /*initial_stress_strain_tensor[l][k][m][n]=tmp[i][j];
 			  initial_stress_strain_tensor[k][l][n][m]=tmp[i][j];
 			  initial_stress_strain_tensor[l][k][n][m]=tmp[i][j];*/
+
+			  /*if(me==0) std::cout << k << l << m << n << " - "
+					  	  	  	  << i << j << " - "
+								  << initial_stress_strain_tensor[k][l][m][n]
+							      << std::endl;*/
 		  }
 	  }
 
 	  // Write test... (or actually just verify once that the conversion is accurate
 	  // in 3D, and even 2D if possible)
 
-	  /*if(me==0) std::cout << initial_stress_strain_tensor[0][1][0][2] << std::endl;
+	  /*// Symmetry checking
+	  if(me==0) std::cout << initial_stress_strain_tensor[0][1][0][2] << std::endl;
 	  if(me==0) std::cout << initial_stress_strain_tensor[1][0][0][2] << std::endl;
 	  if(me==0) std::cout << initial_stress_strain_tensor[0][1][2][0] << std::endl;
 	  if(me==0) std::cout << initial_stress_strain_tensor[1][0][2][0] << std::endl;
@@ -307,7 +313,7 @@ namespace HMM
 	  char cfile[1024];
 	  char cline[1024];
 
-	  bool compute_equil = false;
+	  bool compute_equil = true;
 
 	  sprintf(cline, "variable locb string %s", location);
 	  lammps_command(lmp,cline);
@@ -382,12 +388,12 @@ namespace HMM
 	  char mfile[1024];
 
 	  double dts = 2.0; // timestep length
-	  int nts = 1000; // number of timesteps
+	  int nts = 100000; // number of timesteps
 	  char cmptid[1024] = "pr1"; // name of the stress compute to retrieve
 
 	  // Setting general parameters for LAMMPS independentely of what will be
 	  // tested on the sample next.
-	  if (me == 0) std::cout << "   reading and executing in.set.lammps...       " << std::endl;
+	  if (me == 0) std::cout << "--- reading and executing in.set.lammps...       " << std::endl;
 	  sprintf(cfile, "%s/%s", location, "in.set.lammps");
 	  lammps_file(lmp,cfile);
 
@@ -403,7 +409,7 @@ namespace HMM
 	  lammps_command(lmp,cline);
 
 	  // Load the commands to prepare the NEMD simulations of the strained box
-	  if (me == 0) std::cout << "   reading and executing in.strain.lammps...       " << std::endl;
+	  if (me == 0) std::cout << "--- reading and executing in.strain.lammps...       " << std::endl;
 	  sprintf(cfile, "%s/%s", location, "in.strain.lammps");
 	  lammps_file(lmp,cfile);
 
@@ -423,6 +429,7 @@ namespace HMM
 	  sprintf(lines[3], "run %d", nts);
 
 	  // Apply the deformation running a Non-Equilibrium MD simulation
+	  if (me == 0) std::cout << "--- executing variable part of strain.lammps...       " << std::endl;
 	  lammps_commands_list(lmp,ncmds,lines);
 
 	  // Retieve the stress computed using the compute 'cmptid'
@@ -438,6 +445,12 @@ namespace HMM
 	  // Save data to specific file for this quadrature point
 	  sprintf(cline, "write_restart %s/%s", storloc, straindata);
 	  lammps_command(lmp,cline);
+
+	  // Removing fix 1, 3 and 4
+	  // Is this right? Will it not release completely the box of the current strain?
+	  sprintf(cline, "unfix 1"); lammps_command(lmp,cline);
+	  sprintf(cline, "unfix 3"); lammps_command(lmp,cline);
+	  sprintf(cline, "unfix 4"); lammps_command(lmp,cline);
 
 	  // Compute the Tangent Stiffness Tensor at the given stress/strain state
 	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp, location);
@@ -954,10 +967,13 @@ namespace HMM
 				{
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
-							ofile << local_quadrature_points_history[q].new_strain[k][l] << std::endl;
+							ofile << std::setprecision(16) << local_quadrature_points_history[q].new_strain[k][l] << std::endl;
 					ofile.close();
 				}
 				else std::cout << "Unable to open strain file to write in" << std::endl;
+
+				// Check if this is a good position for setting criterion of elastic regime?
+				// Or maybe a separate loop?
     		}
     	}
     /*
@@ -1064,38 +1080,44 @@ namespace HMM
     		}
     		else std::cout << "Unable to open strain file to read" << std::endl;
 
-    		// For debugg...
-    		if(cell->active_cell_index() == 1 && q == 1)
+    		/*// For debugg...
+    		if(cell->active_cell_index() == 20 && q == 3)
             	{
-            		pcout << "Tensor read for cell " << cell->active_cell_index() << " and qp " << q << std::endl;
+            		pcout << "2 - Tensor read for cell " << cell->active_cell_index() << " and qp " << q << std::endl;
     				for(unsigned int k=0;k<dim;k++)
     				{
     					for(unsigned int l=0;l<dim;l++) pcout << loc_strain[k][l] << "  ";
     					pcout << std::endl;
 
     				}
-            	}
+            	}*/
 
     		// Then the lammps function instanciates lammps, starting from an initial
     		// microstructure and applying the complete new_strain or starting from
     		// the microstructure at the old_strain and applying the difference between
     		// the new_ and _old_strains, returns the new_stress state.
-    		if (cell->active_cell_index() == 1 && q == 1) // For debugg...
-    		lammps_local_testing<dim> (loc_strain,
-    				loc_stress,
-					loc_stiffness,
-					quad_id,
-					mpi_communicator);
+    		//if (cell->active_cell_index() == 1 && (q == 4 || q == 5)) // For debugg...
+    		//lammps_local_testing<dim> (loc_strain,
+    		//		loc_stress,
+			//		loc_stiffness,
+			//		quad_id,
+			//		mpi_communicator);
+
+    		// For debugg...
+    		loc_stiffness = initial_stress_strain_tensor;
+			loc_stress
+			= loc_stiffness
+			* loc_strain;
 
     		// Write the new stress and stiffness tensors into two files, respectively
     		// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
-    		/*sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+			sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
     		ofile.open (filename);
     		if (ofile.is_open())
     		{
     			for(unsigned int k=0;k<dim;k++)
     				for(unsigned int l=k;l<dim;l++)
-    					ofile << loc_stress[k][l] << std::endl;
+    					ofile << std::setprecision(16) << loc_stress[k][l] << std::endl;
     			ofile.close();
     		}
     		else std::cout << "Unable to open stress file to write" << std::endl;
@@ -1108,14 +1130,14 @@ namespace HMM
     				for(unsigned int l=k;l<dim;l++)
     					for(unsigned int m=0;m<dim;m++)
     						for(unsigned int n=m;n<dim;n++)
-    							ofile << loc_stiffness[k][l][m][n] << std::endl;
+    							ofile << std::setprecision(16) << loc_stiffness[k][l][m][n] << std::endl;
     			ofile.close();
     		}
-    		else std::cout << "Unable to open stiffness file to write" << std::endl;*/
+    		else std::cout << "Unable to open stiffness file to write" << std::endl;
     	}
     }
 
-    /*for (typename DoFHandler<dim>::active_cell_iterator
+    for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
     		cell != dof_handler.end(); ++cell)
     	if (cell->is_locally_owned())
@@ -1178,15 +1200,6 @@ namespace HMM
     			}
     			else std::cout << "Unable to open stiffness file to read" << std::endl;
 
-    			// Or maybe we should compute the new stiffness tensor and compute the new
-    			// stress using it instead of asking lammps to return the stress.
-    			// Check what kind of tensor we compute with lammps: linear, secant, or tangent?
-    			local_quadrature_points_history[q].new_stiff = initial_stress_strain_tensor;
-
-    			local_quadrature_points_history[q].new_stress
-				= local_quadrature_points_history[q].new_stiff
-				* local_quadrature_points_history[q].new_strain;
-
     			// Apply rotation of the sample to the new state tensors
     			const Tensor<2,dim> rotation
 				= get_rotation_matrix (displacement_update_grads[q]);
@@ -1207,10 +1220,9 @@ namespace HMM
     			local_quadrature_points_history[q].new_strain
 				= rotated_new_strain;
     		}
-    	}*/
-	MPI_Barrier(MPI_COMM_WORLD);
-
+    	}
   }
+
 
 
   template <int dim>
@@ -1326,6 +1338,7 @@ namespace HMM
                   << " iterations." << std::endl;
 
             pcout << "    Updating quadrature point data..." << std::flush;
+            pcout << std::endl;
             update_quadrature_point_history (newton_update);
             pcout << std::endl;
 
@@ -1628,13 +1641,13 @@ namespace HMM
 
     update_quadrature_point_history (incremental_displacement);
 
-    /*solve_timestep ();
+    solve_timestep ();
 
     solution+=incremental_displacement;
 
     error_estimation ();
 
-    output_results ();*/
+    output_results ();
 
     pcout << std::endl;
   }
@@ -1663,7 +1676,7 @@ namespace HMM
 
     present_time = 0;
     present_timestep = 1;
-    end_time = 1;
+    end_time = 10;
     timestep_no = 0;
 
     make_grid ();

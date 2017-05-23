@@ -70,10 +70,11 @@ fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances
 fix             def1 all print 100 "${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8}" file ${simname}.def1.dat screen no  # stress strain data
 fix             def2 all print 100 "${p1} ${t2} ${t3} ${t4} ${t5}" file ${simname}.def2.dat screen no  # energetics for stress strain
 
-#  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is set constant at 200k
-#  with a relaxation time of 100fs and the normal pressures on z and y faces are set constant at 1.0 bar with
-#  a relaxation time of 1000fs
-fix             3 all npt temp 200.0 200.0 100 z 1.0 1.0 1000 y 1.0 1.0 1000
+#  Setting a global constraint of canonical ensemble on all atoms, the temperature is set constant at 200k
+#  with a relaxation time of 100fs
+#  > Is this done right, namely sufficiently constrained? Volume is later controlled by the fix deform
+#  on all the components of the strain tensor...
+fix             3 all nvt temp 200.0 200.0 100
 
 # Note: these computes are present by default in any input script
 #compute thermo_press all temp

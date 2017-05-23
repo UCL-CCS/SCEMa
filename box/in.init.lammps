@@ -55,7 +55,7 @@ min_style       sd   # energy minimisation
 
 #  Running a free energy minimization simulation with stopping criteria in energy and force, and iteration number
 #  limitations (purpose: finding atoms position)
-minimize        1.0e-7 1.0e-11 1000   50000   # 1.0e-7 1.0e-11 3000   50000
+minimize        1.0e-7 1.0e-11 3000   50000   # 1.0e-7 1.0e-11 3000   50000
 
 
 
@@ -103,5 +103,5 @@ fix             3 all npt temp 500.0 200.0 100.0  iso 1.0 1.0 1000
 #  Running a molecular dynamics simulation for 100000 timesteps
 run             100000
 
-unfix           3
-unfix           4
+unfix 3
+unfix 4

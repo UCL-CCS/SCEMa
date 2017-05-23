@@ -14,6 +14,6 @@ kspace_style    pppm 0.0001   # Might have to redefine after restart
 min_style	     sd
 
 # Setup output
-thermo	     	500
+thermo          500
 thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz
 thermo_modify   flush yes line multi format float %g format 3 %15.8g

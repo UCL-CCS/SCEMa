@@ -29,5 +29,5 @@ variable cunits string GPa
 # Should not they be the same as the one proposed by James in the in.init file?
 variable etol equal 0.0
 variable ftol equal 1.0e-10
-variable maxiter equal 100
-variable maxeval equal 1000
+variable maxiter equal 3000
+variable maxeval equal 50000

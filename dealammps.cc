@@ -80,18 +80,10 @@
 
 #include <deal.II/base/mpi.h>
 
-int NT, NB, NC;
-
 namespace HMM
 {
   using namespace dealii;
   using namespace LAMMPS_NS;
-
-  struct TaskForce
-  {
-    std::vector<int> lprocs;
-    bool used;
-  };
 
   template <int dim>
   struct PointHistory
@@ -492,7 +484,7 @@ namespace HMM
 	  double dts = 2.0; // timestep length
 	  sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 
-	  int nts = 200000; // number of timesteps
+	  int nts = 200; // number of timesteps
 	  sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
 
 	  char cmptid[1024] = "pr1"; // name of the stress compute to retrieve
@@ -560,12 +552,19 @@ namespace HMM
 
     double compute_residual () const;
 
-    MPI_Comm 							mpi_communicator;
-    const unsigned int 					n_mpi_processes;
-    const unsigned int 					this_mpi_process;
-    ConditionalOStream 					pcout;
+    MPI_Comm 							dealii_communicator;
+    const unsigned int 					n_dealii_processes;
+    const unsigned int 					this_dealii_process;
     int 								dealii_pcolor;
+
+    MPI_Comm 							lammps_communicator;
+    int 								n_lammps_processes;
+    int 								n_lammps_batch_processes;
+    int 								n_lammps_batch;
+    int 								this_lammps_process;
     int 								lammps_pcolor;
+
+    ConditionalOStream 					pcout;
 
     parallel::shared::Triangulation<dim> triangulation;
     DoFHandler<dim>      				dof_handler;
@@ -735,11 +734,11 @@ namespace HMM
   template <int dim>
   ElasticProblem<dim>::ElasticProblem ()
     :
-	  mpi_communicator (MPI_COMM_WORLD),
-	  n_mpi_processes (Utilities::MPI::n_mpi_processes(mpi_communicator)),
-	  this_mpi_process (Utilities::MPI::this_mpi_process(mpi_communicator)),
-	  pcout (std::cout,(this_mpi_process == 0)),
-	  triangulation(mpi_communicator/*or MPI_COMM_WORLD*/),
+  	  dealii_communicator (MPI_COMM_WORLD),
+	  n_dealii_processes (Utilities::MPI::n_mpi_processes(dealii_communicator)),
+	  this_dealii_process (Utilities::MPI::this_mpi_process(dealii_communicator)),
+	  pcout (std::cout,(this_dealii_process == 0)),
+	  triangulation(dealii_communicator/*or MPI_COMM_WORLD*/),
 	  dof_handler (triangulation),
 	  fe (FE_Q<dim>(1), dim),
 	  quadrature_formula (2)
@@ -941,7 +940,7 @@ namespace HMM
                                  boundary_values,
                                  fe.component_mask(h_component));
 
-    PETScWrappers::MPI::Vector tmp (locally_owned_dofs,mpi_communicator);
+    PETScWrappers::MPI::Vector tmp (locally_owned_dofs,dealii_communicator);
     MatrixTools::apply_boundary_values (boundary_values,
                                         system_matrix,
                                         tmp,
@@ -957,13 +956,13 @@ namespace HMM
   unsigned int ElasticProblem<dim>::solve_linear_problem ()
   {
 	PETScWrappers::MPI::Vector
-	distributed_newton_update (locally_owned_dofs,mpi_communicator);
+	distributed_newton_update (locally_owned_dofs,dealii_communicator);
 	distributed_newton_update = newton_update;
 
     SolverControl       solver_control (1000,
                                             1e-16*system_rhs.l2_norm());
     PETScWrappers::SolverCG cg (solver_control,
-                                mpi_communicator);
+                                dealii_communicator);
 
     // Apparently (according to step-17.tuto) the BlockJacobi preconditionner is
     // not optimal for large scale simulations.
@@ -1041,9 +1040,10 @@ namespace HMM
     		}
     	}
 
-	MPI_Barrier(mpi_communicator);
+	MPI_Barrier(dealii_communicator);
 
-	/*int nqptbu = 0;
+	// For Debug...
+	int nqptbu = 0;
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
     		cell != dof_handler.end(); ++cell)
@@ -1056,12 +1056,12 @@ namespace HMM
     		{
     			nqptbu++;
     			// check returned value...
-    			pcout << (1+(nqptbu%NC)) << std::endl;
+    			pcout << (1+(nqptbu%n_lammps_batch)) << std::endl;
     		}
     	}
-    }*/
+    }
 
-	//nqptbu = 0;
+	nqptbu = 0;
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
     		cell != dof_handler.end(); ++cell)
@@ -1069,11 +1069,11 @@ namespace HMM
     	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
     	{
     		//test_if q must be updated...
-    		//int q_to_be_updated = 1;
-    		//if (q_to_be_updated)
+    		int q_to_be_updated = 1;
+    		if (q_to_be_updated)
     		{
-    			//nqptbu++;
-    			//if (lammps_pcolor == (1+(nqptbu%NC)))
+    			nqptbu++;
+    			if (lammps_pcolor == (1+(nqptbu%n_lammps_batch)))
     			{
     				SymmetricTensor<2,dim> loc_strain, loc_stress;
     				SymmetricTensor<4,dim> loc_stiffness;
@@ -1094,13 +1094,13 @@ namespace HMM
     						loc_stress,
     						loc_stiffness,
     						quad_id,
-    						mpi_communicator);
+							lammps_communicator);
 
-    				// For debugg using a constitutive equation
-    				/*loc_stiffness = initial_stress_strain_tensor;
+    				// For debugg using a linear constitutive equation
+    				loc_stiffness = initial_stress_strain_tensor;
     				loc_stress
 					= loc_stiffness
-					* loc_strain;*/
+					* loc_strain;
 
     				// Write the new stress and stiffness tensors into two files, respectively
     				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -1176,7 +1176,7 @@ namespace HMM
   double ElasticProblem<dim>::compute_residual () const
   {
 	PETScWrappers::MPI::Vector residual
-								(locally_owned_dofs, mpi_communicator);
+								(locally_owned_dofs, dealii_communicator);
 
     residual = 0;
 
@@ -1317,7 +1317,7 @@ namespace HMM
 	                                    ComponentMask(),
 	                                    0,
 	                                    MultithreadInfo::n_threads(),
-	                                    this_mpi_process);
+	                                    this_dealii_process);
 
 	// Not too sure how is stored the vector 'distributed_error_per_cell',
 	// it might be worth checking in case this is local, hence using a
@@ -1326,7 +1326,7 @@ namespace HMM
 	// be kept used during the whole simulation.
 	const unsigned int n_local_cells = triangulation.n_locally_owned_active_cells ();
 	PETScWrappers::MPI::Vector
-	distributed_error_per_cell (mpi_communicator,
+	distributed_error_per_cell (dealii_communicator,
 	                            triangulation.n_active_cells(),
 	                            n_local_cells);
 	for (unsigned int i=0; i<error_per_cell.size(); ++i)
@@ -1455,17 +1455,17 @@ namespace HMM
 	data_out.build_patches ();
 
 	std::string filename = "solution-" + Utilities::int_to_string(timestep_no,4)
-						   + "." + Utilities::int_to_string(this_mpi_process,3)
+						   + "." + Utilities::int_to_string(this_dealii_process,3)
 						   + ".vtu";
-	AssertThrow (n_mpi_processes < 1000, ExcNotImplemented());
+	AssertThrow (n_dealii_processes < 1000, ExcNotImplemented());
 
 	std::ofstream output (filename.c_str());
 	data_out.write_vtu (output);
 
-    if (this_mpi_process==0)
+    if (this_dealii_process==0)
       {
         std::vector<std::string> filenames;
-        for (unsigned int i=0; i<n_mpi_processes; ++i)
+        for (unsigned int i=0; i<n_dealii_processes; ++i)
           filenames.push_back ("solution-" + Utilities::int_to_string(timestep_no,4)
                                + "." + Utilities::int_to_string(i,3)
                                + ".vtu");
@@ -1493,22 +1493,21 @@ namespace HMM
 
 
 
-  // There are several number of processes encountered: (i) NT the highest provided
+  // There are several number of processes encountered: (i) n_lammps_processes the highest provided
   // as an argument to aprun, (ii) ND the number of processes provided to deal.ii
   // [arbitrary], (iii) NI the number of processes provided to the lammps initiation
-  // [as close as possible to NT], and (iv) NB the number of processes provided to one lammps
-  // testing [NT divided by NC the number of concurrent testing boxes].
+  // [as close as possible to n_lammps_processes], and (iv) n_lammps_batch_processes the number of processes provided to one lammps
+  // testing [NT divided by n_lammps_batch the number of concurrent testing boxes].
   template <int dim>
   void ElasticProblem<dim>::set_procs_colors ()
   {
-	  int me;
-	  MPI_Comm_rank(MPI_COMM_WORLD,&me);
-	  MPI_Comm_size(MPI_COMM_WORLD,&NT);
+	  MPI_Comm_rank(MPI_COMM_WORLD,&this_lammps_process);
+	  MPI_Comm_size(MPI_COMM_WORLD,&n_lammps_processes);
 
 	  // Arbitrary setting of NB and NT
-	  NB = 4;
-	  NC = int(NT/NB);
-	  if(NC == 0) {NC=1; NB=NT;}
+	  n_lammps_batch_processes = 4;
+	  n_lammps_batch = int(n_lammps_processes/n_lammps_batch_processes);
+	  if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_batch_processes=n_lammps_processes;}
 
 	  // Define several procs colors: deal_color = 0/1 and lammps_color = 0/../NC
 	  // DEAL.II processes color: all processes
@@ -1516,10 +1515,14 @@ namespace HMM
 
 	  // LAMMPS processes color: regroup processes by batches of size NB, except
 	  // the last ones (me >= NB*NC) to create batches of only NB processes, nor smaller.
-	  lammps_pcolor = 0;
-	  if(me < NB*NC) lammps_pcolor = 1 + int(me/NB);
+	  lammps_pcolor = MPI_UNDEFINED;
+	  if(this_lammps_process < n_lammps_batch_processes*n_lammps_batch)
+		  lammps_pcolor = 1 + int(this_lammps_process/n_lammps_batch_processes);
 
-	  std::cout << "proc: " << me << " " << dealii_pcolor << " " << lammps_pcolor << std::endl;
+	  // Definition of the communicators
+	  MPI_Comm_split(MPI_COMM_WORLD, lammps_pcolor, this_lammps_process, &lammps_communicator);
+
+	  std::cout << "proc: " << this_lammps_process << " " << dealii_pcolor << " " << lammps_pcolor << std::endl;
   }
 
 
@@ -1579,14 +1582,14 @@ namespace HMM
 	                                   hanging_node_constraints, false);
 	  SparsityTools::distribute_sparsity_pattern (sparsity_pattern,
 	                                              local_dofs_per_process,
-	                                              mpi_communicator,
+	                                              dealii_communicator,
 	                                              locally_relevant_dofs);
 
 	  system_matrix.reinit (locally_owned_dofs,
 	                        locally_owned_dofs,
 							sparsity_pattern,
-	                        mpi_communicator);
-	  system_rhs.reinit (locally_owned_dofs, mpi_communicator);
+							dealii_communicator);
+	  system_rhs.reinit (locally_owned_dofs, dealii_communicator);
 
 	  incremental_displacement.reinit (dof_handler.n_dofs());
 	  newton_update.reinit (dof_handler.n_dofs());
@@ -1642,7 +1645,7 @@ namespace HMM
     // can directly be found in the MPI_COMM.
 	pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
 
-    lammps_initiation<dim> (initial_stress_strain_tensor, mpi_communicator);
+    //lammps_initiation<dim> (initial_stress_strain_tensor, mpi_communicator);
 
     double mu = 9.695e10, lambda = 7.617e10;
     for (unsigned int i=0; i<dim; ++i)
@@ -1664,7 +1667,7 @@ namespace HMM
     pcout << "    Number of active cells:       "
           << triangulation.n_active_cells()
           << " (by partition:";
-    for (unsigned int p=0; p<n_mpi_processes; ++p)
+    for (unsigned int p=0; p<n_dealii_processes; ++p)
       pcout << (p==0 ? ' ' : '+')
             << (GridTools::
                 count_cells_with_subdomain_association (triangulation,p));
@@ -1675,7 +1678,7 @@ namespace HMM
     pcout << "    Number of degrees of freedom: "
           << dof_handler.n_dofs()
           << " (by partition:";
-    for (unsigned int p=0; p<n_mpi_processes; ++p)
+    for (unsigned int p=0; p<n_dealii_processes; ++p)
       pcout << (p==0 ? ' ' : '+')
             << (DoFTools::
                 count_dofs_with_subdomain_association (dof_handler,p));

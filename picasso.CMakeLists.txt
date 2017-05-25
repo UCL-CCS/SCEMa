@@ -6,8 +6,8 @@ SET(TARGET_SRC
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
-FIND_PACKAGE(deal.II 8.4 QUIET
-  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
+FIND_PACKAGE(deal.II 8.5 QUIET
+  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ /home/maxime/opt/dealii-8.5.0/
   )
 IF(NOT ${deal.II_FOUND})
   MESSAGE(FATAL_ERROR "\n"
@@ -25,19 +25,18 @@ DEAL_II_INVOKE_AUTOPILOT()
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
-  /usr/local/packages/lammps/lammps-17Nov16/lammps-17Nov16/src/
+  /home/maxime/source/lammps-17Nov16/src/
   )
 
-## Include LAMMPS library shared (or static)
-SET(CMAKE_CXX_FLAGS "-dynamic /work/e283/e283/vassaux/lib/liblammps.so")
-#SET(CMAKE_CXX_FLAGS "/work/e283/e283/vassaux/lib/liblammps.a")
+## Include LAMMPS library shared .so (or static .a)
+TARGET_LINK_LIBRARIES(${TARGET} /home/maxime/source/lammps-17Nov16/src/liblammps.a)
 
 ## Create additional targets to the standard DEAL.II targets
 ## Use "aprun" as follow: e.g "make aprun NTHR=24"
-ADD_CUSTOM_TARGET(aprun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
+ADD_CUSTOM_TARGET(mpirun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
                       DEPENDS ${TARGET}
-                      COMMAND @echo "... APRUN on $(NTHR) threads ..."
-                      COMMAND aprun -n $(NTHR) ${TARGET}
+                      COMMAND @echo "... MPIRUN on $(NTHR) threads ..."
+                      COMMAND mpirun -np $(NTHR) ${TARGET}
   )
 
 ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
@@ -54,5 +53,5 @@ ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
 
 ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
                            COMMAND rm
-                           ARGS -rf core output.* error.* PE_* restart.equil log.* solution* 
+                           ARGS -rf core output.* error.* PE_* restart.equil log.* solution*
   )

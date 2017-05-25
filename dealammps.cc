@@ -393,7 +393,7 @@ namespace HMM
 	  lmp = new LAMMPS(0,NULL,comm_lammps);
 
 	  char location[1024] = "../box";
-	  char storloc[1024] = "./microstate_storage";
+	  char storloc[1024] = "./nanostate_storage";
 	  char outdata[1024] = "PE_init_end.mstate";
 
 	  char cfile[1024];
@@ -461,7 +461,7 @@ namespace HMM
 	  MPI_Comm_rank(comm_lammps, &me);
 
 	  char location[1024] = "../box";
-	  char storloc[1024] = "./microstate_storage";
+	  char storloc[1024] = "./nanostate_storage";
 
 	  bool compute_finit = true;
 	  char initdata[1024];
@@ -492,7 +492,7 @@ namespace HMM
 	  double dts = 2.0; // timestep length
 	  sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 
-	  int nts = 10; // number of timesteps
+	  int nts = 200000; // number of timesteps
 	  sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
 
 	  char cmptid[1024] = "pr1"; // name of the stress compute to retrieve
@@ -1096,11 +1096,11 @@ namespace HMM
     						quad_id,
     						mpi_communicator);
 
-    				// For debugg...
-    				loc_stiffness = initial_stress_strain_tensor;
+    				// For debugg using a constitutive equation
+    				/*loc_stiffness = initial_stress_strain_tensor;
     				loc_stress
 					= loc_stiffness
-					* loc_strain;
+					* loc_strain;*/
 
     				// Write the new stress and stiffness tensors into two files, respectively
     				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -1642,7 +1642,7 @@ namespace HMM
     // can directly be found in the MPI_COMM.
 	pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
 
-    //lammps_initiation<dim> (initial_stress_strain_tensor, mpi_communicator);
+    lammps_initiation<dim> (initial_stress_strain_tensor, mpi_communicator);
 
     double mu = 9.695e10, lambda = 7.617e10;
     for (unsigned int i=0; i<dim; ++i)

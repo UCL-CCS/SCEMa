@@ -4,6 +4,9 @@
 *.o
 *.obj
 
+# CmakeLists (system dependent)
+CMakeLists.txt
+
 # Precompiled Headers
 *.gch
 *.pch
@@ -35,9 +38,8 @@ Debug/
 # Deal reference tutorials
 ref-steps/
 
-# PBS scripts except the main dealammps script
+# PBS scripts 
 pbs.*
-!pbs.dealammps
 
 # Eclipse files
 .cproject

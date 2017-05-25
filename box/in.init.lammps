@@ -103,5 +103,6 @@ fix             3 all npt temp 500.0 200.0 100.0  iso 1.0 1.0 1000
 #  Running a molecular dynamics simulation for 100000 timesteps
 run             100000
 
+#  Releasing fix constraints
 unfix 3
 unfix 4

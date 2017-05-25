@@ -473,13 +473,8 @@ namespace HMM
 	  char cfile[1024];
 	  char mfile[1024];
 
-	  double dts = 2.0; // timestep length
-	  int nts = 100000; // number of timesteps
-	  char cmptid[1024] = "pr1"; // name of the stress compute to retrieve
-
 	  // Setting general parameters for LAMMPS independentely of what will be
 	  // tested on the sample next.
-	  if (me == 0) std::cout << "--- reading and executing in.set.lammps...       " << std::endl;
 	  sprintf(cfile, "%s/%s", location, "in.set.lammps");
 	  lammps_file(lmp,cfile);
 
@@ -491,38 +486,34 @@ namespace HMM
 	  std::ifstream ifile(mfile);
 	  if (!ifile.good()) std::cout << "Unable to open init_state file to read" << std::endl;
 
-	  sprintf(cline, "read_restart %s", mfile);
-	  lammps_command(lmp,cline);
+	  sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
 
-	  // Load the commands to prepare the NEMD simulations of the strained box
-	  if (me == 0) std::cout << "--- reading and executing in.strain.lammps...       " << std::endl;
+	  // Declaration of variables of in.strain.lammps
+	  double dts = 2.0; // timestep length
+	  sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
+
+	  int nts = 10; // number of timesteps
+	  sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
+
+	  char cmptid[1024] = "pr1"; // name of the stress compute to retrieve
+	  sprintf(cline, "variable cmptid string %s", cmptid); lammps_command(lmp,cline);
+
+	  for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k;l<dim;l++)
+		  {
+			  sprintf(cline, "variable eeps_%d%d equal %f", k, l, strains[k][l]/(nts*dts));
+			  lammps_command(lmp,cline);
+		  }
+
+	  // Run the NEMD simulations of the strained box
 	  sprintf(cfile, "%s/%s", location, "in.strain.lammps");
 	  lammps_file(lmp,cfile);
-
-	  // Prepare commands defining run options and the applied strain tensor
-	  int ncmds = 4;
-	  char **lines = new char*[ncmds];
-	  for(int i=0;i<ncmds;i++)  lines[i] = new char[1024];
-
-	  sprintf(lines[0], "compute %s all pressure thermo_temp", cmptid);
-	  sprintf(lines[1],
-			  "fix 1 all deform 1  x erate %f  y erate %f  z erate %f"
-			  " xy erate %f xz erate %f yz erate %f"
-			  " remap x",
-			  strains[0][0]/(nts*dts),strains[1][1]/(nts*dts),strains[2][2]/(nts*dts),
-			  strains[0][1]/(nts*dts),strains[0][2]/(nts*dts),strains[1][2]/(nts*dts));
-	  sprintf(lines[2], "timestep %f", dts);
-	  sprintf(lines[3], "run %d", nts);
-
-	  // Apply the deformation running a Non-Equilibrium MD simulation
-	  if (me == 0) std::cout << "--- executing variable part of strain.lammps...       " << std::endl;
-	  lammps_commands_list(lmp,ncmds,lines);
 
 	  // Retieve the stress computed using the compute 'cmptid'
 	  double *stress_vector;
 	  stress_vector = (double *) lammps_extract_compute(lmp,cmptid,0,1);
 
-	  // Convert vector to tensor (dimension independently...)
+	  // Convert vector to tensor (dimension independent fahsion...)
 	  for(unsigned int k=0;k<dim;k++) stresses[k][k] = stress_vector[k];
 	  for(unsigned int k=0;k<dim;k++)
 		  for(unsigned int l=k+1;l<dim;l++)
@@ -531,12 +522,6 @@ namespace HMM
 	  // Save data to specific file for this quadrature point
 	  sprintf(cline, "write_restart %s/%s", storloc, straindata);
 	  lammps_command(lmp,cline);
-
-	  // Removing fix 1, 3 and 4
-	  // Is this right? Will it not release completely the box of the current strain?
-	  sprintf(cline, "unfix 1"); lammps_command(lmp,cline);
-	  sprintf(cline, "unfix 3"); lammps_command(lmp,cline);
-	  sprintf(cline, "unfix 4"); lammps_command(lmp,cline);
 
 	  // Compute the Tangent Stiffness Tensor at the given stress/strain state
 	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp, location);
@@ -1105,11 +1090,11 @@ namespace HMM
     				// microstructure and applying the complete new_strain or starting from
     				// the microstructure at the old_strain and applying the difference between
     				// the new_ and _old_strains, returns the new_stress state.
-    				//lammps_local_testing<dim> (loc_strain,
-    				//		loc_stress,
-    				//		loc_stiffness,
-    				//		quad_id,
-    				//		mpi_communicator);
+    				lammps_local_testing<dim> (loc_strain,
+    						loc_stress,
+    						loc_stiffness,
+    						quad_id,
+    						mpi_communicator);
 
     				// For debugg...
     				loc_stiffness = initial_stress_strain_tensor;
@@ -1128,6 +1113,8 @@ namespace HMM
     		}
     	}
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();

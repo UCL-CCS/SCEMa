@@ -85,6 +85,7 @@ fix             3 all nvt temp 200.0 200.0 100
 #  which requires the temperature to compute the part induced by kinetic energy.
 compute         th1 all temp
 #compute         pr1 all pressure thermo_temp  #(in wrapper)
+compute         ${cmptid} all pressure thermo_temp
 
 #  Setting a strain constraint every 1 steps in the x-direction on the box at a strain rate of 1e-7 fs-1, position of
 #  all atoms positions are remapped following an affine transformation, namely proportional to the box deformation.
@@ -93,15 +94,22 @@ compute         th1 all temp
 ##  This command might be moved to the C++ wrapper file (as well as all the
 ##  commands that can not be set before, probably just the run command, and
 ##  maybe timestep for practicality).
-#fix             1 all deform 1  x erate (eps_xx/(nts*dts)) remap x &
-#                                y erate (eps_yy/(nts*dts)) remap x &
-#                                z erate (eps_zz/(nts*dts)) remap x &
-#                               xy erate (eps_xy/(nts*dts)) remap x &
-#                               xz erate (eps_xz/(nts*dts)) remap x &
-#                               yz erate (eps_yz/(nts*dts)) remap x  #(in wrapper)
-
+#print "${eeps_00} ${eeps_11} ${eeps_22} ${eeps_01} ${eeps_02} ${eeps_12}"
+fix             1 all deform 1  x erate ${eeps_00} &
+                                y erate ${eeps_11} &
+                                z erate ${eeps_22} &
+                               xy erate ${eeps_01} &
+                               xz erate ${eeps_02} &
+                               yz erate ${eeps_12} remap x
 #  Setting 2fs timesteps
 #timestep        dts #2.0  #(in wrapper)
+timestep        ${dts} #2.0
 
 #  Running a molecular dynamics simulation for 2000000 timesteps
 #run             nts #2000000  #(in wrapper)
+run             ${nts} #2000000
+
+#  Releasing fix constraints
+unfix 1
+unfix 3
+unfix 4

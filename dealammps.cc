@@ -105,46 +105,57 @@ namespace HMM
     int nid;
   };
 
-  template <int dim, int rank>
-  inline
-  SymmetricTensor<rank,dim>
-  read_tensor (char *filename)
-  {
-    SymmetricTensor<rank,dim> tmp;
-    std::ifstream ifile;
-
-	ifile.open (filename);
-	if (ifile.is_open())
-	{
-		for(unsigned int k=0;k<dim;k++)
-			for(unsigned int l=k;l<dim;l++)
-				if(rank==2)
-				{
-					char line[1024];
-					if(ifile.getline(line, sizeof(line)))
-						tmp[k][l] = std::strtod(line, NULL);
-				}
-				else
-				{
-					for(unsigned int m=0;m<dim;m++)
-						for(unsigned int n=m;n<dim;n++)
-    					{
-        					char line[1024];
-        					if(ifile.getline(line, sizeof(line)))
-        						tmp[k][l][m][n]= std::strtod(line, NULL);
-    					}
-				}
-		ifile.close();
-	}
-	else std::cout << "Unable to open" << filename << " to read it" << std::endl;
-
-    return tmp;
-  }
-
-  template <int dim, int rank>
+  template <int dim>
   inline
   void
-  write_tensor (char *filename, SymmetricTensor<rank,dim> tensor)
+  read_tensor (char *filename, SymmetricTensor<2,dim> &tensor)
+  {
+    std::ifstream ifile;
+
+    ifile.open (filename);
+    if (ifile.is_open())
+    {
+    	for(unsigned int k=0;k<dim;k++)
+    		for(unsigned int l=k;l<dim;l++)
+    		{
+				char line[1024];
+				if(ifile.getline(line, sizeof(line)))
+					tensor[k][l] = std::strtod(line, NULL);
+    		}
+    	ifile.close();
+    }
+	else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+
+  }
+
+  template <int dim>
+  inline
+  void
+  read_tensor (char *filename, SymmetricTensor<4,dim> &tensor)
+  {
+    std::ifstream ifile;
+
+    ifile.open (filename);
+    if (ifile.is_open())
+    {
+    	for(unsigned int k=0;k<dim;k++)
+    		for(unsigned int l=k;l<dim;l++)
+    			for(unsigned int m=0;m<dim;m++)
+    				for(unsigned int n=m;n<dim;n++)
+    				{
+    					char line[1024];
+    					if(ifile.getline(line, sizeof(line)))
+    						tensor[k][l][m][n]= std::strtod(line, NULL);
+    				}
+    	ifile.close();
+    }
+	else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+  }
+
+  template <int dim>
+  inline
+  void
+  write_tensor (char *filename, SymmetricTensor<2,dim> &tensor)
   {
     std::ofstream ofile;
 
@@ -153,12 +164,28 @@ namespace HMM
 	{
 		for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
-				if(rank==2)
-					ofile << std::setprecision(16) << tensor[k][l] << std::endl;
-				else
-					for(unsigned int m=0;m<dim;m++)
-						for(unsigned int n=m;n<dim;n++)
-							ofile << std::setprecision(16) << tensor[k][l][m][n] << std::endl;
+				//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
+				ofile << std::setprecision(16) << tensor[k][l] << std::endl;
+		ofile.close();
+	}
+	else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
+  }
+
+  template <int dim>
+  inline
+  void
+  write_tensor (char *filename, SymmetricTensor<4,dim> &tensor)
+  {
+    std::ofstream ofile;
+
+	ofile.open (filename);
+	if (ofile.is_open())
+	{
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+				for(unsigned int m=0;m<dim;m++)
+					for(unsigned int n=m;n<dim;n++)
+						ofile << std::setprecision(16) << tensor[k][l][m][n] << std::endl;
 		ofile.close();
 	}
 	else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
@@ -976,9 +1003,6 @@ namespace HMM
   {
 	char storloc[1024] = "./macrostate_storage";
 
-	std::ifstream ifile;
-	std::ofstream ofile;
-
     FEValues<dim> fe_values (fe, quadrature_formula,
                              update_values | update_gradients);
     std::vector<std::vector<Tensor<1,dim> > >
@@ -1024,17 +1048,7 @@ namespace HMM
 				char filename[1024];
 
 				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
-				//write_tensor<dim,2>(filename, local_quadrature_points_history[q].new_strain);
-
-				ofile.open (filename);
-				if (ofile.is_open())
-				{
-					for(unsigned int k=0;k<dim;k++)
-						for(unsigned int l=k;l<dim;l++)
-							ofile << std::setprecision(16) << local_quadrature_points_history[q].new_strain[k][l] << std::endl;
-					ofile.close();
-				}
-				else std::cout << "Unable to open strain file to write in" << std::endl;
+				write_tensor<dim>(filename, local_quadrature_points_history[q].new_strain);
 
 				// Check if this is a good position for setting criterion of elastic regime?
 				// Or maybe a separate loop?
@@ -1044,7 +1058,7 @@ namespace HMM
 
 	MPI_Barrier(mpi_communicator);
 
-	int nqptbu = 0;
+	/*int nqptbu = 0;
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
     		cell != dof_handler.end(); ++cell)
@@ -1060,9 +1074,9 @@ namespace HMM
     			pcout << (1+(nqptbu%NC)) << std::endl;
     		}
     	}
-    }
+    }*/
 
-	nqptbu = 0;
+	//nqptbu = 0;
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
     		cell != dof_handler.end(); ++cell)
@@ -1070,11 +1084,11 @@ namespace HMM
     	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
     	{
     		//test_if q must be updated...
-    		int q_to_be_updated = 1;
-    		if (q_to_be_updated)
+    		//int q_to_be_updated = 1;
+    		//if (q_to_be_updated)
     		{
-    			nqptbu++;
-    			if (lammps_pcolor == (1+(nqptbu%NC)))
+    			//nqptbu++;
+    			//if (lammps_pcolor == (1+(nqptbu%NC)))
     			{
     				SymmetricTensor<2,dim> loc_strain, loc_stress;
     				SymmetricTensor<4,dim> loc_stiffness;
@@ -1085,21 +1099,7 @@ namespace HMM
     				char filename[1024];
 
     				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
-    				//loc_strain = read_tensor<dim,2>(filename);
-
-    				ifile.open (filename);
-    				if (ifile.is_open())
-    				{
-    					for(unsigned int k=0;k<dim;k++)
-    						for(unsigned int l=k;l<dim;l++)
-    						{
-    							char line[1024];
-    							if(ifile.getline(line, sizeof(line)))
-    								loc_strain[k][l] = std::strtod(line, NULL);
-    						}
-    					ifile.close();
-    				}
-    				else std::cout << "Unable to open strain file to read" << std::endl;
+    				read_tensor<dim>(filename, loc_strain);
 
     				// Then the lammps function instanciates lammps, starting from an initial
     				// microstructure and applying the complete new_strain or starting from
@@ -1120,32 +1120,10 @@ namespace HMM
     				// Write the new stress and stiffness tensors into two files, respectively
     				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
     				sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
-    				//write_tensor<dim,2>(filename, loc_stress);
-
-    				ofile.open (filename);
-    				if (ofile.is_open())
-    				{
-    					for(unsigned int k=0;k<dim;k++)
-    						for(unsigned int l=k;l<dim;l++)
-    							ofile << std::setprecision(16) << loc_stress[k][l] << std::endl;
-    					ofile.close();
-    				}
-    				else std::cout << "Unable to open stress file to write" << std::endl;
+    				write_tensor<dim>(filename, loc_stress);
 
     				sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
-    				//write_tensor<dim,4>(filename, loc_stiffness);
-
-    				ofile.open (filename);
-    				if (ofile.is_open())
-    				{
-    					for(unsigned int k=0;k<dim;k++)
-    						for(unsigned int l=k;l<dim;l++)
-    							for(unsigned int m=0;m<dim;m++)
-    								for(unsigned int n=m;n<dim;n++)
-    									ofile << std::setprecision(16) << loc_stiffness[k][l][m][n] << std::endl;
-    					ofile.close();
-    				}
-    				else std::cout << "Unable to open stiffness file to write" << std::endl;
+    				write_tensor<dim>(filename, loc_stiffness);
     			}
     		}
     	}
@@ -1177,42 +1155,10 @@ namespace HMM
     			char filename[1024];
 
     			sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
-    			//local_quadrature_points_history[q].new_stress = read_tensor<dim,2>(filename);
-
-    			ifile.open (filename);
-    			if (ifile.is_open())
-    			{
-    				for(unsigned int k=0;k<dim;k++)
-    					for(unsigned int l=k;l<dim;l++)
-    					{
-        					char line[1024];
-        					if(ifile.getline(line, sizeof(line)))
-        						local_quadrature_points_history[q].new_stress[k][l]
-								= std::strtod(line, NULL);
-    					}
-    				ifile.close();
-    			}
-    			else std::cout << "Unable to open stress file to read" << std::endl;
+    			read_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);
 
     			sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
-    			//local_quadrature_points_history[q].new_stiff = read_tensor<dim,4>(filename);
-
-    			ifile.open (filename);
-    			if (ifile.is_open())
-    			{
-    				for(unsigned int k=0;k<dim;k++)
-    					for(unsigned int l=k;l<dim;l++)
-    						for(unsigned int m=0;m<dim;m++)
-    							for(unsigned int n=m;n<dim;n++)
-    	    					{
-    	        					char line[1024];
-    	        					if(ifile.getline(line, sizeof(line)))
-    	        						local_quadrature_points_history[q].new_stiff[k][l][m][n]
-    									= std::strtod(line, NULL);
-    	    					}
-    				ifile.close();
-    			}
-    			else std::cout << "Unable to open stiffness file to read" << std::endl;
+    			read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);
 
     			// Apply rotation of the sample to the new state tensors
     			const Tensor<2,dim> rotation

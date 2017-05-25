@@ -4,6 +4,9 @@
 *.o
 *.obj
 
+# CmakeLists (system dependent)
+CMakeLists.txt
+
 # Precompiled Headers
 *.gch
 *.pch
@@ -27,3 +30,25 @@
 *.exe
 *.out
 *.app
+
+# Build repository
+build/
+Debug/
+
+# Deal reference tutorials
+ref-steps/
+
+# PBS scripts 
+pbs.*
+
+# Eclipse files
+.cproject
+.project
+.ptp-sync/
+.settings/
+.pydevproject
+
+# OSX hidden files
+.DS_Store
+._.DS_Store
+

@@ -17,7 +17,24 @@
  * Author: Wolfgang Bangerth, University of Heidelberg, 2000
  */
 
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <string>
 
+#include <math.h>
+#include "mpi.h"
+#include "lammps.h"
+#include "input.h"
+#include "library.h"
+#include "atom.h"
+
+// To avoid conflicts...
+// pointers.h in input.h defines MIN and MAX
+// which are later redefined in petsc headers
+#undef  MIN
+#undef  MAX
 
 #include <deal.II/grid/tria_boundary_lib.h>
 #include <deal.II/fe/fe_tools.h>
@@ -63,21 +80,18 @@
 
 #include <deal.II/base/mpi.h>
 
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <iomanip>
+int NT, NB, NC;
 
-#include "mpi.h"
-#include "lammps.h"
-#include "input.h"
-#include "library.h"
-#include "atom.h"
-
-namespace DeaLAMMPS
+namespace HMM
 {
   using namespace dealii;
   using namespace LAMMPS_NS;
+
+  struct TaskForce
+  {
+    std::vector<int> lprocs;
+    bool used;
+  };
 
   template <int dim>
   struct PointHistory
@@ -86,43 +100,96 @@ namespace DeaLAMMPS
     SymmetricTensor<2,dim> new_stress;
     SymmetricTensor<2,dim> old_strain;
     SymmetricTensor<2,dim> new_strain;
+    SymmetricTensor<4,dim> old_stiff;
+    SymmetricTensor<4,dim> new_stiff;
+    int nid;
   };
 
-
   template <int dim>
-  SymmetricTensor<4,dim>
-  linear_stress_strain_tensor (const SymmetricTensor<2,dim> old_epsilon,
-		  	  	  	  	  	   const SymmetricTensor<2,dim> old_sigma,
-							   const SymmetricTensor<2,dim> new_epsilon,
-		  	  	  	  	  	   const SymmetricTensor<2,dim> new_sigma)
+  inline
+  void
+  read_tensor (char *filename, SymmetricTensor<2,dim> &tensor)
   {
-    SymmetricTensor<4,dim> tmp;
-    for (unsigned int i=0; i<dim; ++i)
-      for (unsigned int j=0; j<dim; ++j)
-        for (unsigned int k=0; k<dim; ++k)
-          for (unsigned int l=0; l<dim; ++l)
-            tmp[i][j][k][l] = (new_sigma[i][j])/(new_epsilon[k][l]);
-    return tmp;
+    std::ifstream ifile;
+
+    ifile.open (filename);
+    if (ifile.is_open())
+    {
+    	for(unsigned int k=0;k<dim;k++)
+    		for(unsigned int l=k;l<dim;l++)
+    		{
+				char line[1024];
+				if(ifile.getline(line, sizeof(line)))
+					tensor[k][l] = std::strtod(line, NULL);
+    		}
+    	ifile.close();
+    }
+	else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+
   }
 
-
   template <int dim>
-  SymmetricTensor<4,dim>
-  secant_stress_strain_tensor (const SymmetricTensor<2,dim> old_epsilon,
-		  	  	  	  	  	   const SymmetricTensor<2,dim> old_sigma,
-							   const SymmetricTensor<2,dim> new_epsilon,
-		  	  	  	  	  	   const SymmetricTensor<2,dim> new_sigma)
+  inline
+  void
+  read_tensor (char *filename, SymmetricTensor<4,dim> &tensor)
   {
-    SymmetricTensor<4,dim> tmp;
-    for (unsigned int i=0; i<dim; ++i)
-      for (unsigned int j=0; j<dim; ++j)
-        for (unsigned int k=0; k<dim; ++k)
-          for (unsigned int l=0; l<dim; ++l)
-            tmp[i][j][k][l] = (new_sigma[i][j] - old_sigma[i][j])/
-									(new_epsilon[k][l] - old_epsilon[k][l]);
-    return tmp;
+    std::ifstream ifile;
+
+    ifile.open (filename);
+    if (ifile.is_open())
+    {
+    	for(unsigned int k=0;k<dim;k++)
+    		for(unsigned int l=k;l<dim;l++)
+    			for(unsigned int m=0;m<dim;m++)
+    				for(unsigned int n=m;n<dim;n++)
+    				{
+    					char line[1024];
+    					if(ifile.getline(line, sizeof(line)))
+    						tensor[k][l][m][n]= std::strtod(line, NULL);
+    				}
+    	ifile.close();
+    }
+	else std::cout << "Unable to open" << filename << " to read it" << std::endl;
   }
 
+  template <int dim>
+  inline
+  void
+  write_tensor (char *filename, SymmetricTensor<2,dim> &tensor)
+  {
+    std::ofstream ofile;
+
+	ofile.open (filename);
+	if (ofile.is_open())
+	{
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+				//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
+				ofile << std::setprecision(16) << tensor[k][l] << std::endl;
+		ofile.close();
+	}
+	else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
+  }
+
+  template <int dim>
+  inline
+  void
+  write_tensor (char *filename, SymmetricTensor<4,dim> &tensor)
+  {
+    std::ofstream ofile;
+
+	ofile.open (filename);
+	if (ofile.is_open())
+	{
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+				for(unsigned int m=0;m<dim;m++)
+					for(unsigned int n=m;n<dim;n++)
+						ofile << std::setprecision(16) << tensor[k][l][m][n] << std::endl;
+		ofile.close();
+	}
+	else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
+  }
 
   template <int dim>
   inline
@@ -162,7 +229,7 @@ namespace DeaLAMMPS
 
     return strain;
   }
-  
+
 
   Tensor<2,2>
   get_rotation_matrix (const std::vector<Tensor<1,2> > &grad_u)
@@ -222,6 +289,246 @@ namespace DeaLAMMPS
   }
 
 
+  // Computes the complete tanget elastic stiffness tensor and returns
+  // a 3x3x3x3 SymmetricTensor.
+  template <int dim>
+  SymmetricTensor<4,dim>
+  lammps_stiffness (void *lmp, char *location)
+  {
+	  int me;
+	  MPI_Comm_rank(MPI_COMM_WORLD, &me);
+
+	  SymmetricTensor<4,dim> initial_stress_strain_tensor;
+	  SymmetricTensor<2,2*dim> tmp;
+
+	  char cfile[1024];
+	  char cline[1024];
+
+	  sprintf(cline, "variable locbe string %s/%s", location, "ELASTIC");
+	  lammps_command(lmp,cline);
+	  // From a given state, use the 'in.stiffness.lammps' input file that computes
+	  // the 21 constants of the 6x6 symmetrical Voigt stiffness tensor.
+	  sprintf(cfile, "%s/%s", location, "ELASTIC/in.elastic.lammps");
+	  lammps_file(lmp,cfile);
+
+	  // Filling the 6x6 Voigt Sitffness tensor with its computed as variables
+	  // by LAMMPS
+	  for(unsigned int k=0;k<2*dim;k++)
+		  for(unsigned int l=k;l<2*dim;l++)
+		  {
+			  char vcoef[1024];
+			  sprintf(vcoef, "C%d%dall", k+1, l+1);
+			  tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
+		  }
+
+	  // Write test... (on the data returned by lammps)
+
+	  // Conversion of the 6x6 Voigt Stiffness Tensor into the 3x3x3x3
+	  // Standard Stiffness Tensor
+	  for(unsigned int i=0;i<2*dim;i++)
+	  {
+		  int k, l;
+		  if     (i==3+0){k=1; l=2;}
+		  else if(i==3+1){k=0; l=2;}
+		  else if(i==3+2){k=0; l=1;}
+		  else  /*(i<3)*/{k=i; l=i;}
+
+
+		  for(unsigned int j=0;j<2*dim;j++)
+		  {
+			  int m, n;
+
+			  if     (j==3+0){m=1; n=2;}
+			  else if(j==3+1){m=0; n=2;}
+			  else if(j==3+2){m=0; n=1;}
+			  else  /*(j<3)*/{m=j; n=j;}
+
+			  initial_stress_strain_tensor[k][l][m][n]=tmp[i][j];
+			  /*initial_stress_strain_tensor[l][k][m][n]=tmp[i][j];
+			  initial_stress_strain_tensor[k][l][n][m]=tmp[i][j];
+			  initial_stress_strain_tensor[l][k][n][m]=tmp[i][j];*/
+
+			  /*if(me==0) std::cout << k << l << m << n << " - "
+					  	  	  	  << i << j << " - "
+								  << initial_stress_strain_tensor[k][l][m][n]
+							      << std::endl;*/
+		  }
+	  }
+
+	  // Write test... (or actually just verify once that the conversion is accurate
+	  // in 3D, and even 2D if possible)
+
+	  /*// Symmetry checking
+	  if(me==0) std::cout << initial_stress_strain_tensor[0][1][0][2] << std::endl;
+	  if(me==0) std::cout << initial_stress_strain_tensor[1][0][0][2] << std::endl;
+	  if(me==0) std::cout << initial_stress_strain_tensor[0][1][2][0] << std::endl;
+	  if(me==0) std::cout << initial_stress_strain_tensor[1][0][2][0] << std::endl;
+	  if(me==0) std::cout << std::endl;
+	  if(me==0) std::cout << initial_stress_strain_tensor[0][2][0][1] << std::endl;
+	  if(me==0) std::cout << initial_stress_strain_tensor[2][0][0][1] << std::endl;
+	  if(me==0) std::cout << initial_stress_strain_tensor[0][2][1][0] << std::endl;
+	  if(me==0) std::cout << initial_stress_strain_tensor[2][0][1][0] << std::endl;*/
+
+	  return initial_stress_strain_tensor;
+
+  }
+
+
+  // The initiation, namely the preparation of the data from which will
+  // be ran the later tests at every quadrature point, should be ran on
+  // as many processes as available, since it will be the only on going
+  // task at the time it will be called.
+  template <int dim>
+  void
+  lammps_initiation (SymmetricTensor<4,dim>& initial_stress_strain_tensor,
+		  	  	  	 MPI_Comm comm_lammps)
+  {
+	  std::vector<std::vector<double> > tmp (2*dim, std::vector<double>(2*dim));
+
+	  int me;
+	  MPI_Comm_rank(comm_lammps, &me);
+
+	  LAMMPS *lmp = NULL;
+
+	  lmp = new LAMMPS(0,NULL,comm_lammps);
+
+	  char location[1024] = "../box";
+	  char storloc[1024] = "./nanostate_storage";
+	  char outdata[1024] = "PE_init_end.mstate";
+
+	  char cfile[1024];
+	  char cline[1024];
+
+	  bool compute_equil = true;
+
+	  sprintf(cline, "variable locb string %s", location);
+	  lammps_command(lmp,cline);
+
+	  if (me == 0) std::cout << "   reading and executing in.set.lammps...       " << std::endl;
+	  // Setting general parameters for LAMMPS independentely of what will be
+	  // tested on the sample next.
+	  sprintf(cfile, "%s/%s", location, "in.set.lammps");
+	  lammps_file(lmp,cfile);
+
+	  if (me == 0) std::cout << "   reading and executing in.init.lammps...       " << std::endl;
+	  if (compute_equil)
+	  {
+		  // Compute initialization of the sample which minimizes the free energy,
+		  // heat up and finally cool down the sample.
+		  sprintf(cfile, "%s/%s", location, "in.init.lammps");
+		  lammps_file(lmp,cfile);
+
+		  sprintf(cline, "write_restart %s/%s", storloc, outdata);
+		  lammps_command(lmp,cline);
+	  }
+	  else
+	  {
+		  // Reload from previously computed initial preparation (minimization and
+		  // heatup/cooldown), this option shouldn't remain, as in the first step the
+		  // preparation should always be computed.
+		  sprintf(cline, "read_restart %s/%s", storloc, outdata);
+		  lammps_command(lmp,cline);
+	  }
+
+	  // Compute the Tangent Stiffness Tensor at the initial state
+	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp,location);
+
+	  // close down LAMMPS
+	  delete lmp;
+  }
+
+
+  // The local_testing function is ran on every quadrature point which
+  // requires a stress_update. Since a quandrature point is only reached*
+  // by a subset of processes N, we should automatically see lammps be
+  // parallelized on the N processes.
+  template <int dim>
+  void
+  lammps_local_testing (const SymmetricTensor<2,dim>& strains,
+		  	  	  	  	SymmetricTensor<2,dim>& stresses,
+						SymmetricTensor<4,dim>& initial_stress_strain_tensor,
+						char* qptid,
+						MPI_Comm comm_lammps)
+  {
+	  std::vector<std::vector<double> > tmp (2*dim, std::vector<double>(2*dim));
+
+	  // Creating the corresponding lammps instantiation
+	  LAMMPS *lmp = NULL;
+
+	  lmp = new LAMMPS(0,NULL,comm_lammps);
+
+	  int me;
+	  MPI_Comm_rank(comm_lammps, &me);
+
+	  char location[1024] = "../box";
+	  char storloc[1024] = "./nanostate_storage";
+
+	  bool compute_finit = true;
+	  char initdata[1024];
+	  sprintf(initdata, "%s", "PE_init_end.mstate");
+	  char straindata[1024];
+	  sprintf(straindata, "%s.%s", qptid, "PE_strain_end.mstate");
+
+	  char cline[1024];
+	  char cfile[1024];
+	  char mfile[1024];
+
+	  // Setting general parameters for LAMMPS independentely of what will be
+	  // tested on the sample next.
+	  sprintf(cfile, "%s/%s", location, "in.set.lammps");
+	  lammps_file(lmp,cfile);
+
+	  // Set initial state of the testing box (either from initial end state
+	  // or from previous testing end state).
+	  if(compute_finit) sprintf(mfile, "%s/%s", storloc, initdata);
+	  else sprintf(mfile, "%s/%s", storloc, straindata);
+
+	  std::ifstream ifile(mfile);
+	  if (!ifile.good()) std::cout << "Unable to open init_state file to read" << std::endl;
+
+	  sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+	  // Declaration of variables of in.strain.lammps
+	  double dts = 2.0; // timestep length
+	  sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
+
+	  int nts = 200000; // number of timesteps
+	  sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
+
+	  char cmptid[1024] = "pr1"; // name of the stress compute to retrieve
+	  sprintf(cline, "variable cmptid string %s", cmptid); lammps_command(lmp,cline);
+
+	  for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k;l<dim;l++)
+		  {
+			  sprintf(cline, "variable eeps_%d%d equal %f", k, l, strains[k][l]/(nts*dts));
+			  lammps_command(lmp,cline);
+		  }
+
+	  // Run the NEMD simulations of the strained box
+	  sprintf(cfile, "%s/%s", location, "in.strain.lammps");
+	  lammps_file(lmp,cfile);
+
+	  // Retieve the stress computed using the compute 'cmptid'
+	  double *stress_vector;
+	  stress_vector = (double *) lammps_extract_compute(lmp,cmptid,0,1);
+
+	  // Convert vector to tensor (dimension independent fahsion...)
+	  for(unsigned int k=0;k<dim;k++) stresses[k][k] = stress_vector[k];
+	  for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k+1;l<dim;l++)
+			  stresses[k][l] = stress_vector[k+l+2];
+
+	  // Save data to specific file for this quadrature point
+	  sprintf(cline, "write_restart %s/%s", storloc, straindata);
+	  lammps_command(lmp,cline);
+
+	  // Compute the Tangent Stiffness Tensor at the given stress/strain state
+	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp, location);
+
+	  // close down LAMMPS
+	  delete lmp;
+  }
 
 
   template <int dim>
@@ -233,6 +540,7 @@ namespace DeaLAMMPS
     void run ();
 
   private:
+    void set_procs_colors ();
     void make_grid ();
     void setup_system ();
     void do_timestep ();
@@ -243,7 +551,7 @@ namespace DeaLAMMPS
     void error_estimation ();
     double determine_step_length () const;
     void move_mesh ();
-    
+
     void setup_quadrature_point_history ();
 
     void update_quadrature_point_history (const Vector<double>& displacement_update);
@@ -252,7 +560,12 @@ namespace DeaLAMMPS
 
     double compute_residual () const;
 
-    SymmetricTensor<2,dim> lammps_local_testing (const SymmetricTensor<2,dim> strains);
+    MPI_Comm 							mpi_communicator;
+    const unsigned int 					n_mpi_processes;
+    const unsigned int 					this_mpi_process;
+    ConditionalOStream 					pcout;
+    int 								dealii_pcolor;
+    int 								lammps_pcolor;
 
     parallel::shared::Triangulation<dim> triangulation;
     DoFHandler<dim>      				dof_handler;
@@ -275,20 +588,15 @@ namespace DeaLAMMPS
     double              				present_timestep;
     double              				end_time;
     unsigned int        				timestep_no;
-
-    MPI_Comm 							mpi_communicator;
-    const unsigned int 					n_mpi_processes;
-    const unsigned int 					this_mpi_process;
-    ConditionalOStream 					pcout;
+    unsigned int        				newtonstep_no;
 
     std::vector<types::global_dof_index> local_dofs_per_process;
     IndexSet 							locally_owned_dofs;
     IndexSet 							locally_relevant_dofs;
     unsigned int 						n_local_cells;
 
-    // This will not be so constant anymore in our HMM: position dependent,
-    // history dependent, and computed in an specific function using LAMMPS
-    static const SymmetricTensor<4,dim> stress_strain_tensor;
+    SymmetricTensor<4,dim> 				initial_stress_strain_tensor,
+						   	   	   	   	stress_strain_tensor;
   };
 
 
@@ -399,8 +707,8 @@ namespace DeaLAMMPS
     Assert (values.size() == dim,
             ExcDimensionMismatch (values.size(), dim));
 
-    values = 0;
-    values(dim-1) = -present_timestep * velocity;
+    // All parts of the vector values are initiated to the given scalar.
+    values = present_timestep * velocity;
   }
 
 
@@ -422,18 +730,19 @@ namespace DeaLAMMPS
   }
 
 
-
+  // In order to modify the processes used by the deal.ii run, another
+  // communicator should be used (e.g split from MPI_COMM_WORLD)
   template <int dim>
   ElasticProblem<dim>::ElasticProblem ()
     :
-	  triangulation(MPI_COMM_WORLD),
-	  dof_handler (triangulation),
-	  fe (FE_Q<dim>(1), dim),
-	  quadrature_formula (2),
 	  mpi_communicator (MPI_COMM_WORLD),
 	  n_mpi_processes (Utilities::MPI::n_mpi_processes(mpi_communicator)),
 	  this_mpi_process (Utilities::MPI::this_mpi_process(mpi_communicator)),
-	  pcout (std::cout,(this_mpi_process == 0))
+	  pcout (std::cout,(this_mpi_process == 0)),
+	  triangulation(mpi_communicator/*or MPI_COMM_WORLD*/),
+	  dof_handler (triangulation),
+	  fe (FE_Q<dim>(1), dim),
+	  quadrature_formula (2)
   {}
 
 
@@ -443,25 +752,18 @@ namespace DeaLAMMPS
   {
     dof_handler.clear ();
   }
-  
+
 
 
   template <int dim>
   void ElasticProblem<dim>::setup_quadrature_point_history ()
   {
-	unsigned int our_cells = 0;
-    for (typename Triangulation<dim>::active_cell_iterator
-		 cell = triangulation.begin_active();
-		 cell != triangulation.end(); ++cell)
-    	if (cell->is_locally_owned()) ++our_cells;
-
 	triangulation.clear_user_data();
-
     {
       std::vector<PointHistory<dim> > tmp;
       tmp.swap (quadrature_point_history);
     }
-    quadrature_point_history.resize (our_cells *
+    quadrature_point_history.resize (n_local_cells *
                                      quadrature_formula.size());
 
     unsigned int history_index = 0;
@@ -476,29 +778,55 @@ namespace DeaLAMMPS
 
     Assert (history_index == quadrature_point_history.size(),
             ExcInternalError());
-  }    
-  
-  
+
+    // History data at integration points initialization
+    for (typename DoFHandler<dim>::active_cell_iterator
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
+    	if (cell->is_locally_owned())
+    	{
+    		PointHistory<dim> *local_quadrature_points_history
+			= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+    		Assert (local_quadrature_points_history >=
+    				&quadrature_point_history.front(),
+					ExcInternalError());
+    		Assert (local_quadrature_points_history <
+    				&quadrature_point_history.back(),
+					ExcInternalError());
+
+    		for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+    		{
+    			local_quadrature_points_history[q].new_strain = 0;
+    			local_quadrature_points_history[q].new_stiff = initial_stress_strain_tensor;
+    			local_quadrature_points_history[q].new_stress = 0;
+    		}
+    	}
+
+  }
+
+
 
   template <int dim>
   void ElasticProblem<dim>::set_boundary_values ()
   {
+    FEValuesExtractors::Scalar t_component (dim-3);
     FEValuesExtractors::Scalar h_component (dim-2);
     FEValuesExtractors::Scalar v_component (dim-1);
     std::map<types::global_dof_index,double> boundary_values;
     VectorTools::
     interpolate_boundary_values (dof_handler,
-                                 1,
-                                 ZeroFunction<dim> (dim),
+                                 12,
+								 ZeroFunction<dim>(dim),
                                  boundary_values);
+
     VectorTools::
     interpolate_boundary_values (dof_handler,
-                                 2,
+                                 22,
                                  IncrementalBoundaryValues<dim>(present_time,
                                                                 present_timestep),
                                  boundary_values,
-                                 fe.component_mask(v_component));
-                                        
+                                 fe.component_mask(h_component));
+
     for (std::map<types::global_dof_index, double>::const_iterator
        p = boundary_values.begin();
        p != boundary_values.end(); ++p)
@@ -528,7 +856,7 @@ namespace DeaLAMMPS
     BodyForce<dim>      body_force;
     std::vector<Vector<double> > body_force_values (n_q_points,
                                                     Vector<double>(dim));
-                                                    
+
     typename DoFHandler<dim>::active_cell_iterator
     cell = dof_handler.begin_active(),
     endc = dof_handler.end();
@@ -548,19 +876,15 @@ namespace DeaLAMMPS
               for (unsigned int q_point=0; q_point<n_q_points;
                    ++q_point)
                 {
+                  const SymmetricTensor<4,dim> &new_stiff
+                    = local_quadrature_points_data[q_point].new_stiff;
+
                   const SymmetricTensor<2,dim>
                   eps_phi_i = get_strain (fe_values, i, q_point),
                   eps_phi_j = get_strain (fe_values, j, q_point);
 
-                  const SymmetricTensor<4,dim> stress_strain_tensor
-                    = secant_stress_strain_tensor<dim> (
-                    		local_quadrature_points_data[q_point].old_strain,
-							local_quadrature_points_data[q_point].old_stress,
-							local_quadrature_points_data[q_point].new_strain,
-							local_quadrature_points_data[q_point].new_stress);
-
                   cell_matrix(i,j)
-                  += (eps_phi_i * stress_strain_tensor * eps_phi_j
+                  += (eps_phi_i * new_stiff * eps_phi_j
                       *
                       fe_values.JxW (q_point));
                 }
@@ -599,18 +923,24 @@ namespace DeaLAMMPS
     system_matrix.compress(VectorOperation::add);
     system_rhs.compress(VectorOperation::add);
 
+    FEValuesExtractors::Scalar t_component (dim-3);
     FEValuesExtractors::Scalar h_component (dim-2);
     FEValuesExtractors::Scalar v_component (dim-1);
     std::map<types::global_dof_index,double> boundary_values;
-    VectorTools::interpolate_boundary_values (dof_handler,
-                                              1,
-                                              ZeroFunction<dim>(dim),
-                                              boundary_values);
-    VectorTools::interpolate_boundary_values (dof_handler,
-                                              2,
-                                              ZeroFunction<dim>(dim),
-                                              boundary_values,
-                                              fe.component_mask(v_component));
+
+    VectorTools::
+    interpolate_boundary_values (dof_handler,
+                                 12,
+								 ZeroFunction<dim>(dim),
+                                 boundary_values);
+
+    VectorTools::
+    interpolate_boundary_values (dof_handler,
+                                 22,
+								 ZeroFunction<dim>(dim),
+                                 boundary_values,
+                                 fe.component_mask(h_component));
+
     PETScWrappers::MPI::Vector tmp (locally_owned_dofs,mpi_communicator);
     MatrixTools::apply_boundary_values (boundary_values,
                                         system_matrix,
@@ -618,7 +948,7 @@ namespace DeaLAMMPS
                                         system_rhs,
 										false);
     newton_update = tmp;
-                                        
+
   }
 
 
@@ -651,12 +981,13 @@ namespace DeaLAMMPS
   }
 
 
-  // How to proceed such that the update of the stres state of each
-  // quadrature point is run concurrently?
+
   template <int dim>
-  void ElasticProblem<dim>::update_quadrature_point_history 
+  void ElasticProblem<dim>::update_quadrature_point_history
         (const Vector<double>& displacement_update)
   {
+	char storloc[1024] = "./macrostate_storage";
+
     FEValues<dim> fe_values (fe, quadrature_formula,
                              update_values | update_gradients);
     std::vector<std::vector<Tensor<1,dim> > >
@@ -667,77 +998,178 @@ namespace DeaLAMMPS
             ExcInternalError());
 
     for (typename DoFHandler<dim>::active_cell_iterator
-         cell = dof_handler.begin_active();
-         cell != dof_handler.end(); ++cell)
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
     	if (cell->is_locally_owned())
-          {
-          PointHistory<dim> *local_quadrature_points_history
-            = reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
-          Assert (local_quadrature_points_history >=
-                  &quadrature_point_history.front(),
-                  ExcInternalError());
-          Assert (local_quadrature_points_history <
-                  &quadrature_point_history.back(),
-                  ExcInternalError());
-          fe_values.reinit (cell);
-          fe_values.get_function_gradients (displacement_update,
-                                            displacement_update_grads);
+    	{
+    		PointHistory<dim> *local_quadrature_points_history
+			= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+    		Assert (local_quadrature_points_history >=
+    				&quadrature_point_history.front(),
+					ExcInternalError());
+    		Assert (local_quadrature_points_history <
+    				&quadrature_point_history.back(),
+					ExcInternalError());
+    		fe_values.reinit (cell);
+    		fe_values.get_function_gradients (displacement_update,
+    				displacement_update_grads);
 
-          for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-            {
-        	  local_quadrature_points_history[q].old_strain =
-        			  local_quadrature_points_history[q].new_strain;
-        	  local_quadrature_points_history[q].new_strain =
-        			  local_quadrature_points_history[q].old_strain
-					  	  + get_strain (displacement_update_grads[q]);
+    		for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+    		{
+    			local_quadrature_points_history[q].old_strain =
+    					local_quadrature_points_history[q].new_strain;
+    			local_quadrature_points_history[q].new_strain +=
+    					get_strain (displacement_update_grads[q]);
 
-        	  local_quadrature_points_history[q].old_stress =
-        			  local_quadrature_points_history[q].new_stress;
-        	  // The lammps function first transforms the new_strain state in a format
-        	  // suitable for lammps to apply to a given box.
-        	  // Then the lammps function instanciates lammps, starting from an initial
-        	  // microstructure and applying the complete new_strain or starting from
-        	  // the microstructure at the old_strain and applying the difference between
-        	  // the new_ and _old_strains, returns the new_stress state.
-        	  local_quadrature_points_history[q].new_stress =
-        	     lammps_local_testing (local_quadrature_points_history[q].new_strain);
+    			local_quadrature_points_history[q].old_stress =
+    					local_quadrature_points_history[q].new_stress;
 
-        	  // Apply rotation of the sample to all the state tensors
-              /*const Tensor<2,dim> rotation
-                = get_rotation_matrix (displacement_update_grads[q]);
+    			local_quadrature_points_history[q].old_stiff =
+    					local_quadrature_points_history[q].new_stiff;
 
-              const SymmetricTensor<2,dim> rotated_old_stress
-                = symmetrize(transpose(rotation) *
-                             static_cast<Tensor<2,dim> >
-              	  	  	  	  	  (local_quadrature_points_history[q].old_stress) *
-                             rotation);
-              const SymmetricTensor<2,dim> rotated_old_strain
-                = symmetrize(transpose(rotation) *
-                             static_cast<Tensor<2,dim> >
-              	  	  	  	  	  (local_quadrature_points_history[q].old_strain) *
-                             rotation);
-              const SymmetricTensor<2,dim> rotated_new_stress
-                = symmetrize(transpose(rotation) *
-                             static_cast<Tensor<2,dim> >
-              	  	  	  	  	  (local_quadrature_points_history[q].new_stress) *
-                             rotation);
-              const SymmetricTensor<2,dim> rotated_new_strain
-                = symmetrize(transpose(rotation) *
-                             static_cast<Tensor<2,dim> >
-              	  	  	  	  	  (local_quadrature_points_history[q].new_strain) *
-                             rotation);
+    			// Store strains in a file named ./macrostate_storage/time.it-cellid.qid.strain
+				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+				char filename[1024];
 
-              local_quadrature_points_history[q].old_stress
-                = rotated_old_stress;
-              local_quadrature_points_history[q].old_strain
-                = rotated_old_strain;
-              local_quadrature_points_history[q].new_stress
-                = rotated_new_stress;
-              local_quadrature_points_history[q].new_strain
-                = rotated_new_strain;*/
-            }
-          }
+				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+				write_tensor<dim>(filename, local_quadrature_points_history[q].new_strain);
+
+				// Check if this is a good position for setting criterion of elastic regime?
+				// Or maybe a separate loop?
+				// If parallel task, need to retrieve information...
+    		}
+    	}
+
+	MPI_Barrier(mpi_communicator);
+
+	/*int nqptbu = 0;
+    for (typename DoFHandler<dim>::active_cell_iterator
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
+    {
+    	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+    	{
+    		//test_if q must be updated...
+    		int q_to_be_updated = 1;
+    		if (q_to_be_updated)
+    		{
+    			nqptbu++;
+    			// check returned value...
+    			pcout << (1+(nqptbu%NC)) << std::endl;
+    		}
+    	}
+    }*/
+
+	//nqptbu = 0;
+    for (typename DoFHandler<dim>::active_cell_iterator
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
+    {
+    	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+    	{
+    		//test_if q must be updated...
+    		//int q_to_be_updated = 1;
+    		//if (q_to_be_updated)
+    		{
+    			//nqptbu++;
+    			//if (lammps_pcolor == (1+(nqptbu%NC)))
+    			{
+    				SymmetricTensor<2,dim> loc_strain, loc_stress;
+    				SymmetricTensor<4,dim> loc_stiffness;
+
+    				// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+    				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+    				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+    				char filename[1024];
+
+    				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+    				read_tensor<dim>(filename, loc_strain);
+
+    				// Then the lammps function instanciates lammps, starting from an initial
+    				// microstructure and applying the complete new_strain or starting from
+    				// the microstructure at the old_strain and applying the difference between
+    				// the new_ and _old_strains, returns the new_stress state.
+    				lammps_local_testing<dim> (loc_strain,
+    						loc_stress,
+    						loc_stiffness,
+    						quad_id,
+    						mpi_communicator);
+
+    				// For debugg using a constitutive equation
+    				/*loc_stiffness = initial_stress_strain_tensor;
+    				loc_stress
+					= loc_stiffness
+					* loc_strain;*/
+
+    				// Write the new stress and stiffness tensors into two files, respectively
+    				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
+    				sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+    				write_tensor<dim>(filename, loc_stress);
+
+    				sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+    				write_tensor<dim>(filename, loc_stiffness);
+    			}
+    		}
+    	}
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    for (typename DoFHandler<dim>::active_cell_iterator
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
+    	if (cell->is_locally_owned())
+    	{
+    		PointHistory<dim> *local_quadrature_points_history
+			= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+    		Assert (local_quadrature_points_history >=
+    				&quadrature_point_history.front(),
+					ExcInternalError());
+    		Assert (local_quadrature_points_history <
+    				&quadrature_point_history.back(),
+					ExcInternalError());
+    		fe_values.reinit (cell);
+    		fe_values.get_function_gradients (displacement_update,
+    				displacement_update_grads);
+
+    		for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+    		{
+    			// Restore the new stress and stiffness tensors from two files, respectively
+				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
+    			char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+    			char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+    			char filename[1024];
+
+    			sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+    			read_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);
+
+    			sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+    			read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);
+
+    			// Apply rotation of the sample to the new state tensors
+    			const Tensor<2,dim> rotation
+				= get_rotation_matrix (displacement_update_grads[q]);
+
+    			const SymmetricTensor<2,dim> rotated_new_stress
+				= symmetrize(transpose(rotation) *
+						static_cast<Tensor<2,dim> >
+    			(local_quadrature_points_history[q].new_stress) *
+				rotation);
+    			const SymmetricTensor<2,dim> rotated_new_strain
+				= symmetrize(transpose(rotation) *
+						static_cast<Tensor<2,dim> >
+    			(local_quadrature_points_history[q].new_strain) *
+				rotation);
+
+    			local_quadrature_points_history[q].new_stress
+				= rotated_new_stress;
+    			local_quadrature_points_history[q].new_strain
+				= rotated_new_strain;
+    		}
+    	}
   }
+
 
 
   template <int dim>
@@ -747,7 +1179,7 @@ namespace DeaLAMMPS
 								(locally_owned_dofs, mpi_communicator);
 
     residual = 0;
-    
+
     FEValues<dim> fe_values (fe, quadrature_formula,
                              update_values   | update_gradients |
                              update_quadrature_points | update_JxW_values);
@@ -785,7 +1217,7 @@ namespace DeaLAMMPS
               for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
                 {
                   const SymmetricTensor<2,dim> &old_stress
-                    = local_quadrature_points_data[q_point].old_stress;
+                    = local_quadrature_points_data[q_point].new_stress;
 
                   cell_residual(i) += (body_force_values[q_point](component_i) *
                                        fe_values.shape_value (i,q_point)
@@ -826,11 +1258,11 @@ namespace DeaLAMMPS
 
   template <int dim>
   void ElasticProblem<dim>::solve_timestep ()
-  {    
+  {
     double previous_res;
-    
+
     do
-      { 
+      {
     	previous_res = compute_residual();
         pcout << "  Initial residual: "
                   << previous_res
@@ -841,21 +1273,22 @@ namespace DeaLAMMPS
 
             pcout << "    Assembling system..." << std::flush;
             assemble_system ();
-            
+
             pcout << "    System - norm of rhs is " << system_rhs.l2_norm()
                   << std::endl;
 
             const unsigned int n_iterations = solve_linear_problem ();
-            
+
             pcout << "    Solver - norm of newton update is " << newton_update.l2_norm()
-                  << std::endl;  
+                  << std::endl;
             pcout << "    Solver converged in " << n_iterations
                   << " iterations." << std::endl;
-            
+
             pcout << "    Updating quadrature point data..." << std::flush;
+            pcout << std::endl;
             update_quadrature_point_history (newton_update);
             pcout << std::endl;
-            
+
             previous_res = compute_residual();
 
             pcout << "  Residual: "
@@ -863,6 +1296,8 @@ namespace DeaLAMMPS
                       << std::endl
                       << "  -"
                       << std::endl;
+
+            ++newtonstep_no;
           }
       } while (previous_res>1e-3);
   }
@@ -910,9 +1345,9 @@ namespace DeaLAMMPS
   {
     return 1.0;
   }
-  
-  
-  
+
+
+
 
   template <int dim>
   void ElasticProblem<dim>::move_mesh ()
@@ -937,8 +1372,8 @@ namespace DeaLAMMPS
             cell->vertex(v) += vertex_displacement;
           }
   }
-  
-  
+
+
 
   template <int dim>
   void ElasticProblem<dim>::output_results () const
@@ -1058,23 +1493,66 @@ namespace DeaLAMMPS
 
 
 
+  // There are several number of processes encountered: (i) NT the highest provided
+  // as an argument to aprun, (ii) ND the number of processes provided to deal.ii
+  // [arbitrary], (iii) NI the number of processes provided to the lammps initiation
+  // [as close as possible to NT], and (iv) NB the number of processes provided to one lammps
+  // testing [NT divided by NC the number of concurrent testing boxes].
+  template <int dim>
+  void ElasticProblem<dim>::set_procs_colors ()
+  {
+	  int me;
+	  MPI_Comm_rank(MPI_COMM_WORLD,&me);
+	  MPI_Comm_size(MPI_COMM_WORLD,&NT);
+
+	  // Arbitrary setting of NB and NT
+	  NB = 4;
+	  NC = int(NT/NB);
+	  if(NC == 0) {NC=1; NB=NT;}
+
+	  // Define several procs colors: deal_color = 0/1 and lammps_color = 0/../NC
+	  // DEAL.II processes color: all processes
+	  dealii_pcolor = 1;
+
+	  // LAMMPS processes color: regroup processes by batches of size NB, except
+	  // the last ones (me >= NB*NC) to create batches of only NB processes, nor smaller.
+	  lammps_pcolor = 0;
+	  if(me < NB*NC) lammps_pcolor = 1 + int(me/NB);
+
+	  std::cout << "proc: " << me << " " << dealii_pcolor << " " << lammps_pcolor << std::endl;
+  }
+
+
+
 
   template <int dim>
   void ElasticProblem<dim>::make_grid ()
   {
-    GridGenerator::hyper_L (triangulation, -1, 1);
+	std::vector< unsigned int > sizes (GeometryInfo<dim>::faces_per_cell);
+	sizes[0] = 0; sizes[1] = 1;
+	sizes[2] = 0; sizes[3] = 1;
+	sizes[4] = 0; sizes[5] = 0;
+	GridGenerator::hyper_cross(triangulation, sizes);
     for (typename Triangulation<dim>::active_cell_iterator cell = triangulation.begin_active();
-             cell != triangulation.end(); 
+             cell != triangulation.end();
                 ++cell)
        for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
           if (cell->face(f)->at_boundary())
            {
-             if (cell->face(f)->center()[0] == 1.0)
-                cell->face(f)->set_boundary_id (1);
-             if (cell->face(f)->center()[1] == 1.0)
-                cell->face(f)->set_boundary_id (2);
+              if (cell->face(f)->center()[0] == -0.5)
+                 cell->face(f)->set_boundary_id (11);
+              if (cell->face(f)->center()[0] == 1.5)
+                 cell->face(f)->set_boundary_id (12);
+              if (cell->face(f)->center()[1] == -0.5)
+                 cell->face(f)->set_boundary_id (21);
+              if (cell->face(f)->center()[1] == 1.5)
+                 cell->face(f)->set_boundary_id (22);
+              if (cell->face(f)->center()[2] == -0.5)
+                 cell->face(f)->set_boundary_id (31);
+              if (cell->face(f)->center()[2] == 0.5)
+                 cell->face(f)->set_boundary_id (32);
            }
-    triangulation.refine_global (3);
+    triangulation.refine_global (1);
   }
 
 
@@ -1116,13 +1594,13 @@ namespace DeaLAMMPS
 
 	  setup_quadrature_point_history ();
   }
-  
-  
+
+
 
   template <int dim>
   void ElasticProblem<dim>::do_timestep ()
   {
-    
+
     present_time += present_timestep;
     ++timestep_no;
     pcout << "Timestep " << timestep_no << " at time " << present_time
@@ -1133,11 +1611,14 @@ namespace DeaLAMMPS
         present_time = end_time;
       }
 
+    newtonstep_no = 0;
+
     incremental_displacement = 0;
-    
+
     set_boundary_values ();
+
     update_quadrature_point_history (incremental_displacement);
-    
+
     solve_timestep ();
 
     solution+=incremental_displacement;
@@ -1152,75 +1633,32 @@ namespace DeaLAMMPS
 
 
   template <int dim>
-  SymmetricTensor<2,dim> ElasticProblem<dim>::
-  lammps_local_testing (const SymmetricTensor<2,dim> strains)
-  {
-	  SymmetricTensor<2,dim> stresses;
-
-	  int me,nprocs;
-	  MPI_Comm_rank(MPI_COMM_WORLD,&me);
-	  MPI_Comm_size(MPI_COMM_WORLD,&nprocs);
-
-	  int nprocs_lammps = nprocs;
-
-	  int lammps;
-	  if (me < nprocs_lammps) lammps = 1;
-	  else lammps = MPI_UNDEFINED;
-	  MPI_Comm comm_lammps;
-	  MPI_Comm_split(MPI_COMM_WORLD,lammps,0,&comm_lammps);
-
-	  // Open LAMMPS input script describing the reference polymer box on
-	  // which we are going to apply strains
-
-	  FILE *fp;
-	  if (me == 0)
-	  {
-		  fp = fopen("./in.lj","r");
-		  if (fp == NULL)
-		  {
-			  printf("ERROR: Could not open LAMMPS input script\n");
-			  MPI_Abort(MPI_COMM_WORLD,1);
-		  }
-	  }
-
-	  // Run the input script thru LAMMPS one line at a time until end-of-file
-	  // driver proc 0 reads a line, Bcasts it to all procs
-	  // (could just send it to proc 0 of comm_lammps and let it Bcast)
-	  // all LAMMPS procs call input->one() on the line
-
-	  LAMMPS *lmp = NULL;
-
-	  if (lammps == 1) lmp = new LAMMPS(0,NULL,comm_lammps);
-
-	  int n;
-	  char line[1024];
-	  while (1)
-	  {
-		  if (me == 0)
-		  {
-			  if (fgets(line,1024,fp) == NULL) n = 0;
-			  else n = strlen(line) + 1;
-			  if (n == 0) fclose(fp);
-		  }
-		  MPI_Bcast(&n,1,MPI_INT,0,MPI_COMM_WORLD);
-		  if (n == 0) break;
-		  MPI_Bcast(line,n,MPI_CHAR,0,MPI_COMM_WORLD);
-		  if (lammps == 1) lammps_command(lmp,line);
-	  }
-
-	  return stresses;
-  }
- 
-  
-  
-  template <int dim>
   void ElasticProblem<dim>::run ()
   {
+	set_procs_colors();
+
+    // Since LAMMPS is highly scalable, the initiation number of processes NI
+    // can basically be equal to the maximum number of available processes NT which
+    // can directly be found in the MPI_COMM.
+	pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
+
+    lammps_initiation<dim> (initial_stress_strain_tensor, mpi_communicator);
+
+    double mu = 9.695e10, lambda = 7.617e10;
+    for (unsigned int i=0; i<dim; ++i)
+      for (unsigned int j=0; j<dim; ++j)
+        for (unsigned int k=0; k<dim; ++k)
+          for (unsigned int l=0; l<dim; ++l)
+        	  initial_stress_strain_tensor[i][j][k][l]
+							= (((i==k) && (j==l) ? mu : 0.0) +
+                               ((i==l) && (j==k) ? mu : 0.0) +
+                               ((i==j) && (k==l) ? lambda : 0.0));
+
     present_time = 0;
     present_timestep = 1;
     end_time = 10;
     timestep_no = 0;
-    
+
     make_grid ();
 
     pcout << "    Number of active cells:       "
@@ -1231,7 +1669,7 @@ namespace DeaLAMMPS
             << (GridTools::
                 count_cells_with_subdomain_association (triangulation,p));
     pcout << ")" << std::endl;
-              
+
     setup_system ();
 
     pcout << "    Number of degrees of freedom: "
@@ -1246,7 +1684,7 @@ namespace DeaLAMMPS
     while (present_time < end_time)
       do_timestep ();
   }
-}  
+}
 
 
 
@@ -1254,13 +1692,11 @@ int main (int argc, char **argv)
 {
   try
     {
-      using namespace DeaLAMMPS;
+      using namespace HMM;
 
-      using namespace dealii;
+      dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
-      Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
-
-      DeaLAMMPS::ElasticProblem<2> elastic_problem;
+      ElasticProblem<3> elastic_problem;
       elastic_problem.run ();
     }
   catch (std::exception &exc)

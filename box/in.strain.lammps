@@ -1,0 +1,115 @@
+# This file is for a LAMMPS simulation created by James Suter
+# The system is polyethane, using the CVFF forcefield
+# the simulation will heat up to 500K, cooldown to 200K and then perform unixial stretching in the x direction
+
+## Should we optimize the lammps call depending on the computer setup?
+## suffix OMP
+
+
+##  -------------------------------------------
+#   Initialization settings
+
+variable fname index PE_stress_strain_x.dat
+variable simname index PE_stress_strain_x
+
+##  -------------------------------------------
+#   Calculate the stress-strain curve for uniaxial extension in the x direction
+
+#  Setting to display thermodynamical information on the system every 100 steps
+thermo          100
+
+#  Setting the type of thermodynamical information to be printed: T, P, energies, dimesions, V, stress tensor
+thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz
+
+#  Setting the syntax of the printed thermodynamical information
+thermo_modify   flush yes line multi format float %g format 3 %15.8g
+
+#  Setting the file name where log (screen displayed characters) should be
+#  written (separately from the log for the heatup and cooldown steps)
+log             log.PE_stress_strain  # new LAMMPS log file
+
+#  Defining some variables
+variable        tmp equal "lx"
+variable        L0 equal ${tmp}
+variable        strain equal "(lx - v_L0)/v_L0"
+variable        p1 equal "v_strain"
+variable        p2 equal "-pxx/10000*1.01325"
+variable        p3 equal "-pyy/10000*1.01325"
+variable        p4 equal "-pzz/10000*1.01325"
+variable        p5 equal "lx"
+variable        p6 equal "ly"
+variable        p7 equal "lz"
+variable        p8 equal "temp"
+variable        t2 equal "epair"
+variable        t3 equal "ebond"
+variable        t4 equal "eangle"
+variable        t5 equal "edihed"
+
+#  Stopping the printing of information on velocities and positions
+#undump          lammps_dump   # to remove...
+#undump          xyz_dump   # to remove...
+
+#  Setting printing position information on all atoms every 5000 steps PE_stress_strain_x.xyz
+#  file specifying atom type 1, 2 and 3 with names respectively C, C and H  (identical as
+#  previous with different file name)
+dump            xyz_dump all xyz 5000    PE_stress_strain_x.xyz
+dump_modify     xyz_dump element  C C H
+
+#thermo_style    custom step temp pxx pyy pzz lx ly lz epair ebond eangle edihed
+#thermo          100
+
+#  Setting the step counter to 0
+reset_timestep  0
+
+#  Loading the same fix 4 as in the init.lammps set of commands.
+fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
+
+#  Building output files using the fix command applied to all the atoms of the box, to display every 100 steps stress
+#  tensor components evolution with the x strain, and total energy constituents with the x strain, screen display is
+#  removed
+fix             def1 all print 100 "${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8}" file ${simname}.def1.dat screen no  # stress strain data
+fix             def2 all print 100 "${p1} ${t2} ${t3} ${t4} ${t5}" file ${simname}.def2.dat screen no  # energetics for stress strain
+
+#  Setting a global constraint of canonical ensemble on all atoms, the temperature is set constant at 200k
+#  with a relaxation time of 100fs
+#  > Is this done right, namely sufficiently constrained? Volume is later controlled by the fix deform
+#  on all the components of the strain tensor...
+fix             3 all nvt temp 200.0 200.0 100
+
+# Note: these computes are present by default in any input script
+#compute thermo_press all temp
+#compute thermo_press all pressure thermo_temp
+
+#  Computing the temperature for all atoms, and using the result of this temp
+#  compute for the compute of the pressure (including as well the stress tensor)
+#  which requires the temperature to compute the part induced by kinetic energy.
+compute         th1 all temp
+#compute         pr1 all pressure thermo_temp  #(in wrapper)
+compute         ${cmptid} all pressure thermo_temp
+
+#  Setting a strain constraint every 1 steps in the x-direction on the box at a strain rate of 1e-7 fs-1, position of
+#  all atoms positions are remapped following an affine transformation, namely proportional to the box deformation.
+##  Is it pertinent to remap the coordinates proportionaly to the applied
+##  strains? Should we remap velocities? Or none?
+##  This command might be moved to the C++ wrapper file (as well as all the
+##  commands that can not be set before, probably just the run command, and
+##  maybe timestep for practicality).
+#print "${eeps_00} ${eeps_11} ${eeps_22} ${eeps_01} ${eeps_02} ${eeps_12}"
+fix             1 all deform 1  x erate ${eeps_00} &
+                                y erate ${eeps_11} &
+                                z erate ${eeps_22} &
+                               xy erate ${eeps_01} &
+                               xz erate ${eeps_02} &
+                               yz erate ${eeps_12} remap x
+#  Setting 2fs timesteps
+#timestep        dts #2.0  #(in wrapper)
+timestep        ${dts} #2.0
+
+#  Running a molecular dynamics simulation for 2000000 timesteps
+#run             nts #2000000  #(in wrapper)
+run             ${nts} #2000000
+
+#  Releasing fix constraints
+unfix 1
+unfix 3
+unfix 4

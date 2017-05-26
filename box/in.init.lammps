@@ -71,7 +71,7 @@ minimize        1.0e-7 1.0e-11 3000   50000   # 1.0e-7 1.0e-11 3000   50000
 #  Setting a displacement constraint on all atoms which mass is 1.0 (hydrogen), constraint consist in maintaining
 #  bond length or angles involving these atoms constant, the iterative solution algorithm to apply these constraint
 #  is terminated after error below 0.001 or 20 iterations, information printed every 1000 steps
-fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixed
+fix             4 all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixed
 
 #  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is brought from 100K
 #  to 500K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with a relaxation time of

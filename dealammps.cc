@@ -532,7 +532,7 @@ namespace HMM
     void run ();
 
   private:
-    void set_procs_colors ();
+    void set_lammps_procs ();
     void make_grid ();
     void setup_system ();
     void do_timestep ();
@@ -557,7 +557,8 @@ namespace HMM
     const unsigned int 					this_dealii_process;
     int 								dealii_pcolor;
 
-    MPI_Comm 							lammps_communicator;
+    MPI_Comm 							lammps_global_communicator;
+    MPI_Comm 							lammps_batch_communicator;
     int 								n_lammps_processes;
     int 								n_lammps_batch_processes;
     int 								n_lammps_batch;
@@ -737,6 +738,7 @@ namespace HMM
   	  dealii_communicator (MPI_COMM_WORLD),
 	  n_dealii_processes (Utilities::MPI::n_mpi_processes(dealii_communicator)),
 	  this_dealii_process (Utilities::MPI::this_mpi_process(dealii_communicator)),
+	  dealii_pcolor (0),
 	  pcout (std::cout,(this_dealii_process == 0)),
 	  triangulation(dealii_communicator/*or MPI_COMM_WORLD*/),
 	  dof_handler (triangulation),
@@ -996,6 +998,8 @@ namespace HMM
     Assert (quadrature_point_history.size() > 0,
             ExcInternalError());
 
+	int nqptbu = 0;
+
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
     		cell != dof_handler.end(); ++cell)
@@ -1043,23 +1047,33 @@ namespace HMM
 	MPI_Barrier(dealii_communicator);
 
 	// For Debug...
-	int nqptbu = 0;
-    for (typename DoFHandler<dim>::active_cell_iterator
-    		cell = dof_handler.begin_active();
-    		cell != dof_handler.end(); ++cell)
-    {
-    	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-    	{
-    		//test_if q must be updated...
-    		int q_to_be_updated = 1;
-    		if (q_to_be_updated)
-    		{
-    			nqptbu++;
-    			// check returned value...
-    			pcout << (1+(nqptbu%n_lammps_batch)) << std::endl;
-    		}
-    	}
-    }
+//    for (typename DoFHandler<dim>::active_cell_iterator
+//    		cell = dof_handler.begin_active();
+//    		cell != dof_handler.end(); ++cell)
+//    {
+//    	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+//    	{
+//    		//test_if q must be updated...
+//    		int q_to_be_updated = 1;
+//    		if (/*q_to_be_updated*/cell->active_cell_index() == 0)
+//    		{
+//    			nqptbu++;
+//    			// check returned value...
+//    			if (lammps_pcolor == (nqptbu%n_lammps_batch))
+//    			{
+//    				int me;
+//					MPI_Comm_rank(lammps_communicator, &me);
+//    				std::cout << "nqptbu: " << nqptbu
+//						  << " - cell / qp : " << cell->active_cell_index() << "/" << q
+//						  << " - proc_world_rank: " << this_lammps_process
+//    					  << " - lammps batch computed: " << (nqptbu%n_lammps_batch)
+//						  << " - lammps batch color: " << lammps_pcolor
+//						  << " - proc_batch_rank: " << me
+//						  << std::endl;
+//    			}
+//    		}
+//    	}
+//    }
 
 	nqptbu = 0;
     for (typename DoFHandler<dim>::active_cell_iterator
@@ -1068,23 +1082,34 @@ namespace HMM
     {
     	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
     	{
+			SymmetricTensor<2,dim> loc_strain, loc_stress;
+			SymmetricTensor<4,dim> loc_stiffness;
+
+			// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+			char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+			char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+			char filename[1024];
+
+			sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+			read_tensor<dim>(filename, loc_strain);
+
     		//test_if q must be updated...
-    		int q_to_be_updated = 1;
+    		int q_to_be_updated = 0;
+    		if (cell->active_cell_index() == 0 && q == 0) q_to_be_updated = 1;
     		if (q_to_be_updated)
     		{
     			nqptbu++;
-    			if (lammps_pcolor == (1+(nqptbu%n_lammps_batch)))
+    			if (lammps_pcolor == (nqptbu%n_lammps_batch))
     			{
-    				SymmetricTensor<2,dim> loc_strain, loc_stress;
-    				SymmetricTensor<4,dim> loc_stiffness;
-
-    				// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
-    				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
-    				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
-    				char filename[1024];
-
-    				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
-    				read_tensor<dim>(filename, loc_strain);
+    				int me;
+					MPI_Comm_rank(lammps_batch_communicator, &me);
+    				std::cout << "nqptbu: " << nqptbu
+						  << " - cell / qp : " << cell->active_cell_index() << "/" << q
+						  << " - proc_world_rank: " << this_lammps_process
+    					  << " - lammps batch computed: " << (nqptbu%n_lammps_batch)
+						  << " - lammps batch color: " << lammps_pcolor
+						  << " - proc_batch_rank: " << me
+						  << std::endl;
 
     				// Then the lammps function instanciates lammps, starting from an initial
     				// microstructure and applying the complete new_strain or starting from
@@ -1094,27 +1119,30 @@ namespace HMM
     						loc_stress,
     						loc_stiffness,
     						quad_id,
-							lammps_communicator);
+							lammps_batch_communicator);
 
-    				// For debugg using a linear constitutive equation
-    				loc_stiffness = initial_stress_strain_tensor;
-    				loc_stress
-					= loc_stiffness
-					* loc_strain;
-
-    				// Write the new stress and stiffness tensors into two files, respectively
-    				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
-    				sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
-    				write_tensor<dim>(filename, loc_stress);
-
-    				sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
-    				write_tensor<dim>(filename, loc_stiffness);
     			}
     		}
+    		else
+    		{
+				// For debugg using a linear constitutive equation
+				loc_stiffness = initial_stress_strain_tensor;
+				loc_stress
+					= loc_stiffness
+					* loc_strain;
+    		}
+
+			// Write the new stress and stiffness tensors into two files, respectively
+			// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
+			sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+			write_tensor<dim>(filename, loc_stress);
+
+			sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+			write_tensor<dim>(filename, loc_stiffness);
     	}
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(lammps_global_communicator);
 
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
@@ -1475,7 +1503,7 @@ namespace HMM
                                  Utilities::int_to_string(timestep_no,4) +
                                  ".visit");
         std::ofstream visit_master (visit_master_filename.c_str());
-        data_out.write_visit_record (visit_master, filenames);
+        DataOutBase::write_visit_record (visit_master, filenames);
 
         const std::string
         pvtu_master_filename = ("solution-" +
@@ -1487,7 +1515,7 @@ namespace HMM
         static std::vector<std::pair<double,std::string> > times_and_names;
         times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename));
         std::ofstream pvd_output ("solution.pvd");
-        data_out.write_pvd_record (pvd_output, times_and_names);
+        DataOutBase::write_pvd_record (pvd_output, times_and_names);
       }
   }
 
@@ -1499,30 +1527,32 @@ namespace HMM
   // [as close as possible to n_lammps_processes], and (iv) n_lammps_batch_processes the number of processes provided to one lammps
   // testing [NT divided by n_lammps_batch the number of concurrent testing boxes].
   template <int dim>
-  void ElasticProblem<dim>::set_procs_colors ()
+  void ElasticProblem<dim>::set_lammps_procs ()
   {
-	  MPI_Comm_rank(MPI_COMM_WORLD,&this_lammps_process);
-	  MPI_Comm_size(MPI_COMM_WORLD,&n_lammps_processes);
+	  // Create a communicator for all processes allocated to lammps
+	  MPI_Comm_dup(MPI_COMM_WORLD, &lammps_global_communicator);
+
+	  MPI_Comm_rank(lammps_global_communicator,&this_lammps_process);
+	  MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
 
 	  // Arbitrary setting of NB and NT
-	  n_lammps_batch_processes = 4;
+	  n_lammps_batch_processes = 2;
 	  n_lammps_batch = int(n_lammps_processes/n_lammps_batch_processes);
 	  if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_batch_processes=n_lammps_processes;}
-
-	  // Define several procs colors: deal_color = 0/1 and lammps_color = 0/../NC
-	  // DEAL.II processes color: all processes
-	  dealii_pcolor = 1;
 
 	  // LAMMPS processes color: regroup processes by batches of size NB, except
 	  // the last ones (me >= NB*NC) to create batches of only NB processes, nor smaller.
 	  lammps_pcolor = MPI_UNDEFINED;
 	  if(this_lammps_process < n_lammps_batch_processes*n_lammps_batch)
-		  lammps_pcolor = 1 + int(this_lammps_process/n_lammps_batch_processes);
+		  lammps_pcolor = int(this_lammps_process/n_lammps_batch_processes);
 
 	  // Definition of the communicators
-	  MPI_Comm_split(MPI_COMM_WORLD, lammps_pcolor, this_lammps_process, &lammps_communicator);
+	  MPI_Comm_split(lammps_global_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);
 
-	  std::cout << "proc: " << this_lammps_process << " " << dealii_pcolor << " " << lammps_pcolor << std::endl;
+	  // Recapitulating allocation of each process to deal and lammps
+	  std::cout << "proc world rank: " << this_lammps_process
+			    << " - deal color: " << dealii_pcolor
+				<< " - lammps color: " << lammps_pcolor << std::endl;
   }
 
 
@@ -1638,28 +1668,30 @@ namespace HMM
   template <int dim>
   void ElasticProblem<dim>::run ()
   {
-	set_procs_colors();
+	// Define groups of processes from all the processes allocated to LAMMPS
+	// simulations. Associated communicators are defined as well.
+    set_lammps_procs();
+
+	pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
 
     // Since LAMMPS is highly scalable, the initiation number of processes NI
     // can basically be equal to the maximum number of available processes NT which
     // can directly be found in the MPI_COMM.
-	pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
+    lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
 
-    //lammps_initiation<dim> (initial_stress_strain_tensor, mpi_communicator);
-
-    double mu = 9.695e10, lambda = 7.617e10;
-    for (unsigned int i=0; i<dim; ++i)
-      for (unsigned int j=0; j<dim; ++j)
-        for (unsigned int k=0; k<dim; ++k)
-          for (unsigned int l=0; l<dim; ++l)
-        	  initial_stress_strain_tensor[i][j][k][l]
-							= (((i==k) && (j==l) ? mu : 0.0) +
-                               ((i==l) && (j==k) ? mu : 0.0) +
-                               ((i==j) && (k==l) ? lambda : 0.0));
+//    double mu = 9.695e10, lambda = 7.617e10;
+//    for (unsigned int i=0; i<dim; ++i)
+//      for (unsigned int j=0; j<dim; ++j)
+//        for (unsigned int k=0; k<dim; ++k)
+//          for (unsigned int l=0; l<dim; ++l)
+//        	  initial_stress_strain_tensor[i][j][k][l]
+//							= (((i==k) && (j==l) ? mu : 0.0) +
+//                               ((i==l) && (j==k) ? mu : 0.0) +
+//                               ((i==j) && (k==l) ? lambda : 0.0));
 
     present_time = 0;
     present_timestep = 1;
-    end_time = 10;
+    end_time = 0;
     timestep_no = 0;
 
     make_grid ();
@@ -1684,6 +1716,7 @@ namespace HMM
                 count_dofs_with_subdomain_association (dof_handler,p));
     pcout << ")" << std::endl;
 
+    pcout << " Beginning of Time-Stepping...       " << std::endl;
     while (present_time < end_time)
       do_timestep ();
   }

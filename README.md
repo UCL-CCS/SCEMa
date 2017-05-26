@@ -1,5 +1,7 @@
 # DeaLAMMPS
-HMM implementation featuring Deal.II (FE) and LAMMPS (MD)
+HMM implementation featuring Deal.II (FE) and LAMMPS (MD).
+
+Works (at least) Deal.II/8.4.1 or above, and LAMMPS/17Nov16 compiled with RIGID package.
 
 ## Summary of work:
 

@@ -22,6 +22,7 @@
 #include <sstream>
 #include <iomanip>
 #include <string>
+#include <sys/stat.h>
 
 #include <math.h>
 #include "mpi.h"
@@ -385,15 +386,31 @@ namespace HMM
 	  lmp = new LAMMPS(0,NULL,comm_lammps);
 
 	  char location[1024] = "../box";
-	  char storloc[1024] = "./nanostate_storage";
 	  char outdata[1024] = "PE_init_end.mstate";
+
+	  char storloc[1024] = "./nanostate_storage";
+	  std::string sstorloc(storloc);
+	  mkdir((sstorloc).c_str(), ACCESSPERMS);
+
+	  char nanor[1024] = "./nanostate_output/";
+	  std::string snanor(nanor);
+	  mkdir((snanor).c_str(), ACCESSPERMS);
+
+	  char nanorepo[1024];
+	  sprintf(nanorepo, "%s%s", nanor, "init");
+	  std::string snanorepo(nanorepo);
+	  mkdir((snanorepo).c_str(), ACCESSPERMS);
 
 	  char cfile[1024];
 	  char cline[1024];
 
-	  bool compute_equil = true;
+	  bool compute_equil = false;
 
+
+	  // Passing location for input and output as variables
 	  sprintf(cline, "variable locb string %s", location);
+	  lammps_command(lmp,cline);
+	  sprintf(cline, "variable loco string %s", nanorepo);
 	  lammps_command(lmp,cline);
 
 	  if (me == 0) std::cout << "   reading and executing in.set.lammps...       " << std::endl;
@@ -454,6 +471,17 @@ namespace HMM
 
 	  char location[1024] = "../box";
 	  char storloc[1024] = "./nanostate_storage";
+	  std::string sstorloc(storloc);
+	  mkdir((sstorloc).c_str(), ACCESSPERMS);
+
+	  char nanor[1024] = "./nanostate_output/";
+	  std::string snanor(nanor);
+	  mkdir((snanor).c_str(), ACCESSPERMS);
+
+	  char nanorepo[1024];
+	  sprintf(nanorepo, "%s%s", nanor, qptid);
+	  std::string snanorepo(nanorepo);
+	  mkdir((snanorepo).c_str(), ACCESSPERMS);
 
 	  bool compute_finit = true;
 	  char initdata[1024];
@@ -464,6 +492,10 @@ namespace HMM
 	  char cline[1024];
 	  char cfile[1024];
 	  char mfile[1024];
+
+	  // Passing location for output as variable
+	  sprintf(cline, "variable loco string %s", nanorepo);
+	  lammps_command(lmp,cline);
 
 	  // Setting general parameters for LAMMPS independentely of what will be
 	  // tested on the sample next.
@@ -988,6 +1020,8 @@ namespace HMM
         (const Vector<double>& displacement_update)
   {
 	char storloc[1024] = "./macrostate_storage";
+	std::string macrorepo(storloc);
+	mkdir((macrorepo).c_str(), ACCESSPERMS);
 
     FEValues<dim> fe_values (fe, quadrature_formula,
                              update_values | update_gradients);
@@ -1409,6 +1443,10 @@ namespace HMM
 	DataOut<dim> data_out;
 	data_out.attach_dof_handler (dof_handler);
 
+	// Macroscale results output repository
+	std::string macrorepo = "./macroscale_output/";
+	mkdir((macrorepo).c_str(), ACCESSPERMS);
+
 	std::vector<std::string>  solution_names (dim, "displacement");
 	std::vector<DataComponentInterpretation::DataComponentInterpretation>
 	   data_component_interpretation
@@ -1482,7 +1520,7 @@ namespace HMM
 
 	data_out.build_patches ();
 
-	std::string filename = "solution-" + Utilities::int_to_string(timestep_no,4)
+	std::string filename = macrorepo + "solution-" + Utilities::int_to_string(timestep_no,4)
 						   + "." + Utilities::int_to_string(this_dealii_process,3)
 						   + ".vtu";
 	AssertThrow (n_dealii_processes < 1000, ExcNotImplemented());
@@ -1494,19 +1532,20 @@ namespace HMM
       {
         std::vector<std::string> filenames;
         for (unsigned int i=0; i<n_dealii_processes; ++i)
-          filenames.push_back ("solution-" + Utilities::int_to_string(timestep_no,4)
+          filenames.push_back (macrorepo + "solution-" + Utilities::int_to_string(timestep_no,4)
                                + "." + Utilities::int_to_string(i,3)
                                + ".vtu");
 
         const std::string
-        visit_master_filename = ("solution-" +
+        visit_master_filename = (macrorepo + "solution-" +
                                  Utilities::int_to_string(timestep_no,4) +
                                  ".visit");
         std::ofstream visit_master (visit_master_filename.c_str());
-        DataOutBase::write_visit_record (visit_master, filenames);
+        //data_out.write_visit_record (visit_master, filenames); // 8.4.1
+        DataOutBase::write_visit_record (visit_master, filenames); // 8.5.0
 
         const std::string
-        pvtu_master_filename = ("solution-" +
+        pvtu_master_filename = (macrorepo + "solution-" +
                                 Utilities::int_to_string(timestep_no,4) +
                                 ".pvtu");
         std::ofstream pvtu_master (pvtu_master_filename.c_str());
@@ -1514,8 +1553,9 @@ namespace HMM
 
         static std::vector<std::pair<double,std::string> > times_and_names;
         times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename));
-        std::ofstream pvd_output ("solution.pvd");
-        DataOutBase::write_pvd_record (pvd_output, times_and_names);
+        std::ofstream pvd_output (macrorepo + "solution.pvd");
+        //data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
+        DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
       }
   }
 
@@ -1691,7 +1731,7 @@ namespace HMM
 
     present_time = 0;
     present_timestep = 1;
-    end_time = 0;
+    end_time = 1;
     timestep_no = 0;
 
     make_grid ();

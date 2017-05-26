@@ -20,7 +20,7 @@ if "${dir} == 6" then &
 
 clear
 box tilt large
-read_restart restart.equil
+read_restart ${loco}/restart.equil
 include ${locbe}/potential.mod.lammps
 
 # Negative deformation
@@ -74,7 +74,7 @@ variable C6neg equal ${d6}
 
 clear
 box tilt large
-read_restart restart.equil
+read_restart ${loco}/restart.equil
 include ${locbe}/potential.mod.lammps
 
 # Positive deformation

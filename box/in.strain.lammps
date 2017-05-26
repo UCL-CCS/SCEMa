@@ -9,8 +9,8 @@
 ##  -------------------------------------------
 #   Initialization settings
 
-variable fname index PE_stress_strain_x.dat
-variable simname index PE_stress_strain_x
+variable fname index ${loco}/PE_stress_strain_x.dat
+variable simname index ${loco}/PE_stress_strain_x
 
 ##  -------------------------------------------
 #   Calculate the stress-strain curve for uniaxial extension in the x direction
@@ -26,7 +26,7 @@ thermo_modify   flush yes line multi format float %g format 3 %15.8g
 
 #  Setting the file name where log (screen displayed characters) should be
 #  written (separately from the log for the heatup and cooldown steps)
-log             log.PE_stress_strain  # new LAMMPS log file
+log             ${loco}/log.PE_stress_strain  # new LAMMPS log file
 
 #  Defining some variables
 variable        tmp equal "lx"
@@ -52,7 +52,7 @@ variable        t5 equal "edihed"
 #  Setting printing position information on all atoms every 5000 steps PE_stress_strain_x.xyz
 #  file specifying atom type 1, 2 and 3 with names respectively C, C and H  (identical as
 #  previous with different file name)
-dump            xyz_dump all xyz 5000    PE_stress_strain_x.xyz
+dump            xyz_dump all xyz 5000    ${loco}/PE_stress_strain_x.xyz
 dump_modify     xyz_dump element  C C H
 
 #thermo_style    custom step temp pxx pyy pzz lx ly lz epair ebond eangle edihed

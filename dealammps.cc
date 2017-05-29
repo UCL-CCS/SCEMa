@@ -635,12 +635,6 @@ namespace HMM
 		  for(unsigned int l=k+1;l<dim;l++)
 			  stresses[k][l] = stress_vector[k+l+2];
 
-	  if (me == 0) for(unsigned int k=0;k<dim;k++){
-		  for(unsigned int l=k;l<dim;l++) std::cout << stresses[k][l] << " ";
-		  std::cout << std::endl;
-	  }
-
-
 	  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
 	  	  	     	 	 	 << "Compute stiffness using in.elastic.lammps...       " << std::endl;
 	  // Compute the Tangent Stiffness Tensor at the given stress/strain state
@@ -691,6 +685,7 @@ namespace HMM
     int 								n_lammps_batch_processes;
     int 								n_lammps_batch;
     int 								this_lammps_process;
+    int 								this_lammps_batch_process;
     int 								lammps_pcolor;
 
     ConditionalOStream 					pcout;
@@ -1174,7 +1169,9 @@ namespace HMM
     		}
     	}
 
-	MPI_Barrier(dealii_communicator);
+    // Need to synchronize properly deal processes
+	//MPI_Barrier(dealii_communicator);
+	MPI_Barrier(MPI_COMM_WORLD);
 
 	nqptbu = 0;
     for (typename DoFHandler<dim>::active_cell_iterator
@@ -1225,6 +1222,21 @@ namespace HMM
 							prev_time_id,
 							lammps_batch_communicator);
 
+    				// Write the new stress and stiffness tensors into two files, respectively
+    				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
+    				if(this_lammps_batch_process == 0)
+    				{
+    					std::cout << "cell / qp : " << cell->active_cell_index() << q
+    						  						<< " - stress00: " << loc_stress[0][0]
+    												<< std::endl;
+
+    		    		sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+    					write_tensor<dim>(filename, loc_stress);
+
+    					sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+    					write_tensor<dim>(filename, loc_stiffness);
+    				}
+
     			}
     		}
     		else
@@ -1234,19 +1246,28 @@ namespace HMM
 				loc_stress
 					= loc_stiffness
 					* loc_strain;
+
+				// Write the new stress and stiffness tensors into two files, respectively
+				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
+				if(this_lammps_process == 0)
+				{
+					std::cout << "cell / qp : " << cell->active_cell_index() << q
+						  						<< " - stress00: " << loc_stress[0][0]
+												<< std::endl;
+
+		    		sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+					write_tensor<dim>(filename, loc_stress);
+
+					sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+					write_tensor<dim>(filename, loc_stiffness);
+				}
     		}
-
-			// Write the new stress and stiffness tensors into two files, respectively
-			// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
-			sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
-			write_tensor<dim>(filename, loc_stress);
-
-			sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
-			write_tensor<dim>(filename, loc_stiffness);
     	}
     }
-    std::cout << "rank " << this_lammps_process << " has been here" << std::endl;
+
+    // Need to synchronize properly lammps processes
     MPI_Barrier(lammps_global_communicator);
+    //MPI_Barrier(MPI_COMM_WORLD);
 
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
@@ -1656,6 +1677,7 @@ namespace HMM
 
 	  // Definition of the communicators
 	  MPI_Comm_split(lammps_global_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);
+	  MPI_Comm_rank(lammps_batch_communicator,&this_lammps_batch_process);
 
 	  // Recapitulating allocation of each process to deal and lammps
 	  std::cout << "proc world rank: " << this_lammps_process

@@ -26,7 +26,7 @@ thermo_modify   flush yes line multi format float %g format 3 %15.8g
 
 #  Setting the file name where log (screen displayed characters) should be
 #  written (separately from the log for the heatup and cooldown steps)
-log             ${loco}/log.PE_stress_strain  # new LAMMPS log file
+#log             ${loco}/log.PE_stress_strain  # new LAMMPS log file
 
 #  Defining some variables
 variable        tmp equal "lx"
@@ -56,7 +56,7 @@ dump            xyz_dump all xyz 5000    ${loco}/PE_stress_strain_x.xyz
 dump_modify     xyz_dump element  C C H
 
 #thermo_style    custom step temp pxx pyy pzz lx ly lz epair ebond eangle edihed
-#thermo          100
+#thermo          500
 
 #  Setting the step counter to 0
 reset_timestep  0

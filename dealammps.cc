@@ -23,8 +23,8 @@
 #include <iomanip>
 #include <string>
 #include <sys/stat.h>
-
 #include <math.h>
+
 #include "mpi.h"
 #include "lammps.h"
 #include "input.h"
@@ -381,10 +381,6 @@ namespace HMM
 	  int me;
 	  MPI_Comm_rank(comm_lammps, &me);
 
-	  LAMMPS *lmp = NULL;
-
-	  lmp = new LAMMPS(0,NULL,comm_lammps);
-
 	  char location[1024] = "../box";
 	  char outdata[1024] = "PE_init_end.mstate";
 
@@ -392,25 +388,34 @@ namespace HMM
 	  std::string sstorloc(storloc);
 	  mkdir((sstorloc).c_str(), ACCESSPERMS);
 
-	  char nanor[1024] = "./nanostate_output/";
-	  std::string snanor(nanor);
-	  mkdir((snanor).c_str(), ACCESSPERMS);
+	  char outloc[1024] = "./nanoscale_output/";
+	  std::string soutloc(outloc);
+	  mkdir((soutloc).c_str(), ACCESSPERMS);
 
-	  char nanorepo[1024];
-	  sprintf(nanorepo, "%s%s", nanor, "init");
-	  std::string snanorepo(nanorepo);
-	  mkdir((snanorepo).c_str(), ACCESSPERMS);
+	  char qpoutloc[1024];
+	  sprintf(qpoutloc, "%s%s", outloc, "init");
+	  std::string sqpoutloc(qpoutloc);
+	  mkdir((sqpoutloc).c_str(), ACCESSPERMS);
 
 	  char cfile[1024];
 	  char cline[1024];
 
 	  bool compute_equil = false;
 
+	  // Specifying the command line options for screen and log output file
+	  char **lmparg = new char*[48];
+	  lmparg[0] = NULL;                 // required placeholder for program name
+	  sprintf(lmparg[1], "-screen none");
+	  sprintf(lmparg[2], "-log %s/log.PE_heatup_cooldown", qpoutloc);
+
+	  // Creating LAMMPS instance
+	  LAMMPS *lmp = NULL;
+	  lmp = new LAMMPS(3,lmparg,comm_lammps);
 
 	  // Passing location for input and output as variables
 	  sprintf(cline, "variable locb string %s", location);
 	  lammps_command(lmp,cline);
-	  sprintf(cline, "variable loco string %s", nanorepo);
+	  sprintf(cline, "variable loco string %s", qpoutloc);
 	  lammps_command(lmp,cline);
 
 	  if (me == 0) std::cout << "   reading and executing in.set.lammps...       " << std::endl;
@@ -419,9 +424,9 @@ namespace HMM
 	  sprintf(cfile, "%s/%s", location, "in.set.lammps");
 	  lammps_file(lmp,cfile);
 
-	  if (me == 0) std::cout << "   reading and executing in.init.lammps...       " << std::endl;
 	  if (compute_equil)
 	  {
+		  if (me == 0) std::cout << "   reading and executing in.init.lammps...       " << std::endl;
 		  // Compute initialization of the sample which minimizes the free energy,
 		  // heat up and finally cool down the sample.
 		  sprintf(cfile, "%s/%s", location, "in.init.lammps");
@@ -432,6 +437,7 @@ namespace HMM
 	  }
 	  else
 	  {
+		  if (me == 0) std::cout << "   reading and restarting from saved init_state...       " << std::endl;
 		  // Reload from previously computed initial preparation (minimization and
 		  // heatup/cooldown), this option shouldn't remain, as in the first step the
 		  // preparation should always be computed.
@@ -439,6 +445,7 @@ namespace HMM
 		  lammps_command(lmp,cline);
 	  }
 
+	  if (me == 0) std::cout << "   computing stiffness using in.elastic.lammps...       " << std::endl;
 	  // Compute the Tangent Stiffness Tensor at the initial state
 	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp,location);
 
@@ -461,27 +468,23 @@ namespace HMM
   {
 	  std::vector<std::vector<double> > tmp (2*dim, std::vector<double>(2*dim));
 
-	  // Creating the corresponding lammps instantiation
-	  LAMMPS *lmp = NULL;
-
-	  lmp = new LAMMPS(0,NULL,comm_lammps);
-
 	  int me;
 	  MPI_Comm_rank(comm_lammps, &me);
 
 	  char location[1024] = "../box";
+
 	  char storloc[1024] = "./nanostate_storage";
 	  std::string sstorloc(storloc);
 	  mkdir((sstorloc).c_str(), ACCESSPERMS);
 
-	  char nanor[1024] = "./nanostate_output/";
-	  std::string snanor(nanor);
-	  mkdir((snanor).c_str(), ACCESSPERMS);
+	  char outloc[1024] = "./nanoscale_output/";
+	  std::string soutloc(outloc);
+	  mkdir((soutloc).c_str(), ACCESSPERMS);
 
-	  char nanorepo[1024];
-	  sprintf(nanorepo, "%s%s", nanor, qptid);
-	  std::string snanorepo(nanorepo);
-	  mkdir((snanorepo).c_str(), ACCESSPERMS);
+	  char qpoutloc[1024];
+	  sprintf(qpoutloc, "%s%s", outloc, qptid);
+	  std::string sqpoutloc(qpoutloc);
+	  mkdir((sqpoutloc).c_str(), ACCESSPERMS);
 
 	  bool compute_finit = true;
 	  char initdata[1024];
@@ -493,8 +496,18 @@ namespace HMM
 	  char cfile[1024];
 	  char mfile[1024];
 
+	  // Specifying the command line options for screen and log output file
+	  char **lmparg = new char*[48];
+	  lmparg[0] = NULL;                 // required placeholder for program name
+	  sprintf(lmparg[1], "-screen none");
+	  sprintf(lmparg[2], "-log %s/log.PE_stress_strain", qpoutloc);
+
+	  // Creating LAMMPS instance
+	  LAMMPS *lmp = NULL;
+	  lmp = new LAMMPS(3,lmparg,comm_lammps);
+
 	  // Passing location for output as variable
-	  sprintf(cline, "variable loco string %s", nanorepo);
+	  sprintf(cline, "variable loco string %s", qpoutloc);
 	  lammps_command(lmp,cline);
 
 	  // Setting general parameters for LAMMPS independentely of what will be
@@ -516,7 +529,7 @@ namespace HMM
 	  double dts = 2.0; // timestep length
 	  sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 
-	  int nts = 200; // number of timesteps
+	  int nts = 200000; // number of timesteps
 	  sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
 
 	  char cmptid[1024] = "pr1"; // name of the stress compute to retrieve
@@ -530,6 +543,7 @@ namespace HMM
 		  }
 
 	  // Run the NEMD simulations of the strained box
+	  if (me == 0) std::cout << "   reading and executing in.init.lammps...       " << std::endl;
 	  sprintf(cfile, "%s/%s", location, "in.strain.lammps");
 	  lammps_file(lmp,cfile);
 
@@ -547,6 +561,7 @@ namespace HMM
 	  sprintf(cline, "write_restart %s/%s", storloc, straindata);
 	  lammps_command(lmp,cline);
 
+	  if (me == 0) std::cout << "   computing stiffness using in.elastic.lammps...       " << std::endl;
 	  // Compute the Tangent Stiffness Tensor at the given stress/strain state
 	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp, location);
 
@@ -1129,7 +1144,7 @@ namespace HMM
 
     		//test_if q must be updated...
     		int q_to_be_updated = 0;
-    		if (cell->active_cell_index() == 0 && q == 0) q_to_be_updated = 1;
+    		if (cell->active_cell_index() == 0 && (q == 0 || q == 1)) q_to_be_updated = 1;
     		if (q_to_be_updated)
     		{
     			nqptbu++;

@@ -36,7 +36,7 @@ thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle 
 thermo_modify   flush yes line multi format float %g format 3 %15.8g
 
 #  Setting the file name where log (screen displayed characters) should be written
-log             ${loco}/log.PE_heatup_cooldown
+#log             ${loco}/log.PE_heatup_cooldown
 
 #  Setting to create a binary file containing necessary information to restart simulation, a new file is
 #  created every 150000 steps which name contains the current time-step

@@ -403,14 +403,18 @@ namespace HMM
 	  bool compute_equil = false;
 
 	  // Specifying the command line options for screen and log output file
-	  char **lmparg = new char*[48];
-	  lmparg[0] = NULL;                 // required placeholder for program name
-	  sprintf(lmparg[1], "-screen none");
-	  sprintf(lmparg[2], "-log %s/log.PE_heatup_cooldown", qpoutloc);
+	  int nargs = 5;
+	  char **lmparg = new char*[nargs];
+	  lmparg[0] = NULL;
+	  lmparg[1] = (char *) "-screen";
+	  lmparg[2] = (char *) "none";
+	  lmparg[3] = (char *) "-log";
+	  lmparg[4] = new char[1024];
+	  sprintf(lmparg[4], "%s/log.PE_heatup_cooldown", qpoutloc);
 
 	  // Creating LAMMPS instance
 	  LAMMPS *lmp = NULL;
-	  lmp = new LAMMPS(3,lmparg,comm_lammps);
+	  lmp = new LAMMPS(nargs,lmparg,comm_lammps);
 
 	  // Passing location for input and output as variables
 	  sprintf(cline, "variable locb string %s", location);
@@ -497,14 +501,18 @@ namespace HMM
 	  char mfile[1024];
 
 	  // Specifying the command line options for screen and log output file
-	  char **lmparg = new char*[48];
-	  lmparg[0] = NULL;                 // required placeholder for program name
-	  sprintf(lmparg[1], "-screen none");
-	  sprintf(lmparg[2], "-log %s/log.PE_stress_strain", qpoutloc);
+	  int nargs = 5;
+	  char **lmparg = new char*[nargs];
+	  lmparg[0] = NULL;
+	  lmparg[1] = (char *) "-screen";
+	  lmparg[2] = (char *) "none";
+	  lmparg[3] = (char *) "-log";
+	  lmparg[4] = new char[1024];
+	  sprintf(lmparg[4], "%s/log.PE_stress_strain", qpoutloc);
 
 	  // Creating LAMMPS instance
 	  LAMMPS *lmp = NULL;
-	  lmp = new LAMMPS(3,lmparg,comm_lammps);
+	  lmp = new LAMMPS(nargs,lmparg,comm_lammps);
 
 	  // Passing location for output as variable
 	  sprintf(cline, "variable loco string %s", qpoutloc);

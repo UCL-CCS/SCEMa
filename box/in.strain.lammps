@@ -16,7 +16,7 @@ variable simname index ${loco}/PE_stress_strain_x
 #   Calculate the stress-strain curve for uniaxial extension in the x direction
 
 #  Setting to display thermodynamical information on the system every 100 steps
-thermo          100
+thermo          500
 
 #  Setting the type of thermodynamical information to be printed: T, P, energies, dimesions, V, stress tensor
 thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz

@@ -1120,6 +1120,10 @@ namespace HMM
     displacement_update_grads (quadrature_formula.size(),
                                   std::vector<Tensor<1,dim> >(dim));
 
+    std::vector<std::vector<bool> >
+    	q_to_be_updated (triangulation.n_active_cells(),
+    				std::vector<bool>(quadrature_formula.size()));
+
     Assert (quadrature_point_history.size() > 0,
             ExcInternalError());
 
@@ -1155,6 +1159,11 @@ namespace HMM
     			local_quadrature_points_history[q].old_stiff =
     					local_quadrature_points_history[q].new_stiff;
 
+    			// TEST HERE IF QPT SHOULD BE UPDATED.
+    			// CREATE FILES FOR STRAIN STORAGE ONLY FOR QPT TO BE UPDATED.
+    			// AT THE END OF THIS LOOP USE A COLLECTIVE "ALLGATHER" TO SHARE WHAT QPT
+    			// NEEDS TO BE UPDATED.
+
     			// Store strains in a file named ./macrostate_storage/time.it-cellid.qid.strain
 				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
@@ -1163,16 +1172,43 @@ namespace HMM
 				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
 				write_tensor<dim>(filename, local_quadrature_points_history[q].new_strain);
 
-				// Check if this is a good position for setting criterion of elastic regime?
-				// Or maybe a separate loop?
-				// If parallel task, need to retrieve information...
     		}
     	}
 
     // Need to synchronize properly deal processes
-	//MPI_Barrier(dealii_communicator);
-	MPI_Barrier(MPI_COMM_WORLD);
+	MPI_Barrier(dealii_communicator);
 
+	// This loop could be integrated in the previous one, to choose to avoid storing data
+	// to disk for quadrature points that do not need an update (see CAPS)...
+	// It requires a collective! But it will the be parallelized (to try soon)!
+
+	// Filling list of quadrature points to be updated.
+    for (typename DoFHandler<dim>::active_cell_iterator
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
+    {
+    	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+    	{
+			SymmetricTensor<2,dim> loc_strain;
+
+			// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+			char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
+			char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+			char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+			char filename[1024];
+
+			sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+			read_tensor<dim>(filename, loc_strain);
+
+    		//test_if q must be updated...
+    		q_to_be_updated[cell->active_cell_index()][q] = false;
+
+    		if (cell->active_cell_index() == 0 && (q == 0 || q == 1))
+    									q_to_be_updated[cell->active_cell_index()][q] = true;
+    	}
+    }
+
+    // Update of the quadrature points that need to be analysed using LAMMPS
 	nqptbu = 0;
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
@@ -1193,9 +1229,11 @@ namespace HMM
 			read_tensor<dim>(filename, loc_strain);
 
     		//test_if q must be updated...
-    		int q_to_be_updated = 0;
-    		if (cell->active_cell_index() == 0 && (q == 0 || q == 1)) q_to_be_updated = 1;
-    		if (q_to_be_updated)
+    		q_to_be_updated[cell->active_cell_index()][q] = 0;
+    		//Don't forget syncing this test on the q_points with the one in the next loop
+    		if (cell->active_cell_index() == 0 && (q == 0 || q == 1))
+    									q_to_be_updated[cell->active_cell_index()][q] = 1;
+    		if (q_to_be_updated[cell->active_cell_index()][q])
     		{
     			nqptbu++;
     			if (lammps_pcolor == (nqptbu%n_lammps_batch))
@@ -1226,49 +1264,64 @@ namespace HMM
     				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
     				if(this_lammps_batch_process == 0)
     				{
-    					std::cout << "cell / qp : " << cell->active_cell_index() << q
-    						  						<< " - stress00: " << loc_stress[0][0]
-    												<< std::endl;
-
     		    		sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
     					write_tensor<dim>(filename, loc_stress);
 
     					sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
     					write_tensor<dim>(filename, loc_stiffness);
     				}
-
     			}
-    		}
-    		else
-    		{
-				// For debugg using a linear constitutive equation
-				loc_stiffness = initial_stress_strain_tensor;
-				loc_stress
-					= loc_stiffness
-					* loc_strain;
-
-				// Write the new stress and stiffness tensors into two files, respectively
-				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
-				if(this_lammps_process == 0)
-				{
-					std::cout << "cell / qp : " << cell->active_cell_index() << q
-						  						<< " - stress00: " << loc_stress[0][0]
-												<< std::endl;
-
-		    		sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
-					write_tensor<dim>(filename, loc_stress);
-
-					sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
-					write_tensor<dim>(filename, loc_stiffness);
-				}
     		}
     	}
     }
 
-    // Need to synchronize properly lammps processes
+    // Synchronization of processes used to run LAMMPS instances
     MPI_Barrier(lammps_global_communicator);
-    //MPI_Barrier(MPI_COMM_WORLD);
 
+    // This loop can be inserted in the next one, and file macrostate_storage could be done
+    // only for quadrature points that need to be updated using lammps
+    for (typename DoFHandler<dim>::active_cell_iterator
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
+		if (cell->is_locally_owned())
+		{
+			for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+			{
+				SymmetricTensor<2,dim> loc_strain, loc_stress;
+				SymmetricTensor<4,dim> loc_stiffness;
+
+				// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+				char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
+				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+				char filename[1024];
+
+				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+				read_tensor<dim>(filename, loc_strain);
+
+				//test_if q has not been updated lammps...
+				if (!q_to_be_updated[cell->active_cell_index()][q])
+				{
+					// For debugg using a linear constitutive equation
+					loc_stiffness = initial_stress_strain_tensor;
+					loc_stress
+						= loc_stiffness
+						* loc_strain;
+
+					// Write the new stress and stiffness tensors into two files, respectively
+					// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
+					sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+					write_tensor<dim>(filename, loc_stress);
+
+					sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+					write_tensor<dim>(filename, loc_stiffness);
+
+				}
+			}
+		}
+
+    // Retrieving all quadrature points computation and storing them in the
+    // quadrature_points_history structure
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
     		cell != dof_handler.end(); ++cell)

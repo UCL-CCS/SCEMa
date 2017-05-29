@@ -1161,8 +1161,13 @@ namespace HMM
 
     			// TEST HERE IF QPT SHOULD BE UPDATED.
     			// CREATE FILES FOR STRAIN STORAGE ONLY FOR QPT TO BE UPDATED.
-    			// AT THE END OF THIS LOOP USE A COLLECTIVE "ALLGATHER" TO SHARE WHAT QPT
-    			// NEEDS TO BE UPDATED.
+    			// BEFORE THIS LOOP SCATTER THE 'q_to_be_updated' VECTOR ON DIFFERENT
+    			// PROCESSES ACCORDING TO 'is_locally_owned()'.
+    			//   > This is tricky...
+    			//   > Use PETScWrappers tools instead, as described in tutorials, they
+    			// can be used since data shared is vector of vector of bool/int.
+    			// AT THE END OF THIS LOOP USE A COLLECTIVE "ALLGATHER" SO EVERY PROCESS
+    			// KNOWS WHAT QPT NEEDS TO BE UPDATED.
 
     			// Store strains in a file named ./macrostate_storage/time.it-cellid.qid.strain
 				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);

@@ -98,6 +98,11 @@ namespace HMM
     int nid;
   };
 
+  bool file_exists(const char* file) {
+      struct stat buf;
+      return (stat(file, &buf) == 0);
+  }
+
   template <int dim>
   inline
   void
@@ -376,19 +381,26 @@ namespace HMM
   lammps_initiation (SymmetricTensor<4,dim>& initial_stress_strain_tensor,
 		  	  	  	 MPI_Comm comm_lammps)
   {
+	  // Compute init state even if available (true) or only if already absent (false);
+	  bool compute_state = false;
+
+	  // Locations for finding reference LAMMPS files, to store nanostate binary data, and
+	  // to place LAMMPS log/dump/temporary restart outputs
+	  char location[1024] = "../box";
+	  char storloc[1024] = "./nanostate_storage";
+	  char outloc[1024] = "./nanoscale_output/";
+
+	  // Name of the nanostate binary file
+	  char outdata[1024] = "PE_init_end.mstate";
+
 	  std::vector<std::vector<double> > tmp (2*dim, std::vector<double>(2*dim));
 
 	  int me;
 	  MPI_Comm_rank(comm_lammps, &me);
 
-	  char location[1024] = "../box";
-	  char outdata[1024] = "PE_init_end.mstate";
-
-	  char storloc[1024] = "./nanostate_storage";
 	  std::string sstorloc(storloc);
 	  mkdir((sstorloc).c_str(), ACCESSPERMS);
 
-	  char outloc[1024] = "./nanoscale_output/";
 	  std::string soutloc(outloc);
 	  mkdir((soutloc).c_str(), ACCESSPERMS);
 
@@ -399,18 +411,21 @@ namespace HMM
 
 	  char cfile[1024];
 	  char cline[1024];
-
-	  bool compute_equil = false;
+	  char sfile[1024];
 
 	  // Specifying the command line options for screen and log output file
-	  char **lmparg = new char*[48];
-	  lmparg[0] = NULL;                 // required placeholder for program name
-	  sprintf(lmparg[1], "-screen none");
-	  sprintf(lmparg[2], "-log %s/log.PE_heatup_cooldown", qpoutloc);
+	  int nargs = 5;
+	  char **lmparg = new char*[nargs];
+	  lmparg[0] = NULL;
+	  lmparg[1] = (char *) "-screen";
+	  lmparg[2] = (char *) "none";
+	  lmparg[3] = (char *) "-log";
+	  lmparg[4] = new char[1024];
+	  sprintf(lmparg[4], "%s/log.PE_heatup_cooldown", qpoutloc);
 
 	  // Creating LAMMPS instance
 	  LAMMPS *lmp = NULL;
-	  lmp = new LAMMPS(3,lmparg,comm_lammps);
+	  lmp = new LAMMPS(nargs,lmparg,comm_lammps);
 
 	  // Passing location for input and output as variables
 	  sprintf(cline, "variable locb string %s", location);
@@ -418,15 +433,19 @@ namespace HMM
 	  sprintf(cline, "variable loco string %s", qpoutloc);
 	  lammps_command(lmp,cline);
 
-	  if (me == 0) std::cout << "   reading and executing in.set.lammps...       " << std::endl;
 	  // Setting general parameters for LAMMPS independentely of what will be
 	  // tested on the sample next.
 	  sprintf(cfile, "%s/%s", location, "in.set.lammps");
 	  lammps_file(lmp,cfile);
 
-	  if (compute_equil)
+	  // Check if 'PE_init_end.mstate' has been computed already
+	  sprintf(sfile, "%s/%s", storloc, outdata);
+	  bool state_exists = file_exists(sfile);
+
+	  if (compute_state || !state_exists)
 	  {
-		  if (me == 0) std::cout << "   reading and executing in.init.lammps...       " << std::endl;
+		  if (me == 0) std::cout << "(init)"
+				  	  	  	     << "Compute state data...       " << state_exists << std::endl;
 		  // Compute initialization of the sample which minimizes the free energy,
 		  // heat up and finally cool down the sample.
 		  sprintf(cfile, "%s/%s", location, "in.init.lammps");
@@ -437,7 +456,8 @@ namespace HMM
 	  }
 	  else
 	  {
-		  if (me == 0) std::cout << "   reading and restarting from saved init_state...       " << std::endl;
+		  if (me == 0) std::cout << "(init) "
+				  	  	    	 << "Reuse of state data...       " << std::endl;
 		  // Reload from previously computed initial preparation (minimization and
 		  // heatup/cooldown), this option shouldn't remain, as in the first step the
 		  // preparation should always be computed.
@@ -445,7 +465,8 @@ namespace HMM
 		  lammps_command(lmp,cline);
 	  }
 
-	  if (me == 0) std::cout << "   computing stiffness using in.elastic.lammps...       " << std::endl;
+	  if (me == 0) std::cout << "(init) "
+			  	  	  	  	 << "Compute stiffness using in.elastic.lammps...       " << std::endl;
 	  // Compute the Tangent Stiffness Tensor at the initial state
 	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp,location);
 
@@ -464,20 +485,34 @@ namespace HMM
 		  	  	  	  	SymmetricTensor<2,dim>& stresses,
 						SymmetricTensor<4,dim>& initial_stress_strain_tensor,
 						char* qptid,
+						char* timeid,
+						char* prev_timeid,
 						MPI_Comm comm_lammps)
   {
+	  // Compute current state even if available (true) or only if already absent (false);
+	  bool compute_state = false;
+
+	  // Locations for finding reference LAMMPS files, to store nanostate binary data, and
+	  // to place LAMMPS log/dump/temporary restart outputs
+	  char location[1024] = "../box";
+	  char storloc[1024] = "./nanostate_storage";
+	  char outloc[1024] = "./nanoscale_output/";
+
+	  // Name of nanostate binary files
+	  char initdata[1024] = "PE_init_end.mstate";
+	  char strainstate[1024] = "PE_strain_end.mstate";
+
+	  // Name of the stress compute to retrieve
+	  char cmptid[1024] = "pr1";
+
 	  std::vector<std::vector<double> > tmp (2*dim, std::vector<double>(2*dim));
 
 	  int me;
 	  MPI_Comm_rank(comm_lammps, &me);
 
-	  char location[1024] = "../box";
-
-	  char storloc[1024] = "./nanostate_storage";
 	  std::string sstorloc(storloc);
 	  mkdir((sstorloc).c_str(), ACCESSPERMS);
 
-	  char outloc[1024] = "./nanoscale_output/";
 	  std::string soutloc(outloc);
 	  mkdir((soutloc).c_str(), ACCESSPERMS);
 
@@ -486,67 +521,110 @@ namespace HMM
 	  std::string sqpoutloc(qpoutloc);
 	  mkdir((sqpoutloc).c_str(), ACCESSPERMS);
 
-	  bool compute_finit = true;
-	  char initdata[1024];
-	  sprintf(initdata, "%s", "PE_init_end.mstate");
 	  char straindata[1024];
-	  sprintf(straindata, "%s.%s", qptid, "PE_strain_end.mstate");
+	  sprintf(straindata, "%s.%s.%s", timeid, qptid, strainstate);
+	  char straindata_old[1024];
+	  sprintf(straindata_old, "%s.%s.%s", prev_timeid, qptid, strainstate);
 
 	  char cline[1024];
 	  char cfile[1024];
 	  char mfile[1024];
+	  char sfile[1024];
 
 	  // Specifying the command line options for screen and log output file
-	  char **lmparg = new char*[48];
-	  lmparg[0] = NULL;                 // required placeholder for program name
-	  sprintf(lmparg[1], "-screen none");
-	  sprintf(lmparg[2], "-log %s/log.PE_stress_strain", qpoutloc);
+	  int nargs = 5;
+	  char **lmparg = new char*[nargs];
+	  lmparg[0] = NULL;
+	  lmparg[1] = (char *) "-screen";
+	  lmparg[2] = (char *) "none";
+	  lmparg[3] = (char *) "-log";
+	  lmparg[4] = new char[1024];
+	  sprintf(lmparg[4], "%s/log.PE_stress_strain", qpoutloc);
 
 	  // Creating LAMMPS instance
 	  LAMMPS *lmp = NULL;
-	  lmp = new LAMMPS(3,lmparg,comm_lammps);
+	  lmp = new LAMMPS(nargs,lmparg,comm_lammps);
 
 	  // Passing location for output as variable
-	  sprintf(cline, "variable loco string %s", qpoutloc);
-	  lammps_command(lmp,cline);
+	  sprintf(cline, "variable loco string %s", qpoutloc); lammps_command(lmp,cline);
 
 	  // Setting general parameters for LAMMPS independentely of what will be
 	  // tested on the sample next.
 	  sprintf(cfile, "%s/%s", location, "in.set.lammps");
 	  lammps_file(lmp,cfile);
 
-	  // Set initial state of the testing box (either from initial end state
-	  // or from previous testing end state).
-	  if(compute_finit) sprintf(mfile, "%s/%s", storloc, initdata);
-	  else sprintf(mfile, "%s/%s", storloc, straindata);
+	  // Check if 'qptid.PE_strain_end.mstate' has been computed already
+	  sprintf(sfile, "%s/%s", storloc, straindata);
+	  bool state_exists = file_exists(sfile);
 
-	  std::ifstream ifile(mfile);
-	  if (!ifile.good()) std::cout << "Unable to open init_state file to read" << std::endl;
+	  if(compute_state || !state_exists)
+	  {
+		  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
+				  	  	  	     << "Compute current state data...       " << std::endl;
+		  // Compute from the initial state (true) or the previous state (false)
+		  bool compute_finit = true;
 
-	  sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+		  // Declaration of variables of in.strain.lammps
+		  double dts = 2.0; // timestep length
+		  int nts = 200000; // number of timesteps
 
-	  // Declaration of variables of in.strain.lammps
-	  double dts = 2.0; // timestep length
-	  sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
-
-	  int nts = 200000; // number of timesteps
-	  sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
-
-	  char cmptid[1024] = "pr1"; // name of the stress compute to retrieve
-	  sprintf(cline, "variable cmptid string %s", cmptid); lammps_command(lmp,cline);
-
-	  for(unsigned int k=0;k<dim;k++)
-		  for(unsigned int l=k;l<dim;l++)
+		  // Set initial state of the testing box (either from initial end state
+		  // or from previous testing end state).
+		  if(compute_finit)
 		  {
-			  sprintf(cline, "variable eeps_%d%d equal %f", k, l, strains[k][l]/(nts*dts));
-			  lammps_command(lmp,cline);
+			  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
+		  	  	  	     	 	 	 << "   ... from init state data...       " << std::endl;
+			  sprintf(mfile, "%s/%s", storloc, initdata);
+		  }
+		  else
+		  {
+			  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
+		  	  	  	     	 	 	 << "   ... from previous state data...   " << std::endl;
+			  sprintf(mfile, "%s/%s", storloc, straindata_old);
 		  }
 
-	  // Run the NEMD simulations of the strained box
-	  if (me == 0) std::cout << "   reading and executing in.init.lammps...       " << std::endl;
-	  sprintf(cfile, "%s/%s", location, "in.strain.lammps");
-	  lammps_file(lmp,cfile);
+		  std::ifstream ifile(mfile);
+		  if (!ifile.good()) std::cout << "(" << timeid <<"."<< qptid << ") "
+	  	  	  	     	 	 	 	   << "Unable to open init/prev state file to read" << std::endl;
 
+		  sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+		  sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
+		  sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
+
+		  for(unsigned int k=0;k<dim;k++)
+			  for(unsigned int l=k;l<dim;l++)
+			  {
+				  sprintf(cline, "variable eeps_%d%d equal %f", k, l, strains[k][l]/(nts*dts));
+				  lammps_command(lmp,cline);
+			  }
+
+		  // Run the NEMD simulations of the strained box
+		  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
+	  	  	  	     	 	 	 << "   ...reading and executing in.strain.lammps       " << std::endl;
+		  sprintf(cfile, "%s/%s", location, "in.strain.lammps");
+		  lammps_file(lmp,cfile);
+
+		  // Save data to specific file for this quadrature point
+		  sprintf(cline, "write_restart %s/%s", storloc, straindata); lammps_command(lmp,cline);
+	  }
+	  else
+	  {
+		  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
+	  	  	  	     	 	 	 << "Reuse of current state data...       " << std::endl;
+
+		  sprintf(mfile, "%s/%s", storloc, straindata);
+		  std::ifstream ifile(mfile);
+		  if (!ifile.good()) std::cout << "(" << timeid <<"."<< qptid << ") "
+	  	  	  	     	 	 	 	   << "Unable to open strain_state file to read" << std::endl;
+		  sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+		  sprintf(cline, "compute  %s all pressure thermo_temp", cmptid); lammps_command(lmp,cline);
+		  sprintf(cline, "run 1"); lammps_command(lmp,cline); // to access the pressure compute...
+	  }
+
+	  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
+	  	  	     	 	 	 << "Extract stress tensor from compute:  " << cmptid << std::endl;
 	  // Retieve the stress computed using the compute 'cmptid'
 	  double *stress_vector;
 	  stress_vector = (double *) lammps_extract_compute(lmp,cmptid,0,1);
@@ -557,11 +635,8 @@ namespace HMM
 		  for(unsigned int l=k+1;l<dim;l++)
 			  stresses[k][l] = stress_vector[k+l+2];
 
-	  // Save data to specific file for this quadrature point
-	  sprintf(cline, "write_restart %s/%s", storloc, straindata);
-	  lammps_command(lmp,cline);
-
-	  if (me == 0) std::cout << "   computing stiffness using in.elastic.lammps...       " << std::endl;
+	  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
+	  	  	     	 	 	 << "Compute stiffness using in.elastic.lammps...       " << std::endl;
 	  // Compute the Tangent Stiffness Tensor at the given stress/strain state
 	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp, location);
 
@@ -610,6 +685,7 @@ namespace HMM
     int 								n_lammps_batch_processes;
     int 								n_lammps_batch;
     int 								this_lammps_process;
+    int 								this_lammps_batch_process;
     int 								lammps_pcolor;
 
     ConditionalOStream 					pcout;
@@ -1044,6 +1120,10 @@ namespace HMM
     displacement_update_grads (quadrature_formula.size(),
                                   std::vector<Tensor<1,dim> >(dim));
 
+    std::vector<std::vector<bool> >
+    	q_to_be_updated (triangulation.n_active_cells(),
+    				std::vector<bool>(quadrature_formula.size()));
+
     Assert (quadrature_point_history.size() > 0,
             ExcInternalError());
 
@@ -1079,6 +1159,16 @@ namespace HMM
     			local_quadrature_points_history[q].old_stiff =
     					local_quadrature_points_history[q].new_stiff;
 
+    			// TEST HERE IF QPT SHOULD BE UPDATED.
+    			// CREATE FILES FOR STRAIN STORAGE ONLY FOR QPT TO BE UPDATED.
+    			// BEFORE THIS LOOP SCATTER THE 'q_to_be_updated' VECTOR ON DIFFERENT
+    			// PROCESSES ACCORDING TO 'is_locally_owned()'.
+    			//   > This is tricky...
+    			//   > Use PETScWrappers tools instead, as described in tutorials, they
+    			// can be used since data shared is vector of vector of bool/int.
+    			// AT THE END OF THIS LOOP USE A COLLECTIVE "ALLGATHER" SO EVERY PROCESS
+    			// KNOWS WHAT QPT NEEDS TO BE UPDATED.
+
     			// Store strains in a file named ./macrostate_storage/time.it-cellid.qid.strain
 				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
@@ -1087,43 +1177,43 @@ namespace HMM
 				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
 				write_tensor<dim>(filename, local_quadrature_points_history[q].new_strain);
 
-				// Check if this is a good position for setting criterion of elastic regime?
-				// Or maybe a separate loop?
-				// If parallel task, need to retrieve information...
     		}
     	}
 
+    // Need to synchronize properly deal processes
 	MPI_Barrier(dealii_communicator);
 
-	// For Debug...
-//    for (typename DoFHandler<dim>::active_cell_iterator
-//    		cell = dof_handler.begin_active();
-//    		cell != dof_handler.end(); ++cell)
-//    {
-//    	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-//    	{
-//    		//test_if q must be updated...
-//    		int q_to_be_updated = 1;
-//    		if (/*q_to_be_updated*/cell->active_cell_index() == 0)
-//    		{
-//    			nqptbu++;
-//    			// check returned value...
-//    			if (lammps_pcolor == (nqptbu%n_lammps_batch))
-//    			{
-//    				int me;
-//					MPI_Comm_rank(lammps_communicator, &me);
-//    				std::cout << "nqptbu: " << nqptbu
-//						  << " - cell / qp : " << cell->active_cell_index() << "/" << q
-//						  << " - proc_world_rank: " << this_lammps_process
-//    					  << " - lammps batch computed: " << (nqptbu%n_lammps_batch)
-//						  << " - lammps batch color: " << lammps_pcolor
-//						  << " - proc_batch_rank: " << me
-//						  << std::endl;
-//    			}
-//    		}
-//    	}
-//    }
+	// This loop could be integrated in the previous one, to choose to avoid storing data
+	// to disk for quadrature points that do not need an update (see CAPS)...
+	// It requires a collective! But it will the be parallelized (to try soon)!
 
+	// Filling list of quadrature points to be updated.
+    for (typename DoFHandler<dim>::active_cell_iterator
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
+    {
+    	for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+    	{
+			SymmetricTensor<2,dim> loc_strain;
+
+			// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+			char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
+			char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+			char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+			char filename[1024];
+
+			sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+			read_tensor<dim>(filename, loc_strain);
+
+    		//test_if q must be updated...
+    		q_to_be_updated[cell->active_cell_index()][q] = false;
+
+    		if (cell->active_cell_index() == 0 && (q == 0 || q == 1))
+    									q_to_be_updated[cell->active_cell_index()][q] = true;
+    	}
+    }
+
+    // Update of the quadrature points that need to be analysed using LAMMPS
 	nqptbu = 0;
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
@@ -1135,6 +1225,7 @@ namespace HMM
 			SymmetricTensor<4,dim> loc_stiffness;
 
 			// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+			char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
 			char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 			char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
 			char filename[1024];
@@ -1143,9 +1234,11 @@ namespace HMM
 			read_tensor<dim>(filename, loc_strain);
 
     		//test_if q must be updated...
-    		int q_to_be_updated = 0;
-    		if (cell->active_cell_index() == 0 && (q == 0 || q == 1)) q_to_be_updated = 1;
-    		if (q_to_be_updated)
+    		q_to_be_updated[cell->active_cell_index()][q] = 0;
+    		//Don't forget syncing this test on the q_points with the one in the next loop
+    		if (cell->active_cell_index() == 0 && (q == 0 || q == 1))
+    									q_to_be_updated[cell->active_cell_index()][q] = 1;
+    		if (q_to_be_updated[cell->active_cell_index()][q])
     		{
     			nqptbu++;
     			if (lammps_pcolor == (nqptbu%n_lammps_batch))
@@ -1168,31 +1261,72 @@ namespace HMM
     						loc_stress,
     						loc_stiffness,
     						quad_id,
+							time_id,
+							prev_time_id,
 							lammps_batch_communicator);
 
+    				// Write the new stress and stiffness tensors into two files, respectively
+    				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
+    				if(this_lammps_batch_process == 0)
+    				{
+    		    		sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+    					write_tensor<dim>(filename, loc_stress);
+
+    					sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+    					write_tensor<dim>(filename, loc_stiffness);
+    				}
     			}
     		}
-    		else
-    		{
-				// For debugg using a linear constitutive equation
-				loc_stiffness = initial_stress_strain_tensor;
-				loc_stress
-					= loc_stiffness
-					* loc_strain;
-    		}
-
-			// Write the new stress and stiffness tensors into two files, respectively
-			// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
-			sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
-			write_tensor<dim>(filename, loc_stress);
-
-			sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
-			write_tensor<dim>(filename, loc_stiffness);
     	}
     }
 
+    // Synchronization of processes used to run LAMMPS instances
     MPI_Barrier(lammps_global_communicator);
 
+    // This loop can be inserted in the next one, and file macrostate_storage could be done
+    // only for quadrature points that need to be updated using lammps
+    for (typename DoFHandler<dim>::active_cell_iterator
+    		cell = dof_handler.begin_active();
+    		cell != dof_handler.end(); ++cell)
+		if (cell->is_locally_owned())
+		{
+			for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+			{
+				SymmetricTensor<2,dim> loc_strain, loc_stress;
+				SymmetricTensor<4,dim> loc_stiffness;
+
+				// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+				char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
+				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+				char filename[1024];
+
+				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+				read_tensor<dim>(filename, loc_strain);
+
+				//test_if q has not been updated lammps...
+				if (!q_to_be_updated[cell->active_cell_index()][q])
+				{
+					// For debugg using a linear constitutive equation
+					loc_stiffness = initial_stress_strain_tensor;
+					loc_stress
+						= loc_stiffness
+						* loc_strain;
+
+					// Write the new stress and stiffness tensors into two files, respectively
+					// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
+					sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+					write_tensor<dim>(filename, loc_stress);
+
+					sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+					write_tensor<dim>(filename, loc_stiffness);
+
+				}
+			}
+		}
+
+    // Retrieving all quadrature points computation and storing them in the
+    // quadrature_points_history structure
     for (typename DoFHandler<dim>::active_cell_iterator
     		cell = dof_handler.begin_active();
     		cell != dof_handler.end(); ++cell)
@@ -1347,7 +1481,7 @@ namespace HMM
 
         for (unsigned int inner_iteration=0; inner_iteration<5; ++inner_iteration)
           {
-
+        	++newtonstep_no;
             pcout << "    Assembling system..." << std::flush;
             assemble_system ();
 
@@ -1373,8 +1507,6 @@ namespace HMM
                       << std::endl
                       << "  -"
                       << std::endl;
-
-            ++newtonstep_no;
           }
       } while (previous_res>1e-3);
   }
@@ -1603,6 +1735,7 @@ namespace HMM
 
 	  // Definition of the communicators
 	  MPI_Comm_split(lammps_global_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);
+	  MPI_Comm_rank(lammps_batch_communicator,&this_lammps_batch_process);
 
 	  // Recapitulating allocation of each process to deal and lammps
 	  std::cout << "proc world rank: " << this_lammps_process

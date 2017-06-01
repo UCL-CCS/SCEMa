@@ -42,7 +42,6 @@
 #  that minimization is not required, you can set maxiter = 0.0 in
 #  init.mod.
 #
-print "Location = ${locbe}"
 include ${locbe}/init.mod.lammps
 include ${locbe}/potential.mod.lammps
 

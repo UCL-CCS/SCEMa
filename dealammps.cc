@@ -382,13 +382,13 @@ namespace HMM
 		  	  	  	 MPI_Comm comm_lammps)
   {
 	  // Compute init state even if available (true) or only if already absent (false);
-	  bool compute_state = false;
+	  bool compute_state = true;
 
 	  // Locations for finding reference LAMMPS files, to store nanostate binary data, and
 	  // to place LAMMPS log/dump/temporary restart outputs
 	  char location[1024] = "../box";
 	  char storloc[1024] = "./nanostate_storage";
-	  char outloc[1024] = "./nanoscale_output/";
+	  char outloc[1024] = "./nanoscale_output";
 
 	  // Name of the nanostate binary file
 	  char outdata[1024] = "PE_init_end.mstate";
@@ -405,7 +405,7 @@ namespace HMM
 	  mkdir((soutloc).c_str(), ACCESSPERMS);
 
 	  char qpoutloc[1024];
-	  sprintf(qpoutloc, "%s%s", outloc, "init");
+	  sprintf(qpoutloc, "%s/%s", outloc, "init");
 	  std::string sqpoutloc(qpoutloc);
 	  mkdir((sqpoutloc).c_str(), ACCESSPERMS);
 
@@ -414,14 +414,20 @@ namespace HMM
 	  char sfile[1024];
 
 	  // Specifying the command line options for screen and log output file
-	  int nargs = 5;
+//	  int nargs = 5;
+//	  char **lmparg = new char*[nargs];
+//	  lmparg[0] = NULL;
+//	  lmparg[1] = (char *) "-screen";
+//	  lmparg[2] = (char *) "none";
+//	  lmparg[3] = (char *) "-log";
+//	  lmparg[4] = new char[1024];
+//	  sprintf(lmparg[4], "%s/log.PE_heatup_cooldown", qpoutloc);
+	  int nargs = 3;
 	  char **lmparg = new char*[nargs];
 	  lmparg[0] = NULL;
-	  lmparg[1] = (char *) "-screen";
-	  lmparg[2] = (char *) "none";
-	  lmparg[3] = (char *) "-log";
-	  lmparg[4] = new char[1024];
-	  sprintf(lmparg[4], "%s/log.PE_heatup_cooldown", qpoutloc);
+	  lmparg[1] = (char *) "-log";
+	  lmparg[2] = new char[1024];
+	  sprintf(lmparg[2], "%s/log.PE_heatup_cooldown", qpoutloc);
 
 	  // Creating LAMMPS instance
 	  LAMMPS *lmp = NULL;
@@ -445,7 +451,7 @@ namespace HMM
 	  if (compute_state || !state_exists)
 	  {
 		  if (me == 0) std::cout << "(init)"
-				  	  	  	     << "Compute state data...       " << state_exists << std::endl;
+				  	  	  	     << "Compute state data...       " << std::endl;
 		  // Compute initialization of the sample which minimizes the free energy,
 		  // heat up and finally cool down the sample.
 		  sprintf(cfile, "%s/%s", location, "in.init.lammps");
@@ -490,13 +496,13 @@ namespace HMM
 						MPI_Comm comm_lammps)
   {
 	  // Compute current state even if available (true) or only if already absent (false);
-	  bool compute_state = false;
+	  bool compute_state = true;
 
 	  // Locations for finding reference LAMMPS files, to store nanostate binary data, and
 	  // to place LAMMPS log/dump/temporary restart outputs
 	  char location[1024] = "../box";
 	  char storloc[1024] = "./nanostate_storage";
-	  char outloc[1024] = "./nanoscale_output/";
+	  char outloc[1024] = "./nanoscale_output";
 
 	  // Name of nanostate binary files
 	  char initdata[1024] = "PE_init_end.mstate";
@@ -517,7 +523,7 @@ namespace HMM
 	  mkdir((soutloc).c_str(), ACCESSPERMS);
 
 	  char qpoutloc[1024];
-	  sprintf(qpoutloc, "%s%s", outloc, qptid);
+	  sprintf(qpoutloc, "%s/%s.%s", outloc, timeid, qptid);
 	  std::string sqpoutloc(qpoutloc);
 	  mkdir((sqpoutloc).c_str(), ACCESSPERMS);
 
@@ -540,6 +546,12 @@ namespace HMM
 	  lmparg[3] = (char *) "-log";
 	  lmparg[4] = new char[1024];
 	  sprintf(lmparg[4], "%s/log.PE_stress_strain", qpoutloc);
+//	  int nargs = 3;
+//	  char **lmparg = new char*[nargs];
+//	  lmparg[0] = NULL;
+//	  lmparg[1] = (char *) "-log";
+//	  lmparg[2] = new char[1024];
+//	  sprintf(lmparg[2], "%s/log.PE_stress_strain", qpoutloc);
 
 	  // Creating LAMMPS instance
 	  LAMMPS *lmp = NULL;
@@ -566,7 +578,7 @@ namespace HMM
 
 		  // Declaration of variables of in.strain.lammps
 		  double dts = 2.0; // timestep length
-		  int nts = 200000; // number of timesteps
+		  int nts = 2000; // number of timesteps
 
 		  // Set initial state of the testing box (either from initial end state
 		  // or from previous testing end state).
@@ -591,6 +603,7 @@ namespace HMM
 
 		  sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 		  sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
+		  sprintf(cline, "variable cmptid string %s", cmptid); lammps_command(lmp,cline);
 
 		  for(unsigned int k=0;k<dim;k++)
 			  for(unsigned int l=k;l<dim;l++)
@@ -620,7 +633,10 @@ namespace HMM
 		  sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
 
 		  sprintf(cline, "compute  %s all pressure thermo_temp", cmptid); lammps_command(lmp,cline);
-		  sprintf(cline, "run 1"); lammps_command(lmp,cline); // to access the pressure compute...
+
+		  // Does this additional minization changes the values of the computed ouputs (stress and stiffness)?
+		  sprintf(cfile, "%s/ELASTIC/%s", location, "init.mod.lammps"); lammps_file(lmp,cfile);
+		  sprintf(cline, "minimize ${etol} ${ftol} ${maxiter} ${maxeval}"); lammps_command(lmp,cline); // to access the pressure compute...
 	  }
 
 	  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
@@ -1856,57 +1872,38 @@ namespace HMM
   template <int dim>
   void ElasticProblem<dim>::run ()
   {
-	// Define groups of processes from all the processes allocated to LAMMPS
-	// simulations. Associated communicators are defined as well.
+	char a[10] = "0"; char b[10] = "1"; char c[10] = "0";
+
+	SymmetricTensor<2,dim> loc_strain, loc_stress;
+	SymmetricTensor<4,dim> loc_stiffness;
+
     set_lammps_procs();
 
-	pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
+    // Study the variation of the elastic properties homogenized with the strain state
+    char storloc[1024] = "./molecular_elasticity_testing/";
+	std::string macrorepo(storloc);
+	mkdir((macrorepo).c_str(), ACCESSPERMS);
 
-    // Since LAMMPS is highly scalable, the initiation number of processes NI
-    // can basically be equal to the maximum number of available processes NT which
-    // can directly be found in the MPI_COMM.
+    char store_init_stiff[1024] = "./molecular_elasticity_testing/init.stiff";
+    char store_state_strain[1024] = "./molecular_elasticity_testing/state.strain";
+    char store_state_stiff[1024] = "./molecular_elasticity_testing/state.stiff";
+
+    // No strain
     lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+    write_tensor(store_init_stiff, initial_stress_strain_tensor);
 
-//    double mu = 9.695e10, lambda = 7.617e10;
-//    for (unsigned int i=0; i<dim; ++i)
-//      for (unsigned int j=0; j<dim; ++j)
-//        for (unsigned int k=0; k<dim; ++k)
-//          for (unsigned int l=0; l<dim; ++l)
-//        	  initial_stress_strain_tensor[i][j][k][l]
-//							= (((i==k) && (j==l) ? mu : 0.0) +
-//                               ((i==l) && (j==k) ? mu : 0.0) +
-//                               ((i==j) && (k==l) ? lambda : 0.0));
-
-    present_time = 0;
-    present_timestep = 1;
-    end_time = 1;
-    timestep_no = 0;
-
-    make_grid ();
-
-    pcout << "    Number of active cells:       "
-          << triangulation.n_active_cells()
-          << " (by partition:";
-    for (unsigned int p=0; p<n_dealii_processes; ++p)
-      pcout << (p==0 ? ' ' : '+')
-            << (GridTools::
-                count_cells_with_subdomain_association (triangulation,p));
-    pcout << ")" << std::endl;
-
-    setup_system ();
-
-    pcout << "    Number of degrees of freedom: "
-          << dof_handler.n_dofs()
-          << " (by partition:";
-    for (unsigned int p=0; p<n_dealii_processes; ++p)
-      pcout << (p==0 ? ' ' : '+')
-            << (DoFTools::
-                count_dofs_with_subdomain_association (dof_handler,p));
-    pcout << ")" << std::endl;
-
-    pcout << " Beginning of Time-Stepping...       " << std::endl;
-    while (present_time < end_time)
-      do_timestep ();
+    // With strain
+//  double val = 0.;
+//	for(unsigned int k=0;k<dim;k++)
+//		for(unsigned int l=k;l<dim;l++)
+//			loc_strain[k][l] = val;
+//
+//	write_tensor(store_state_strain, loc_strain);
+//
+//	lammps_local_testing<dim> (loc_strain, loc_stress, loc_stiffness,
+//							   a, b, c,
+//							   lammps_global_communicator);
+//	write_tensor(store_state_stiff, loc_stiffness);
   }
 }
 

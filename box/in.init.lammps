@@ -65,8 +65,8 @@ minimize        1.0e-7 1.0e-11 3000   50000   # 1.0e-7 1.0e-11 3000   50000
 
 #  Setting printing position information on all atoms every 5000 steps in PE_heatup.xyz file specifying
 #  atom type 1, 2 and 3 with names respectively C, C and H
-#dump            xyz_dump all xyz 5000    PE_heatup.xyz   # XYZ dump files for visualisation with VMD
-#dump_modify     xyz_dump element  C C H
+dump            xyz_dump all xyz 5000    ${loco}/PE_heatup.xyz   # XYZ dump files for visualisation with VMD
+dump_modify     xyz_dump element  C C H
 
 #  Setting a displacement constraint on all atoms which mass is 1.0 (hydrogen), constraint consist in maintaining
 #  bond length or angles involving these atoms constant, the iterative solution algorithm to apply these constraint

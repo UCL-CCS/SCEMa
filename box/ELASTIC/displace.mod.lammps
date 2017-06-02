@@ -30,6 +30,7 @@ variable deltaxy equal -${up}*xy
 variable deltaxz equal -${up}*xz
 variable deltayz equal -${up}*yz
 
+## This will have to be replaced by a "fix deform"
 if "${dir} == 1" then &
    "change_box all x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap units box"
 if "${dir} == 2" then &
@@ -43,9 +44,13 @@ if "${dir} == 5" then &
 if "${dir} == 6" then &
    "change_box all xy delta ${delta} remap units box"
 
+
+## Possibility #1: This will have to be replaced by a "run" of MD to get
+## the Average stiffness over the application of the strain
 # Relax atoms positions
 
 minimize ${etol} ${ftol} ${maxiter} ${maxeval}
+
 # Obtain new stress tensor
 
 variable tmp equal pxx
@@ -60,6 +65,9 @@ variable tmp equal pxz
 variable pxz1 equal ${tmp}
 variable tmp equal pyz
 variable pyz1 equal ${tmp}
+
+## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
+## simulation over sufficient time and get the according stress
 
 # Compute elastic constant from pressure tensor
 

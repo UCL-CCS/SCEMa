@@ -109,7 +109,12 @@ timestep        ${dts} #2.0
 #run             nts #2000000  #(in wrapper)
 run             ${nts} #2000000
 
-#  Releasing fix constraints
+#  Releasing fix deform constraint
 unfix 1
+
+## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
+## simulation over sufficient time and get the initial stress.
+
+#  Releasing fix constraints
 unfix 3
 unfix 4

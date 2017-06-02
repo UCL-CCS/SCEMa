@@ -382,7 +382,7 @@ namespace HMM
 		  	  	  	 MPI_Comm comm_lammps)
   {
 	  // Compute init state even if available (true) or only if already absent (false);
-	  bool compute_state = true;
+	  bool compute_state = false;
 
 	  // Locations for finding reference LAMMPS files, to store nanostate binary data, and
 	  // to place LAMMPS log/dump/temporary restart outputs
@@ -392,6 +392,9 @@ namespace HMM
 
 	  // Name of the nanostate binary file
 	  char outdata[1024] = "PE_init_end.mstate";
+
+	  // Name of the stress compute to retrieve
+	  char cmptid[1024] = "pr1";
 
 	  std::vector<std::vector<double> > tmp (2*dim, std::vector<double>(2*dim));
 
@@ -414,20 +417,20 @@ namespace HMM
 	  char sfile[1024];
 
 	  // Specifying the command line options for screen and log output file
-//	  int nargs = 5;
-//	  char **lmparg = new char*[nargs];
-//	  lmparg[0] = NULL;
-//	  lmparg[1] = (char *) "-screen";
-//	  lmparg[2] = (char *) "none";
-//	  lmparg[3] = (char *) "-log";
-//	  lmparg[4] = new char[1024];
-//	  sprintf(lmparg[4], "%s/log.PE_heatup_cooldown", qpoutloc);
-	  int nargs = 3;
+	  int nargs = 5;
 	  char **lmparg = new char*[nargs];
 	  lmparg[0] = NULL;
-	  lmparg[1] = (char *) "-log";
-	  lmparg[2] = new char[1024];
-	  sprintf(lmparg[2], "%s/log.PE_heatup_cooldown", qpoutloc);
+	  lmparg[1] = (char *) "-screen";
+	  lmparg[2] = (char *) "none";
+	  lmparg[3] = (char *) "-log";
+	  lmparg[4] = new char[1024];
+	  sprintf(lmparg[4], "%s/log.PE_heatup_cooldown", qpoutloc);
+//	  int nargs = 3;
+//	  char **lmparg = new char*[nargs];
+//	  lmparg[0] = NULL;
+//	  lmparg[1] = (char *) "-log";
+//	  lmparg[2] = new char[1024];
+//	  sprintf(lmparg[2], "%s/log.PE_heatup_cooldown", qpoutloc);
 
 	  // Creating LAMMPS instance
 	  LAMMPS *lmp = NULL;
@@ -470,6 +473,23 @@ namespace HMM
 		  sprintf(cline, "read_restart %s/%s", storloc, outdata);
 		  lammps_command(lmp,cline);
 	  }
+	  // Prepare a lammps file with few variable to abstract this as a function...
+	  // Compute current stress using sampling over time and fixed NVT conditions
+	  sprintf(cline, "variable cmptid string %s", cmptid); lammps_command(lmp,cline);
+	  sprintf(cline, "compute  %s all pressure thermo_temp", cmptid); lammps_command(lmp,cline);
+	  // apply fix..
+	  // run over time window...
+
+	  // Retieve the stress computed using the compute 'cmptid'
+	  double *stress_vector;
+	  stress_vector = (double *) lammps_extract_compute(lmp,cmptid,0,1);
+
+	  // Convert vector to tensor (dimension independent fahsion...)
+	  SymmetricTensor<2,dim> stresses;
+	  for(unsigned int k=0;k<dim;k++) stresses[k][k] = stress_vector[k];
+	  for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k+1;l<dim;l++)
+			  stresses[k][l] = stress_vector[k+l+2];
 
 	  if (me == 0) std::cout << "(init) "
 			  	  	  	  	 << "Compute stiffness using in.elastic.lammps...       " << std::endl;
@@ -576,9 +596,11 @@ namespace HMM
 		  // Compute from the initial state (true) or the previous state (false)
 		  bool compute_finit = true;
 
+		  // Definition of the appropriate strain rate
+		  double erate = 1.0;
 		  // Declaration of variables of in.strain.lammps
-		  double dts = 2.0; // timestep length
-		  int nts = 2000; // number of timesteps
+		  double dts = 2.0; // timestep length in fs
+		  int nts = 20000; // number of timesteps
 
 		  // Set initial state of the testing box (either from initial end state
 		  // or from previous testing end state).
@@ -1893,10 +1915,12 @@ namespace HMM
     write_tensor(store_init_stiff, initial_stress_strain_tensor);
 
     // With strain
-//  double val = 0.;
+//    double val = 0.;
 //	for(unsigned int k=0;k<dim;k++)
 //		for(unsigned int l=k;l<dim;l++)
 //			loc_strain[k][l] = val;
+//
+//	loc_strain[0][0] = 0.1;
 //
 //	write_tensor(store_state_strain, loc_strain);
 //

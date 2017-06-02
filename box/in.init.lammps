@@ -68,6 +68,13 @@ minimize        1.0e-7 1.0e-11 3000   50000   # 1.0e-7 1.0e-11 3000   50000
 dump            xyz_dump all xyz 5000    ${loco}/PE_heatup.xyz   # XYZ dump files for visualisation with VMD
 dump_modify     xyz_dump element  C C H
 
+#  Computing the temperature for all atoms, and using the result of this temp
+#  compute for the compute of the pressure (including as well the stress tensor)
+#  which requires the temperature to compute the part induced by kinetic energy.
+#compute         th1 all temp
+##compute         pr1 all pressure thermo_temp  #(in wrapper)
+#compute         ${cmptid} all pressure thermo_temp
+
 #  Setting a displacement constraint on all atoms which mass is 1.0 (hydrogen), constraint consist in maintaining
 #  bond length or angles involving these atoms constant, the iterative solution algorithm to apply these constraint
 #  is terminated after error below 0.001 or 20 iterations, information printed every 1000 steps
@@ -102,6 +109,9 @@ fix             3 all npt temp 500.0 200.0 100.0  iso 1.0 1.0 1000
 
 #  Running a molecular dynamics simulation for 100000 timesteps
 run             100000
+
+## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
+## simulation over sufficient time and get the initial stress.
 
 #  Releasing fix constraints
 unfix 3

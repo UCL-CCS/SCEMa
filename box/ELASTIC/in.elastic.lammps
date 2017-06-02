@@ -48,6 +48,10 @@ include ${locbe}/potential.mod.lammps
 # Compute initial state
 minimize ${etol} ${ftol} ${maxiter} ${maxeval} # Should be done already, but without it variable declaration buggs...
 
+## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
+## simulation over sufficient time and get the initial stress (try to avoid doing it
+## again if this has been done at the end of the application of the strain state).
+
 variable tmp equal pxx
 variable pxx0 equal ${tmp}
 variable tmp equal pyy
@@ -77,7 +81,7 @@ variable d4 equal -(v_pyz1-${pyz0})/(v_delta/v_len0)*${cfac}
 variable d5 equal -(v_pxz1-${pxz0})/(v_delta/v_len0)*${cfac}
 variable d6 equal -(v_pxy1-${pxy0})/(v_delta/v_len0)*${cfac}
 
-displace_atoms all random ${atomjiggle} ${atomjiggle} ${atomjiggle} 87287 units box
+#displace_atoms all random ${atomjiggle} ${atomjiggle} ${atomjiggle} 87287 units box # only useful for crystals
 
 # Write restart
 write_restart ${loco}/restart.equil

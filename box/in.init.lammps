@@ -57,7 +57,14 @@ min_style       sd   # energy minimisation
 #  limitations (purpose: finding atoms position)
 minimize        1.0e-7 1.0e-11 3000   50000   # 1.0e-7 1.0e-11 3000   50000
 
+## CHECKING OUTPUTS
+#  Defining some variables
+variable        ps equal "step"
+variable        pt equal "temp"
+variable        pp equal "press"
 
+fix 1e all print 10 "${ps} ${pt} ${pp}" file ${loco}/PE_temp_evol.dat screen no
+fix 1a all ave/time 1 1000 1000 c_thermo_temp file ${loco}/PE_temp_ave.dat
 
 ##  -------------------------------------------
 #   Pression and temperature controls

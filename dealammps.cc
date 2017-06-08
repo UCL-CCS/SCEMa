@@ -393,14 +393,12 @@ namespace HMM
 	  // Name of the nanostate binary file
 	  char outdata[1024] = "PE_init_end.mstate";
 
-	  // Name of the stress compute to retrieve
-	  char cmptid[1024] = "pr1";
-
 	  std::vector<std::vector<double> > tmp (2*dim, std::vector<double>(2*dim));
 
 	  int me;
 	  MPI_Comm_rank(comm_lammps, &me);
 
+    // Repositories creation and checking...
 	  std::string sstorloc(storloc);
 	  mkdir((sstorloc).c_str(), ACCESSPERMS);
 
@@ -411,6 +409,9 @@ namespace HMM
 	  sprintf(qpoutloc, "%s/%s", outloc, "init");
 	  std::string sqpoutloc(qpoutloc);
 	  mkdir((sqpoutloc).c_str(), ACCESSPERMS);
+
+    int nts;
+    double dts;
 
 	  char cfile[1024];
 	  char cline[1024];
@@ -474,48 +475,35 @@ namespace HMM
 		  lammps_command(lmp,cline);
 	  }
 
-	  if (me == 0) std::cout << "(init) "
-			  	  	  	  	 << "Compute averaged stresses...       " << std::endl;
-	  // Prepare a lammps file with few variable to abstract this as a function...
-//	  sprintf(cline, "variable cmptid string %s", cmptid); lammps_command(lmp,cline);
-	  double dts = 2.0; // timestep length in fs
-	  int nts = 100000; // number of timesteps
-	  // apply fix..
-	  sprintf(cline, "fix 1 all nvt temp 200 200 100"); lammps_command(lmp,cline);
+    if (me == 0) std::cout << "(init) "
+    			  	  	  	  	 << "Compute stress tensor with sampling...       " << std::endl;
+    // Compute sampling average
+    sprintf(cfile, "%s/%s", location, "in.sample_init.lammps");
+    lammps_file(lmp,cfile);
 
-	  // printing evolution of stress for comparison
-	  sprintf(cline, "variable pt equal \"step\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable pp equal \"press\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p0 equal \"pxx\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p1 equal \"pyy\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p2 equal \"pzz\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p3 equal \"pxy\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p4 equal \"pxz\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p5 equal \"pyz\""); lammps_command(lmp,cline);
-	  sprintf(cline, "fix 1e all print %d \"${pt} ${pp} ${p0} ${p1} ${p2} ${p3} ${p4} ${p5}\" file %s/PE_press_evol.dat screen no", nts/1000, qpoutloc); lammps_command(lmp,cline);
-	  // Compute current stress using sampling over time and fixed NVT conditions
-//	  sprintf(cline, "compute  %s all pressure thermo_temp", cmptid); lammps_command(lmp,cline);
-      // assess average...
-	  sprintf(cline, "fix 1a1 all ave/time 1 %d %d c_thermo_press c_thermo_press[*] file %s/PE_press_ave1.dat", nts, nts, qpoutloc); lammps_command(lmp,cline);
-	  sprintf(cline, "fix 1a2 all ave/time 1 %d %d c_thermo_press c_thermo_press[*] file %s/PE_press_ave2.dat", nts/10, nts/10, qpoutloc); lammps_command(lmp,cline);
-	  sprintf(cline, "fix 1a3 all ave/time 1 %d %d c_thermo_press c_thermo_press[*] file %s/PE_press_ave3.dat", nts/100, nts/100, qpoutloc); lammps_command(lmp,cline);
-	  sprintf(cline, "fix 1a4 all ave/time 1 %d %d c_thermo_press c_thermo_press[*] file %s/PE_press_ave4.dat", nts/1000, nts/1000, qpoutloc); lammps_command(lmp,cline);
-	  // declaration of run parameters
-	  sprintf(cline, "timestep %f", dts); lammps_command(lmp,cline);
-	  sprintf(cline, "run_style verlet"); lammps_command(lmp,cline);
-	  // run over time window...
-	  sprintf(cline, "run %d", nts); lammps_command(lmp,cline);
+    sprintf(cline, "write_restart %s/NPT50K_%s", storloc, outdata);
+    lammps_command(lmp,cline);
 
+    if (me == 0) std::cout << "Stress tensor output..." << std::endl;
 	  // Retieve the stress computed using the compute 'cmptid'
-//	  double *stress_vector;
-//	  stress_vector = (double *) lammps_extract_compute(lmp,cmptid,0,1);
+	  double *stress_vector;
+	  stress_vector = (double *) lammps_extract_compute(lmp,"str",0,1);
 
+    if (me == 0) std::cout << "Stress tensor output..." << std::endl;
 	  // Convert vector to tensor (dimension independent fahsion...)
-//	  SymmetricTensor<2,dim> stresses;
-//	  for(unsigned int k=0;k<dim;k++) stresses[k][k] = stress_vector[k];
-//	  for(unsigned int k=0;k<dim;k++)
-//		  for(unsigned int l=k+1;l<dim;l++)
-//			  stresses[k][l] = stress_vector[k+l+2];
+	  SymmetricTensor<2,dim> stresses;
+	  for(unsigned int k=0;k<dim;k++) stresses[k][k] = stress_vector[k];
+	  for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k+1;l<dim;l++)
+			  stresses[k][l] = stress_vector[k+l+2];
+
+    if (me == 0) std::cout << "Stress tensor output..." << std::endl;
+    for(unsigned int k=0;k<dim;k++)
+    {
+      for(unsigned int l=k;l<dim;l++)
+        if (me == 0) std::cout <<  stresses[k][l];
+      if (me == 0) std::cout << std::endl;
+    }
 
 //	  if (me == 0) std::cout << "(init) "
 //			  	  	  	  	 << "Compute stiffness using in.elastic.lammps...       " << std::endl;
@@ -583,6 +571,9 @@ namespace HMM
 	  char mfile[1024];
 	  char sfile[1024];
 
+    int nts;
+    double dts;
+
 	  // Specifying the command line options for screen and log output file
 //	  int nargs = 5;
 //	  char **lmparg = new char*[nargs];
@@ -621,12 +612,11 @@ namespace HMM
 				  	  	  	     << "Compute current state data...       " << std::endl;
 		  // Compute from the initial state (true) or the previous state (false)
 		  bool compute_finit = true;
-
-		  // Definition of the appropriate strain rate
-		  double erate = 1.0;
+      // v_sound in PE is 2000m/s, since l0 = 4nm, with dts = 2.0fs, the condition
+      // is nts > 1000 * strain so that v_load < v_sound...
 		  // Declaration of run parameters
-		  double dts = 2.0; // timestep length in fs
-		  int nts = 20000; // number of timesteps
+		  dts = 2.0; // timestep length in fs
+		  nts = 20000; // number of timesteps
 
 		  // Set initial state of the testing box (either from initial end state
 		  // or from previous testing end state).
@@ -655,7 +645,7 @@ namespace HMM
 		  for(unsigned int k=0;k<dim;k++)
 			  for(unsigned int l=k;l<dim;l++)
 			  {
-				  sprintf(cline, "variable eeps_%d%d equal %f", k, l, strains[k][l]/(nts*dts));
+				  sprintf(cline, "variable eeps_%d%d equal %.6e", k, l, strains[k][l]/(nts*dts));
 				  lammps_command(lmp,cline);
 			  }
 
@@ -678,57 +668,23 @@ namespace HMM
 		  if (!ifile.good()) std::cout << "(" << timeid <<"."<< qptid << ") "
 	  	  	  	     	 	 	 	   << "Unable to open strain_state file to read" << std::endl;
 		  sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
-
-		  //sprintf(cline, "compute  %s all pressure thermo_temp", cmptid); lammps_command(lmp,cline);
-
-		  // Does this additional minization changes the values of the computed ouputs (stress and stiffness)?
-		  //sprintf(cfile, "%s/ELASTIC/%s", location, "init.mod.lammps"); lammps_file(lmp,cfile);
-		  //sprintf(cline, "minimize ${etol} ${ftol} ${maxiter} ${maxeval}"); lammps_command(lmp,cline); // to access the pressure compute...
 	  }
 
+    if (me == 0) std::cout << "(init) "
+    			  	  	  	  	 << "Compute stress tensor with sampling...       " << std::endl;
+    // Compute sampling average
+    sprintf(cfile, "%s/%s", location, "in.sample_strain.lammps");
+    lammps_file(lmp,cfile);
 
-	  if (me == 0) std::cout << "(init) "
-			  	  	  	  	 << "Compute averaged stresses...       " << std::endl;
-	  // Prepare a lammps file with few variable to abstract this as a function...
-//	  sprintf(cline, "variable cmptid string %s", cmptid); lammps_command(lmp,cline);
-	  double dts = 2.0; // timestep length in fs
-	  int nts = 20000; // number of timesteps
-	  // apply fix..
-	  sprintf(cline, "fix 1 all nvt temp 200 200 100"); lammps_command(lmp,cline);
-
-	  // printing evolution of stress for comparison
-	  sprintf(cline, "variable pt equal \"step\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable pp equal \"press\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p0 equal \"pxx\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p1 equal \"pyy\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p2 equal \"pzz\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p3 equal \"pxy\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p4 equal \"pxz\""); lammps_command(lmp,cline);
-	  sprintf(cline, "variable p5 equal \"pyz\""); lammps_command(lmp,cline);
-	  sprintf(cline, "fix 1e all print %d \"${pt} ${pp} ${p0} ${p1} ${p2} ${p3} ${p4} ${p5}\" file %s/PE_press_evol.dat screen no", nts/1000, qpoutloc); lammps_command(lmp,cline);
-	  // Compute current stress using sampling over time and fixed NVT conditions
-//	  sprintf(cline, "compute  %s all pressure thermo_temp", cmptid); lammps_command(lmp,cline);
-      // assess average...
-	  sprintf(cline, "fix 1a1 all ave/time 1 %d %d c_thermo_press c_thermo_press[*] file %s/PE_press_ave1.dat", nts/2, nts/2, qpoutloc); lammps_command(lmp,cline);
-	  sprintf(cline, "fix 1a2 all ave/time 1 %d %d c_thermo_press c_thermo_press[*] file %s/PE_press_ave2.dat", nts/10, nts/10, qpoutloc); lammps_command(lmp,cline);
-	  sprintf(cline, "fix 1a3 all ave/time 1 %d %d c_thermo_press c_thermo_press[*] file %s/PE_press_ave3.dat", nts/50, nts/50, qpoutloc); lammps_command(lmp,cline);
-	  // declaration of run parameters
-	  sprintf(cline, "timestep %f", dts); lammps_command(lmp,cline);
-	  sprintf(cline, "run_style verlet"); lammps_command(lmp,cline);
-	  // run over time window...
-	  sprintf(cline, "run %d", nts); lammps_command(lmp,cline);
-
-//	  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
-//	  	  	     	 	 	 << "Extract stress tensor from compute:  " << cmptid << std::endl;
 	  // Retieve the stress computed using the compute 'cmptid'
-//	  double *stress_vector;
-//	  stress_vector = (double *) lammps_extract_compute(lmp,cmptid,0,1);
+	  double *stress_vector;
+	  stress_vector = (double *) lammps_extract_compute(lmp,"str",0,1);
 
 	  // Convert vector to tensor (dimension independent fahsion...)
-//	  for(unsigned int k=0;k<dim;k++) stresses[k][k] = stress_vector[k];
-//	  for(unsigned int k=0;k<dim;k++)
-//		  for(unsigned int l=k+1;l<dim;l++)
-//			  stresses[k][l] = stress_vector[k+l+2];
+	  for(unsigned int k=0;k<dim;k++) stresses[k][k] = stress_vector[k];
+	  for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k+1;l<dim;l++)
+			  stresses[k][l] = stress_vector[k+l+2];
 
 //	  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
 //	  	  	     	 	 	 << "Compute stiffness using in.elastic.lammps...       " << std::endl;
@@ -1784,7 +1740,7 @@ namespace HMM
                                  ".visit");
         std::ofstream visit_master (visit_master_filename.c_str());
         //data_out.write_visit_record (visit_master, filenames); // 8.4.1
-        DataOutBase::write_visit_record (visit_master, filenames); // 8.5.0
+        data_out.write_visit_record (visit_master, filenames); // 8.5.0
 
         const std::string
         pvtu_master_filename = (macrorepo + "solution-" +
@@ -1797,7 +1753,7 @@ namespace HMM
         times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename));
         std::ofstream pvd_output (macrorepo + "solution.pvd");
         //data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
-        DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
+        data_out.write_pvd_record (pvd_output, times_and_names); // 8.5.0
       }
   }
 
@@ -1951,40 +1907,40 @@ namespace HMM
   template <int dim>
   void ElasticProblem<dim>::run ()
   {
-	char a[10] = "0"; char b[10] = "1"; char c[10] = "0";
+  	char a[10] = "0"; char b[10] = "1"; char c[10] = "0";
 
-	SymmetricTensor<2,dim> loc_strain, loc_stress;
-	SymmetricTensor<4,dim> loc_stiffness;
+  	SymmetricTensor<2,dim> loc_strain, loc_stress;
+  	SymmetricTensor<4,dim> loc_stiffness;
 
     set_lammps_procs();
 
     // Study the variation of the elastic properties homogenized with the strain state
     char storloc[1024] = "./molecular_elasticity_testing/";
-	std::string macrorepo(storloc);
-	mkdir((macrorepo).c_str(), ACCESSPERMS);
+  	std::string macrorepo(storloc);
+  	mkdir((macrorepo).c_str(), ACCESSPERMS);
 
     char store_init_stiff[1024] = "./molecular_elasticity_testing/init.stiff";
     char store_state_strain[1024] = "./molecular_elasticity_testing/state.strain";
     char store_state_stiff[1024] = "./molecular_elasticity_testing/state.stiff";
 
     // No strain
-//    lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
-//    write_tensor(store_init_stiff, initial_stress_strain_tensor);
+    lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+    write_tensor(store_init_stiff, initial_stress_strain_tensor);
 
     // With strain
-    double val = 0.;
-	for(unsigned int k=0;k<dim;k++)
-		for(unsigned int l=k;l<dim;l++)
-			loc_strain[k][l] = val;
-
-	loc_strain[0][0] = 0.1;
-
-	write_tensor(store_state_strain, loc_strain);
-
-	lammps_local_testing<dim> (loc_strain, loc_stress, loc_stiffness,
-							   a, b, c,
-							   lammps_global_communicator);
-	write_tensor(store_state_stiff, loc_stiffness);
+    // double val = 0.;
+    // for(unsigned int k=0;k<dim;k++)
+	  //    for(unsigned int l=k;l<dim;l++)
+		//       loc_strain[k][l] = val;
+    //
+    // loc_strain[0][0] = 0.05;
+    //
+    // write_tensor(store_state_strain, loc_strain);
+    //
+    // lammps_local_testing<dim> (loc_strain, loc_stress, loc_stiffness,
+		// 					   a, b, c,
+		// 					   lammps_global_communicator);
+    // write_tensor(store_state_stiff, loc_stiffness);
   }
 }
 

@@ -39,21 +39,21 @@ if "${dir} == 2" then &
 if "${dir} == 3" then &
    "fix infstrain all deform 1 z delta 0 ${delta} remap x"
 if "${dir} == 4" then &
-   "fix infstrain all deform 1 xy delta ${delta} remap x"
+   "fix infstrain all deform 1 yz delta ${delta} remap x"
 if "${dir} == 5" then &
    "fix infstrain all deform 1 xz delta ${delta} remap x"
 if "${dir} == 6" then &
-   "fix infstrain all deform 1 yz delta ${delta} remap x"
+   "fix infstrain all deform 1 xy delta ${delta} remap x"
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}
-include ${locb}/in.sample.lammps
+include ${locbe}/in.sample.lammps
 
 unfix infstrain
 
 # Sample stresses
 variable nss equal ${nssample}
-include ${locb}/in.sample.lammps
+include ${locbe}/in.sample.lammps
 
 # Obtain new stress tensor
 
@@ -101,21 +101,21 @@ if "${dir} == 2" then &
 if "${dir} == 3" then &
    "fix infstrain all deform 1 z delta 0 ${delta} remap x"
 if "${dir} == 4" then &
-   "fix infstrain all deform 1 xy delta ${delta} remap x"
+   "fix infstrain all deform 1 yz delta ${delta} remap x"
 if "${dir} == 5" then &
    "fix infstrain all deform 1 xz delta ${delta} remap x"
 if "${dir} == 6" then &
-   "fix infstrain all deform 1 yz delta ${delta} remap x"
+   "fix infstrain all deform 1 xy delta ${delta} remap x"
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}
-include ${locb}/in.sample.lammps
+include ${locbe}/in.sample.lammps
 
 unfix infstrain
 
 # Sample stresses
 variable nss equal ${nssample}
-include ${locb}/in.sample.lammps
+include ${locbe}/in.sample.lammps
 
 # Obtain new stress tensor
 

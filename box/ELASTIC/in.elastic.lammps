@@ -47,12 +47,13 @@ include ${locbe}/potential.mod.lammps
 
 # Compute initial state
 variable nss equal ${nssample}
-include ${locb}/in.sample.lammps
+include ${locbe}/in.sample.lammps
 
 ## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
 ## simulation over sufficient time and get the initial stress (try to avoid doing it
 ## again if this has been done at the end of the application of the strain state).
-
+## Need to pay attention to indexes conversion because compute pressure does not use
+## Voigt indexes to order stress vector... 
 variable tmp equal f_stress[1]
 variable pxx0 equal ${tmp}
 variable pp11 equal ${tmp}
@@ -63,13 +64,13 @@ variable tmp equal f_stress[3]
 variable pzz0 equal ${tmp}
 variable pp33 equal ${tmp}
 variable tmp equal f_stress[4]
-variable pyz0 equal ${tmp}
+variable pxy0 equal ${tmp}
 variable pp12 equal ${tmp}
 variable tmp equal f_stress[5]
 variable pxz0 equal ${tmp}
 variable pp13 equal ${tmp}
 variable tmp equal f_stress[6]
-variable pxy0 equal ${tmp}
+variable pyz0 equal ${tmp}
 variable pp23 equal ${tmp}
 
 print "${pxx0} ${pyy0} ${pzz0} ${pyz0} ${pxz0} ${pxy0} "
@@ -86,9 +87,9 @@ variable lz0 equal ${tmp}
 variable d1 equal -(v_pxx1-${pxx0})/(v_delta/v_len0)*${cfac}
 variable d2 equal -(v_pyy1-${pyy0})/(v_delta/v_len0)*${cfac}
 variable d3 equal -(v_pzz1-${pzz0})/(v_delta/v_len0)*${cfac}
-variable d4 equal -(v_pxy1-${pxy0})/(v_delta/v_len0)*${cfac}
+variable d4 equal -(v_pyz1-${pyz0})/(v_delta/v_len0)*${cfac}
 variable d5 equal -(v_pxz1-${pxz0})/(v_delta/v_len0)*${cfac}
-variable d6 equal -(v_pyz1-${pyz0})/(v_delta/v_len0)*${cfac}
+variable d6 equal -(v_pxy1-${pxy0})/(v_delta/v_len0)*${cfac}
 
 #displace_atoms all random ${atomjiggle} ${atomjiggle} ${atomjiggle} 87287 units box # only useful for crystals
 

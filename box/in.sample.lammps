@@ -1,0 +1,43 @@
+# This file is for a LAMMPS simulation created by James Suter
+# The system is polyethane, using the CVFF forcefield
+# the simulation will heat up to 500K, cooldown to 200K and then perform unixial stretching in the x direction
+
+## Should we optimize the lammps call depending on the computer setup?
+## suffix OMP
+
+# Number of time steps used for sampling
+#variable nss equal 50
+
+##  -------------------------------------------
+#   Calculate the stress-strain curve for uniaxial extension in the x direction
+
+#  Setting to display thermodynamical information on the system every 500 steps
+thermo          500
+
+#  Setting the type of thermodynamical information to be printed: T, P, energies, dimesions, V, stress tensor
+thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz
+
+#  Setting the syntax of the printed thermodynamical information
+thermo_modify   flush yes line multi format float %g format 3 %15.8g
+
+#  Average stress tensor over the whole NVT run
+variable nav equal ${nss}/10
+fix stress all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
+
+#  Setting a Verlet time solution algorithm/integrator
+run_style       verlet
+#  Setting 2fs timesteps for a Verlet time solution algorithm/integrator
+timestep        2.0 # 2fs - when used with SHAKE
+
+#  Loading the same fix 4 as in the init.lammps set of commands.
+fix             4 all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
+
+#  Apply fixed NVT and let the system fluctuate during MD
+fix             3 all nvt temp 200.0 200.0 100.0
+
+#  Running a molecular dynamics simulation for 100000 timesteps
+run             ${nss}
+
+#  Releasing fix constraints
+unfix 3
+unfix 4

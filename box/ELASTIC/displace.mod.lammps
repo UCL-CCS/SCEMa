@@ -10,11 +10,11 @@ if "${dir} == 2" then &
 if "${dir} == 3" then &
    "variable len0 equal ${lz0}"
 if "${dir} == 4" then &
-   "variable len0 equal ${lz0}"
+   "variable len0 equal ${ly0}"
 if "${dir} == 5" then &
    "variable len0 equal ${lz0}"
 if "${dir} == 6" then &
-   "variable len0 equal ${ly0}"
+   "variable len0 equal ${lz0}"
 
 # Reset box and simulation parameters
 
@@ -30,36 +30,47 @@ variable deltaxy equal -${up}*xy
 variable deltaxz equal -${up}*xz
 variable deltayz equal -${up}*yz
 
+## This will have to be replaced by a "fix deform"
+
 if "${dir} == 1" then &
-   "change_box all x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap units box"
+   "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x"
 if "${dir} == 2" then &
-   "change_box all y delta 0 ${delta} yz delta ${deltayz} remap units box"
+   "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x"
 if "${dir} == 3" then &
-   "change_box all z delta 0 ${delta} remap units box"
+   "fix infstrain all deform 1 z delta 0 ${delta} remap x"
 if "${dir} == 4" then &
-   "change_box all yz delta ${delta} remap units box"
+   "fix infstrain all deform 1 xy delta ${delta} remap x"
 if "${dir} == 5" then &
-   "change_box all xz delta ${delta} remap units box"
+   "fix infstrain all deform 1 xz delta ${delta} remap x"
 if "${dir} == 6" then &
-   "change_box all xy delta ${delta} remap units box"
+   "fix infstrain all deform 1 yz delta ${delta} remap x"
 
-# Relax atoms positions
+# Apply infinitesimal strain
+variable nss equal ${nsstrain}
+include ${locb}/in.sample.lammps
 
-minimize ${etol} ${ftol} ${maxiter} ${maxeval}
+unfix infstrain
+
+# Sample stresses
+variable nss equal ${nssample}
+include ${locb}/in.sample.lammps
+
 # Obtain new stress tensor
 
-variable tmp equal pxx
+variable tmp equal f_stress[1]
 variable pxx1 equal ${tmp}
-variable tmp equal pyy
+variable tmp equal f_stress[2]
 variable pyy1 equal ${tmp}
-variable tmp equal pzz
+variable tmp equal f_stress[3]
 variable pzz1 equal ${tmp}
-variable tmp equal pxy
+variable tmp equal f_stress[4]
 variable pxy1 equal ${tmp}
-variable tmp equal pxz
+variable tmp equal f_stress[5]
 variable pxz1 equal ${tmp}
-variable tmp equal pyz
+variable tmp equal f_stress[6]
 variable pyz1 equal ${tmp}
+
+print "${pxx1} ${pyy1} ${pzz1} ${pxy1} ${pxz1} ${pyz1} "
 
 # Compute elastic constant from pressure tensor
 
@@ -84,40 +95,44 @@ variable deltaxy equal ${up}*xy
 variable deltaxz equal ${up}*xz
 variable deltayz equal ${up}*yz
 if "${dir} == 1" then &
-   "change_box all x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap units box"
+   "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x"
 if "${dir} == 2" then &
-   "change_box all y delta 0 ${delta} yz delta ${deltayz} remap units box"
+   "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x"
 if "${dir} == 3" then &
-   "change_box all z delta 0 ${delta} remap units box"
+   "fix infstrain all deform 1 z delta 0 ${delta} remap x"
 if "${dir} == 4" then &
-   "change_box all yz delta ${delta} remap units box"
+   "fix infstrain all deform 1 xy delta ${delta} remap x"
 if "${dir} == 5" then &
-   "change_box all xz delta ${delta} remap units box"
+   "fix infstrain all deform 1 xz delta ${delta} remap x"
 if "${dir} == 6" then &
-   "change_box all xy delta ${delta} remap units box"
+   "fix infstrain all deform 1 yz delta ${delta} remap x"
 
-# Relax atoms positions
+# Apply infinitesimal strain
+variable nss equal ${nsstrain}
+include ${locb}/in.sample.lammps
 
-minimize ${etol} ${ftol} ${maxiter} ${maxeval}
+unfix infstrain
+
+# Sample stresses
+variable nss equal ${nssample}
+include ${locb}/in.sample.lammps
 
 # Obtain new stress tensor
 
-variable tmp equal pe
-variable e1 equal ${tmp}
-variable tmp equal press
-variable p1 equal ${tmp}
-variable tmp equal pxx
+variable tmp equal f_stress[1]
 variable pxx1 equal ${tmp}
-variable tmp equal pyy
+variable tmp equal f_stress[2]
 variable pyy1 equal ${tmp}
-variable tmp equal pzz
+variable tmp equal f_stress[3]
 variable pzz1 equal ${tmp}
-variable tmp equal pxy
+variable tmp equal f_stress[4]
 variable pxy1 equal ${tmp}
-variable tmp equal pxz
+variable tmp equal f_stress[5]
 variable pxz1 equal ${tmp}
-variable tmp equal pyz
+variable tmp equal f_stress[6]
 variable pyz1 equal ${tmp}
+
+print "${pxx1} ${pyy1} ${pzz1} ${pxy1} ${pxz1} ${pyz1} "
 
 # Compute elastic constant from pressure tensor
 

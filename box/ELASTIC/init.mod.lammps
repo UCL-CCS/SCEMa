@@ -1,6 +1,9 @@
 # NOTE: This script can be modified for different atomic structures,
 # units, etc. See in.elastic for more info.
 #
+# Sampling and strain application number of steps
+variable nssample equal 500
+variable nsstrain equal 100
 
 # Define the finite deformation size. Try several values of this
 # variable to verify that results do not depend on it.

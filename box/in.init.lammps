@@ -120,13 +120,13 @@ fix             3 all npt temp 500.0 200.0 100.0  iso 1.0 1.0 1000
 #  Running a molecular dynamics simulation for 100000 timesteps
 run             100000
 
-## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
-## simulation over sufficient time and get the initial stress.
-#unfix           3
-#fix             3 all nvt temp 200.0 200.0 100.0
+# Apply fixed NVT and let the system fluctuate during MD to get away from
+# the Pressure constraint imposed during the heatup/cooldown
+unfix           3
+fix             3 all nvt temp 200.0 200.0 100.0
 
 #  Running a molecular dynamics simulation for 100000 timesteps
-#run             100000
+run             200000
 
 #  Releasing fix constraints
 unfix 3

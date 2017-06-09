@@ -287,16 +287,14 @@ get_rotation_matrix (const std::vector<Tensor<1,3> > &grad_u)
 }
 
 
-// Computes the complete tanget elastic stiffness tensor and returns
-// a 3x3x3x3 SymmetricTensor.
+// Computes the stress tensor and the complete tanget elastic stiffness tensor
 template <int dim>
-SymmetricTensor<4,dim>
-lammps_stiffness (void *lmp, char *location)
+void
+lammps_state (void *lmp, char *location, SymmetricTensor<2,dim> stresses, SymmetricTensor<4,dim> stiffnesses)
 {
 	int me;
 	MPI_Comm_rank(MPI_COMM_WORLD, &me);
 
-	SymmetricTensor<4,dim> initial_stress_strain_tensor;
 	SymmetricTensor<2,2*dim> tmp;
 
 	char cfile[1024];
@@ -311,6 +309,19 @@ lammps_stiffness (void *lmp, char *location)
 	sprintf(cfile, "%s/%s", location, "ELASTIC/in.elastic.lammps");
 	lammps_file(lmp,cfile);
 
+    if (me == 0) std::cout << "... retrieving stress tensor       " << std::endl;
+	// Filling 3x3 stress tensor
+	for(unsigned int k=0;k<dim;k++)
+		for(unsigned int l=k;l<dim;l++)
+		{
+			char vcoef[1024];
+			sprintf(vcoef, "pp%d%d", k+1, l+1);
+			stresses[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL));
+			if (me == 0) std::cout << stresses[k][l] << std::endl;
+
+		}
+
+	if (me == 0) std::cout << "... retrieving stiffness tensor       " << std::endl;
 	// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
 	// by LAMMPS
 	for(unsigned int k=0;k<2*dim;k++)
@@ -319,6 +330,12 @@ lammps_stiffness (void *lmp, char *location)
 			char vcoef[1024];
 			sprintf(vcoef, "C%d%dall", k+1, l+1);
 			tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
+			if(tmp[k][l] < 0.)
+			{
+				if (me == 0) std::cout << "Carefull... Negative stiffness coefficient " << k << l << " - " << tmp[k][l] << std::endl;
+				if (me == 0) std::cout << "Carefull... Replacing with 0.0 " << std::endl;
+				tmp[k][l] = 0.;
+			}
 		}
 
 	// Write test... (on the data returned by lammps)
@@ -343,14 +360,14 @@ lammps_stiffness (void *lmp, char *location)
 			else if(j==3+2){m=0; n=1;}
 			else  /*(j<3)*/{m=j; n=j;}
 
-			initial_stress_strain_tensor[k][l][m][n]=tmp[i][j];
-			/*initial_stress_strain_tensor[l][k][m][n]=tmp[i][j];
-			  initial_stress_strain_tensor[k][l][n][m]=tmp[i][j];
-			  initial_stress_strain_tensor[l][k][n][m]=tmp[i][j];*/
+			stiffnesses[k][l][m][n]=tmp[i][j];
+			/*stiffnesses[l][k][m][n]=tmp[i][j];
+			  stiffnesses[k][l][n][m]=tmp[i][j];
+			  stiffnesses[l][k][n][m]=tmp[i][j];*/
 
 			/*if(me==0) std::cout << k << l << m << n << " - "
 					  	  	  	  << i << j << " - "
-								  << initial_stress_strain_tensor[k][l][m][n]
+								  << stiffnesses[k][l][m][n]
 							      << std::endl;*/
 		}
 	}
@@ -359,17 +376,15 @@ lammps_stiffness (void *lmp, char *location)
 	// in 3D, and even 2D if possible)
 
 	/*// Symmetry checking
-	  if(me==0) std::cout << initial_stress_strain_tensor[0][1][0][2] << std::endl;
-	  if(me==0) std::cout << initial_stress_strain_tensor[1][0][0][2] << std::endl;
-	  if(me==0) std::cout << initial_stress_strain_tensor[0][1][2][0] << std::endl;
-	  if(me==0) std::cout << initial_stress_strain_tensor[1][0][2][0] << std::endl;
+	  if(me==0) std::cout << stiffnesses[0][1][0][2] << std::endl;
+	  if(me==0) std::cout << stiffnesses[1][0][0][2] << std::endl;
+	  if(me==0) std::cout << stiffnesses[0][1][2][0] << std::endl;
+	  if(me==0) std::cout << stiffnesses[1][0][2][0] << std::endl;
 	  if(me==0) std::cout << std::endl;
-	  if(me==0) std::cout << initial_stress_strain_tensor[0][2][0][1] << std::endl;
-	  if(me==0) std::cout << initial_stress_strain_tensor[2][0][0][1] << std::endl;
-	  if(me==0) std::cout << initial_stress_strain_tensor[0][2][1][0] << std::endl;
-	  if(me==0) std::cout << initial_stress_strain_tensor[2][0][1][0] << std::endl;*/
-
-	return initial_stress_strain_tensor;
+	  if(me==0) std::cout << stiffnesses[0][2][0][1] << std::endl;
+	  if(me==0) std::cout << stiffnesses[2][0][0][1] << std::endl;
+	  if(me==0) std::cout << stiffnesses[0][2][1][0] << std::endl;
+	  if(me==0) std::cout << stiffnesses[2][0][1][0] << std::endl;*/
 
 }
 
@@ -412,9 +427,6 @@ lammps_initiation (SymmetricTensor<4,dim>& initial_stress_strain_tensor,
 	std::string sqpoutloc(qpoutloc);
 	mkdir((sqpoutloc).c_str(), ACCESSPERMS);
 
-	int nts;
-	double dts;
-
 	char cfile[1024];
 	char cline[1024];
 	char sfile[1024];
@@ -440,15 +452,12 @@ lammps_initiation (SymmetricTensor<4,dim>& initial_stress_strain_tensor,
 	lmp = new LAMMPS(nargs,lmparg,comm_lammps);
 
 	// Passing location for input and output as variables
-	sprintf(cline, "variable locb string %s", location);
-	lammps_command(lmp,cline);
-	sprintf(cline, "variable loco string %s", qpoutloc);
-	lammps_command(lmp,cline);
+	sprintf(cline, "variable locb string %s", location); lammps_command(lmp,cline);
+	sprintf(cline, "variable loco string %s", qpoutloc); lammps_command(lmp,cline);
 
 	// Setting general parameters for LAMMPS independentely of what will be
 	// tested on the sample next.
-	sprintf(cfile, "%s/%s", location, "in.set.lammps");
-	lammps_file(lmp,cfile);
+	sprintf(cfile, "%s/%s", location, "in.set.lammps"); lammps_file(lmp,cfile);
 
 	// Check if 'PE_init_end.mstate' has been computed already
 	sprintf(sfile, "%s/%s", storloc, outdata);
@@ -457,46 +466,30 @@ lammps_initiation (SymmetricTensor<4,dim>& initial_stress_strain_tensor,
 	if (compute_state || !state_exists)
 	{
 		if (me == 0) std::cout << "(init)"
-				<< "Compute state data...       " << std::endl;
+							   << "Compute state data...       " << std::endl;
 		// Compute initialization of the sample which minimizes the free energy,
 		// heat up and finally cool down the sample.
-		sprintf(cfile, "%s/%s", location, "in.init.lammps");
-		lammps_file(lmp,cfile);
+		sprintf(cfile, "%s/%s", location, "in.init.lammps"); lammps_file(lmp,cfile);
 
-		sprintf(cline, "write_restart %s/%s", storloc, outdata);
-		lammps_command(lmp,cline);
+		if (me == 0) std::cout << "(init)"
+							   << "Saving state data...       " << std::endl;
+		sprintf(cline, "write_restart %s/%s", storloc, outdata); lammps_command(lmp,cline);
 	}
 	else
 	{
 		if (me == 0) std::cout << "(init) "
-				<< "Reuse of state data...       " << std::endl;
+							   << "Reuse of state data...       " << std::endl;
 		// Reload from previously computed initial preparation (minimization and
 		// heatup/cooldown), this option shouldn't remain, as in the first step the
 		// preparation should always be computed.
-		sprintf(cline, "read_restart %s/%s", storloc, outdata);
-		lammps_command(lmp,cline);
+		sprintf(cline, "read_restart %s/%s", storloc, outdata); lammps_command(lmp,cline);
 	}
 
-	if (me == 0) std::cout << "(init) "
-			<< "Compute stress tensor with sampling...       " << std::endl;
-	// Compute sampling average
-	sprintf(cfile, "%s/%s", location, "in.sample_init.lammps");
-	lammps_file(lmp,cfile);
-
-	// Retieve the stress
-	for(unsigned int k=0;k<2*dim;k++) if (me == 0) std::cout << *(double *) lammps_extract_fix(lmp,"stress",0,1,k,0) << std::endl;
-
-	// Convert vector to tensor (dimension independent fahsion...)
-	SymmetricTensor<2,dim> stresses;
-	for(unsigned int k=0;k<dim;k++) stresses[k][k] = *((double *) lammps_extract_fix(lmp,"stress",0,1,k,0));
-	for(unsigned int k=0;k<dim;k++)
-		for(unsigned int l=k+1;l<dim;l++)
-			stresses[k][l] = *(double *) lammps_extract_fix(lmp,"stress",0,1,k+l+2,0);
-
     if (me == 0) std::cout << "(init) "
-				   		   << "Compute stiffness using in.elastic.lammps...       " << std::endl;
+				   		   << "Compute state using in.elastic.lammps...       " << std::endl;
 	// Compute the Tangent Stiffness Tensor at the initial state
-	initial_stress_strain_tensor = lammps_stiffness<dim>(lmp,location);
+    SymmetricTensor<2,dim> stresses;
+	lammps_state<dim>(lmp,location, stresses, initial_stress_strain_tensor);
 
 	// close down LAMMPS
 	delete lmp;
@@ -511,7 +504,7 @@ template <int dim>
 void
 lammps_local_testing (const SymmetricTensor<2,dim>& strains,
 		SymmetricTensor<2,dim>& stresses,
-		SymmetricTensor<4,dim>& initial_stress_strain_tensor,
+		SymmetricTensor<4,dim>& stress_strain_tensor,
 		char* qptid,
 		char* timeid,
 		char* prev_timeid,
@@ -529,9 +522,6 @@ lammps_local_testing (const SymmetricTensor<2,dim>& strains,
 	// Name of nanostate binary files
 	char initdata[1024] = "PE_init_end.mstate";
 	char strainstate[1024] = "PE_strain_end.mstate";
-
-	// Name of the stress compute to retrieve
-	//	  char cmptid[1024] = "pr1";
 
 	std::vector<std::vector<double> > tmp (2*dim, std::vector<double>(2*dim));
 
@@ -643,6 +633,8 @@ lammps_local_testing (const SymmetricTensor<2,dim>& strains,
 		sprintf(cfile, "%s/%s", location, "in.strain.lammps");
 		lammps_file(lmp,cfile);
 
+		if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
+							   << "Saving state data...       " << std::endl;
 		// Save data to specific file for this quadrature point
 		sprintf(cline, "write_restart %s/%s", storloc, straindata); lammps_command(lmp,cline);
 	}
@@ -658,26 +650,10 @@ lammps_local_testing (const SymmetricTensor<2,dim>& strains,
 		sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
 	}
 
-	if (me == 0) std::cout << "(init) "
-			<< "Compute stress tensor with sampling...       " << std::endl;
-	// Compute sampling average
-	sprintf(cfile, "%s/%s", location, "in.sample_strain.lammps");
-	lammps_file(lmp,cfile);
-
-	// Retieve the stress computed using the compute 'cmptid'
-	double *stress_vector;
-	stress_vector = (double *) lammps_extract_compute(lmp,"str",0,1);
-
-	// Convert vector to tensor (dimension independent fahsion...)
-	for(unsigned int k=0;k<dim;k++) stresses[k][k] = stress_vector[k];
-	for(unsigned int k=0;k<dim;k++)
-		for(unsigned int l=k+1;l<dim;l++)
-			stresses[k][l] = stress_vector[k+l+2];
-
-	//	  if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
-	//	  	  	     	 	 	 << "Compute stiffness using in.elastic.lammps...       " << std::endl;
+    if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
+						   << "Compute state using in.elastic.lammps...       " << std::endl;
 	// Compute the Tangent Stiffness Tensor at the given stress/strain state
-	//	  initial_stress_strain_tensor = lammps_stiffness<dim>(lmp, location);
+	lammps_state<dim>(lmp, location, stresses, stress_strain_tensor);
 
 	// close down LAMMPS
 	delete lmp;
@@ -758,7 +734,7 @@ private:
 	unsigned int 						n_local_cells;
 
 	SymmetricTensor<4,dim> 				initial_stress_strain_tensor,
-	stress_strain_tensor;
+										stress_strain_tensor;
 };
 
 
@@ -1912,23 +1888,23 @@ void ElasticProblem<dim>::run ()
 	char store_state_stiff[1024] = "./molecular_elasticity_testing/state.stiff";
 
 	// No strain
-	lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
-	write_tensor(store_init_stiff, initial_stress_strain_tensor);
+//	lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+//	write_tensor(store_init_stiff, initial_stress_strain_tensor);
 
 	// With strain
-	// double val = 0.;
-	// for(unsigned int k=0;k<dim;k++)
-	//    for(unsigned int l=k;l<dim;l++)
-	//       loc_strain[k][l] = val;
-	//
-	// loc_strain[0][0] = 0.05;
-	//
-	// write_tensor(store_state_strain, loc_strain);
-	//
-	// lammps_local_testing<dim> (loc_strain, loc_stress, loc_stiffness,
-	// 					   a, b, c,
-	// 					   lammps_global_communicator);
-	// write_tensor(store_state_stiff, loc_stiffness);
+	 double val = 0.;
+	 for(unsigned int k=0;k<dim;k++)
+	    for(unsigned int l=k;l<dim;l++)
+	       loc_strain[k][l] = val;
+
+	 loc_strain[0][0] = 0.05;
+
+	 write_tensor(store_state_strain, loc_strain);
+
+	 lammps_local_testing<dim> (loc_strain, loc_stress, loc_stiffness,
+	 					   a, b, c,
+	 					   lammps_global_communicator);
+	 write_tensor(store_state_stiff, loc_stiffness);
 }
 }
 

@@ -10,11 +10,11 @@ if "${dir} == 2" then &
 if "${dir} == 3" then &
    "variable len0 equal ${lz0}"
 if "${dir} == 4" then &
-   "variable len0 equal ${lz0}"
+   "variable len0 equal ${ly0}"
 if "${dir} == 5" then &
    "variable len0 equal ${lz0}"
 if "${dir} == 6" then &
-   "variable len0 equal ${ly0}"
+   "variable len0 equal ${lz0}"
 
 # Reset box and simulation parameters
 
@@ -39,21 +39,21 @@ if "${dir} == 2" then &
 if "${dir} == 3" then &
    "fix infstrain all deform 1 z delta 0 ${delta} remap x"
 if "${dir} == 4" then &
-   "fix infstrain all deform 1 yz delta ${delta} remap x"
+   "fix infstrain all deform 1 xy delta ${delta} remap x"
 if "${dir} == 5" then &
    "fix infstrain all deform 1 xz delta ${delta} remap x"
 if "${dir} == 6" then &
-   "fix infstrain all deform 1 xy delta ${delta} remap x"
+   "fix infstrain all deform 1 yz delta ${delta} remap x"
 
 # Apply infinitesimal strain
-
-include ${locb}/in.sample_init.lammps
+variable nss equal ${nsstrain}
+include ${locb}/in.sample.lammps
 
 unfix infstrain
 
 # Sample stresses
-
-include ${locb}/in.sample_init.lammps
+variable nss equal ${nssample}
+include ${locb}/in.sample.lammps
 
 # Obtain new stress tensor
 
@@ -69,6 +69,8 @@ variable tmp equal f_stress[5]
 variable pxz1 equal ${tmp}
 variable tmp equal f_stress[6]
 variable pyz1 equal ${tmp}
+
+print "${pxx1} ${pyy1} ${pzz1} ${pxy1} ${pxz1} ${pyz1} "
 
 # Compute elastic constant from pressure tensor
 
@@ -93,33 +95,27 @@ variable deltaxy equal ${up}*xy
 variable deltaxz equal ${up}*xz
 variable deltayz equal ${up}*yz
 if "${dir} == 1" then &
-   #"change_box all x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap units box"
    "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x"
 if "${dir} == 2" then &
-   #"change_box all y delta 0 ${delta} yz delta ${deltayz} remap units box"
    "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x"
 if "${dir} == 3" then &
-   #"change_box all z delta 0 ${delta} remap units box"
    "fix infstrain all deform 1 z delta 0 ${delta} remap x"
 if "${dir} == 4" then &
-   #"change_box all yz delta ${delta} remap units box"
-   "fix infstrain all deform 1 yz delta ${delta} remap x"
+   "fix infstrain all deform 1 xy delta ${delta} remap x"
 if "${dir} == 5" then &
-   #"change_box all xz delta ${delta} remap units box"
    "fix infstrain all deform 1 xz delta ${delta} remap x"
 if "${dir} == 6" then &
-   #"change_box all xy delta ${delta} remap units box"
-   "fix infstrain all deform 1 xy delta ${delta} remap x"
+   "fix infstrain all deform 1 yz delta ${delta} remap x"
 
 # Apply infinitesimal strain
-
-include ${locb}/in.sample_init.lammps
+variable nss equal ${nsstrain}
+include ${locb}/in.sample.lammps
 
 unfix infstrain
 
 # Sample stresses
-
-include ${locb}/in.sample_init.lammps
+variable nss equal ${nssample}
+include ${locb}/in.sample.lammps
 
 # Obtain new stress tensor
 
@@ -135,6 +131,8 @@ variable tmp equal f_stress[5]
 variable pxz1 equal ${tmp}
 variable tmp equal f_stress[6]
 variable pyz1 equal ${tmp}
+
+print "${pxx1} ${pyy1} ${pzz1} ${pxy1} ${pxz1} ${pyz1} "
 
 # Compute elastic constant from pressure tensor
 

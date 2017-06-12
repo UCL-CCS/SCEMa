@@ -33,11 +33,11 @@ timestep        2.0 # 2fs - when used with SHAKE
 fix             4 all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
 
 #  Apply fixed NVT and let the system fluctuate during MD
-fix             3 all nvt temp 200.0 200.0 100.0
+#fix             3 all nvt temp 200.0 200.0 100.0
 
 #  Running a molecular dynamics simulation for 100000 timesteps
 run             ${nss}
 
 #  Releasing fix constraints
-unfix 3
+#unfix 3
 unfix 4

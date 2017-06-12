@@ -1213,11 +1213,12 @@ namespace HMM
 				//test_if q must be updated...
 				double norm_strain;
 				norm_strain = loc_strain.norm();
-				pcout << "Cell "<< cell->active_cell_index() << " QP " << q << "  Norm strain " << norm_strain << std::endl;
 
 				if (newtonstep_no == 0)
-					if (cell->active_cell_index() == 10 && (q == 4))
+					if (cell->active_cell_index() == 10 && (q == 4)){
+						pcout << "Cell "<< cell->active_cell_index() << " QP " << q << "  Norm strain " << norm_strain << std::endl;
 						q_to_be_updated[cell->active_cell_index()][q] = true;
+					}
 			}
 		}
 

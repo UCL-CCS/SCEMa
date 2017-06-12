@@ -34,26 +34,36 @@ variable deltayz equal -${up}*yz
 
 if "${dir} == 1" then &
    "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 y 1.0 1.0 1000.0 z 1.0 1.0 1000.0"
 if "${dir} == 2" then &
    "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 x 1.0 1.0 1000.0 z 1.0 1.0 1000.0"
 if "${dir} == 3" then &
    "fix infstrain all deform 1 z delta 0 ${delta} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 x 1.0 1.0 1000.0 y 1.0 1.0 1000.0"
 if "${dir} == 4" then &
    "fix infstrain all deform 1 yz delta ${delta} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 if "${dir} == 5" then &
    "fix infstrain all deform 1 xz delta ${delta} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 if "${dir} == 6" then &
    "fix infstrain all deform 1 xy delta ${delta} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}
 include ${locbe}/in.sample.lammps
 
+unfix brocompl
 unfix infstrain
 
 # Sample stresses
 variable nss equal ${nssample}
+fix   wholevol all nvt temp 200.0 200.0 100.0
 include ${locbe}/in.sample.lammps
+
+unfix wholevol
 
 # Obtain new stress tensor
 
@@ -96,16 +106,22 @@ variable deltaxz equal ${up}*xz
 variable deltayz equal ${up}*yz
 if "${dir} == 1" then &
    "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 y 1.0 1.0 1000.0 z 1.0 1.0 1000.0"
 if "${dir} == 2" then &
    "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 x 1.0 1.0 1000.0 z 1.0 1.0 1000.0"
 if "${dir} == 3" then &
    "fix infstrain all deform 1 z delta 0 ${delta} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 x 1.0 1.0 1000.0 y 1.0 1.0 1000.0"
 if "${dir} == 4" then &
    "fix infstrain all deform 1 yz delta ${delta} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 if "${dir} == 5" then &
    "fix infstrain all deform 1 xz delta ${delta} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 if "${dir} == 6" then &
    "fix infstrain all deform 1 xy delta ${delta} remap x"
+   "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}

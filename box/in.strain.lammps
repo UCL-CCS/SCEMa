@@ -50,7 +50,7 @@ fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances
 #  with a relaxation time of 100fs
 #  > Is this done right, namely sufficiently constrained? Volume is later controlled by the fix deform
 #  on all the components of the strain tensor...
-fix             3 all nvt temp 200.0 200.0 100
+#fix             3 all nvt temp 200.0 200.0 100
 
 # Note: these computes are present by default in any input script when using thermo command
 #compute thermo_press all temp
@@ -83,7 +83,7 @@ run             ${nts} #2000000
 unfix 1
 
 #  Releasing fix constraints
-unfix 3
+#unfix 3
 unfix 4
 
 #  Stopping dump

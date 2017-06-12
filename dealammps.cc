@@ -1128,8 +1128,8 @@ namespace HMM
 		q_to_be_updated (triangulation.n_active_cells(),
 				std::vector<bool>(quadrature_formula.size()));
 
-		Assert (quadrature_point_history.size() > 0,
-				ExcInternalError());
+//		Assert (quadrature_point_history.size() > 0,
+//				ExcInternalError());
 
 		int nqptbu = 0;
 
@@ -1213,10 +1213,11 @@ namespace HMM
 				//test_if q must be updated...
 				double norm_strain;
 				norm_strain = loc_strain.norm();
-//				pcout << "Cell "<< cell->active_cell_index() << " QP " << q << "  Norm strain " << norm_strain << std::endl;
+				pcout << "Cell "<< cell->active_cell_index() << " QP " << q << "  Norm strain " << norm_strain << std::endl;
 
-				if (cell->active_cell_index() == 10 && (q == 4))
-					q_to_be_updated[cell->active_cell_index()][q] = true;
+				if (newtonstep_no == 0)
+					if (cell->active_cell_index() == 10 && (q == 4))
+						q_to_be_updated[cell->active_cell_index()][q] = true;
 			}
 		}
 
@@ -1742,7 +1743,7 @@ namespace HMM
 		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
 
 		// Arbitrary setting of NB and NT
-		n_lammps_batch_processes = 4;
+		n_lammps_batch_processes = 24;
 		n_lammps_batch = int(n_lammps_processes/n_lammps_batch_processes);
 		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_batch_processes=n_lammps_processes;}
 
@@ -1942,7 +1943,7 @@ namespace HMM
 
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 1;
+		end_time = 10;
 		timestep_no = 0;
 
 		make_grid ();

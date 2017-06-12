@@ -309,20 +309,20 @@ namespace HMM
 		lammps_file(lmp,cfile);
 
 		if (me == 0) std::cout << "... retrieving stress tensor       " << std::endl;
-		// Filling 3x3 stress tensor
+		// Filling 3x3 stress tensor and conversion from ATM to Pa
 		for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
 			{
 				char vcoef[1024];
 				sprintf(vcoef, "pp%d%d", k+1, l+1);
-				stresses[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL));
+				stresses[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.01325e+09;
 				if (me == 0) std::cout << stresses[k][l] << std::endl;
 
 			}
 
 		if (me == 0) std::cout << "... retrieving stiffness tensor       " << std::endl;
 		// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
-		// by LAMMPS
+		// by LAMMPS and conversion from GPa to Pa
 		for(unsigned int k=0;k<2*dim;k++)
 			for(unsigned int l=k;l<2*dim;l++)
 			{
@@ -363,7 +363,6 @@ namespace HMM
 
 				stiffnesses[k][l][m][n]=tmp[i][j];
 			}
-			if (me == 0) std::cout << std::endl;
 		}
 
 	}
@@ -412,6 +411,7 @@ namespace HMM
 		char sfile[1024];
 
 		// Specifying the command line options for screen and log output file
+		/*
 		int nargs = 5;
 		char **lmparg = new char*[nargs];
 		lmparg[0] = NULL;
@@ -420,14 +420,15 @@ namespace HMM
 		lmparg[3] = (char *) "-log";
 		lmparg[4] = new char[1024];
 		sprintf(lmparg[4], "%s/log.PE_heatup_cooldown", qpoutloc);
-		/*
+		*/
+
 		int nargs = 3;
 		char **lmparg = new char*[nargs];
 		lmparg[0] = NULL;
 		lmparg[1] = (char *) "-log";
 		lmparg[2] = new char[1024];
 		sprintf(lmparg[2], "%s/log.PE_heatup_cooldown", qpoutloc);
-		*/
+
 
 		// Creating LAMMPS instance
 		LAMMPS *lmp = NULL;
@@ -493,7 +494,9 @@ namespace HMM
 			MPI_Comm comm_lammps)
 	{
 		// Compute current state even if available (true) or only if already absent (false);
-		bool compute_state = false;
+		// The choice of whether reuing a previous state or not should be done outside, if it has been computed
+		// the macrostate as well has been stored so no need to restart the simulation just to homogenize...
+		bool compute_state = true;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -535,6 +538,7 @@ namespace HMM
 		double dts;
 
 		// Specifying the command line options for screen and log output file
+		/*
 		int nargs = 5;
 		char **lmparg = new char*[nargs];
 		lmparg[0] = NULL;
@@ -543,14 +547,14 @@ namespace HMM
 		lmparg[3] = (char *) "-log";
 		lmparg[4] = new char[1024];
 		sprintf(lmparg[4], "%s/log.PE_stress_strain", qpoutloc);
-		/*
+		*/
 		int nargs = 3;
 		char **lmparg = new char*[nargs];
 		lmparg[0] = NULL;
 		lmparg[1] = (char *) "-log";
 		lmparg[2] = new char[1024];
 		sprintf(lmparg[2], "%s/log.PE_stress_strain", qpoutloc);
-		*/
+
 
 		// Creating LAMMPS instance
 		LAMMPS *lmp = NULL;
@@ -1195,6 +1199,7 @@ namespace HMM
 			for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 			{
 				SymmetricTensor<2,dim> loc_strain;
+				q_to_be_updated[cell->active_cell_index()][q] = false;
 
 				// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
 				char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
@@ -1206,10 +1211,12 @@ namespace HMM
 				read_tensor<dim>(filename, loc_strain);
 
 				//test_if q must be updated...
-				q_to_be_updated[cell->active_cell_index()][q] = false;
+				double norm_strain;
+				norm_strain = loc_strain.norm();
+//				pcout << "Cell "<< cell->active_cell_index() << " QP " << q << "  Norm strain " << norm_strain << std::endl;
 
-//				if (cell->active_cell_index() == 0 && (q == 0 || q == 1))
-//					q_to_be_updated[cell->active_cell_index()][q] = true;
+				if (cell->active_cell_index() == 10 && (q == 4))
+					q_to_be_updated[cell->active_cell_index()][q] = true;
 			}
 		}
 
@@ -1238,6 +1245,7 @@ namespace HMM
 						sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
 						read_tensor<dim>(filename, loc_strain);
 
+						// For debug...
 						int me;
 						MPI_Comm_rank(lammps_batch_communicator, &me);
 						std::cout << "nqptbu: " << nqptbu
@@ -1247,6 +1255,10 @@ namespace HMM
 								<< " - lammps batch color: " << lammps_pcolor
 								<< " - proc_batch_rank: " << me
 								<< std::endl;
+
+						// For debug...
+//						sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
+//						read_tensor<dim>(filename, loc_stiffness);
 
 						// Then the lammps function instanciates lammps, starting from an initial
 						// microstructure and applying the complete new_strain or starting from
@@ -1260,10 +1272,21 @@ namespace HMM
 								prev_time_id,
 								lammps_batch_communicator);
 
+						pcout << "Stiffnesses: "<< loc_stiffness[0][0][0][0]
+										 << " " << loc_stiffness[1][1][1][1]
+										 << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
+
 						// Write the new stress and stiffness tensors into two files, respectively
 						// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
 						if(this_lammps_batch_process == 0)
 						{
+							// Computation of the stress using the tangent stiffness operator instead of
+							// the homogenization of the LAMMPS sample.
+							// This should be done incrementally since using tangent stiffness...
+							loc_stress
+							= loc_stiffness
+							* loc_strain;
+
 							sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
 							write_tensor<dim>(filename, loc_stress);
 
@@ -1719,7 +1742,7 @@ namespace HMM
 		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
 
 		// Arbitrary setting of NB and NT
-		n_lammps_batch_processes = 2;
+		n_lammps_batch_processes = 4;
 		n_lammps_batch = int(n_lammps_processes/n_lammps_batch_processes);
 		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_batch_processes=n_lammps_processes;}
 
@@ -1901,11 +1924,25 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
 
-		lammps_initiation<dim> (initial_stress_strain_tensor, MPI_COMM_WORLD);
+//		lammps_initiation<dim> (initial_stress_strain_tensor, MPI_COMM_WORLD);
+
+//		double mu = 9.695e10, lambda = 7.617e10;
+//		for (unsigned int i=0; i<dim; ++i)
+//			for (unsigned int j=0; j<dim; ++j)
+//				for (unsigned int k=0; k<dim; ++k)
+//					for (unsigned int l=0; l<dim; ++l)
+//						initial_stress_strain_tensor[i][j][k][l]
+//															  = (((i==k) && (j==l) ? mu : 0.0) +
+//																	  ((i==l) && (j==k) ? mu : 0.0) +
+//																	  ((i==j) && (k==l) ? lambda : 0.0));
+		char filename[1024];
+		char storloc[1024] = "./macrostate_storage";
+		sprintf(filename, "%s/init.stiff", storloc);
+		read_tensor<dim>(filename, initial_stress_strain_tensor);
 
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 10;
+		end_time = 1;
 		timestep_no = 0;
 
 		make_grid ();

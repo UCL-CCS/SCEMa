@@ -29,9 +29,6 @@ run_style       verlet
 #  Setting 2fs timesteps for a Verlet time solution algorithm/integrator
 timestep        2.0 # 2fs - when used with SHAKE
 
-#  Loading the same fix 4 as in the init.lammps set of commands.
-fix             4 all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
-
 #  Apply fixed NVT and let the system fluctuate during MD
 #fix             3 all nvt temp 200.0 200.0 100.0
 
@@ -39,5 +36,4 @@ fix             4 all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances 
 run             ${nss}
 
 #  Releasing fix constraints
-unfix 3
-unfix 4
+#unfix 3

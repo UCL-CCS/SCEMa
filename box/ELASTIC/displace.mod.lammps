@@ -30,40 +30,43 @@ variable deltaxy equal -${up}*xy
 variable deltaxz equal -${up}*xz
 variable deltayz equal -${up}*yz
 
-## This will have to be replaced by a "fix deform"
-
+fix   shak all shake 0.001 20 1000 m 1.0
 if "${dir} == 1" then &
-   "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x"
+   "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 y 1.0 1.0 1000.0 z 1.0 1.0 1000.0"
 if "${dir} == 2" then &
-   "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x"
+   "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 x 1.0 1.0 1000.0 z 1.0 1.0 1000.0"
 if "${dir} == 3" then &
-   "fix infstrain all deform 1 z delta 0 ${delta} remap x"
+   "fix infstrain all deform 1 z delta 0 ${delta} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 x 1.0 1.0 1000.0 y 1.0 1.0 1000.0"
 if "${dir} == 4" then &
-   "fix infstrain all deform 1 yz delta ${delta} remap x"
+   "fix infstrain all deform 1 yz delta ${delta} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 if "${dir} == 5" then &
-   "fix infstrain all deform 1 xz delta ${delta} remap x"
+   "fix infstrain all deform 1 xz delta ${delta} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 if "${dir} == 6" then &
-   "fix infstrain all deform 1 xy delta ${delta} remap x"
+   "fix infstrain all deform 1 xy delta ${delta} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}
 include ${locbe}/sample.mod.lammps
 
-unfix brocompl
+unfix barocompl
 unfix infstrain
+unfix shak
 
 # Sample stresses
 variable nss equal ${nssample}
+
+fix   shak all shake 0.001 20 1000 m 1.0
 fix   wholevol all nvt temp 200.0 200.0 100.0
 include ${locbe}/sample.mod.lammps
 
 unfix wholevol
+unfix shak
 
 # Obtain new stress tensor
 
@@ -104,34 +107,44 @@ variable delta equal ${up}*${len0}
 variable deltaxy equal ${up}*xy
 variable deltaxz equal ${up}*xz
 variable deltayz equal ${up}*yz
+
+fix   shak all shake 0.001 20 1000 m 1.0
 if "${dir} == 1" then &
-   "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x"
+   "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 y 1.0 1.0 1000.0 z 1.0 1.0 1000.0"
 if "${dir} == 2" then &
-   "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x"
+   "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 x 1.0 1.0 1000.0 z 1.0 1.0 1000.0"
 if "${dir} == 3" then &
-   "fix infstrain all deform 1 z delta 0 ${delta} remap x"
+   "fix infstrain all deform 1 z delta 0 ${delta} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 x 1.0 1.0 1000.0 y 1.0 1.0 1000.0"
 if "${dir} == 4" then &
-   "fix infstrain all deform 1 yz delta ${delta} remap x"
+   "fix infstrain all deform 1 yz delta ${delta} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 if "${dir} == 5" then &
-   "fix infstrain all deform 1 xz delta ${delta} remap x"
+   "fix infstrain all deform 1 xz delta ${delta} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 if "${dir} == 6" then &
-   "fix infstrain all deform 1 xy delta ${delta} remap x"
+   "fix infstrain all deform 1 xy delta ${delta} remap x" &
    "fix barocompl all npt temp 200.0 200.0 100.0 iso 1.0 1.0 1000.0"
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}
 include ${locbe}/sample.mod.lammps
 
+unfix barocompl
 unfix infstrain
+unfix shak
 
 # Sample stresses
 variable nss equal ${nssample}
+
+fix   shak all shake 0.001 20 1000 m 1.0
+fix   wholevol all nvt temp 200.0 200.0 100.0
 include ${locbe}/sample.mod.lammps
+
+unfix   wholevol
+unfix shak
 
 # Obtain new stress tensor
 

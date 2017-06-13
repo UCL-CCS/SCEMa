@@ -45,12 +45,17 @@
 include ${locbe}/init.mod.lammps
 include ${locbe}/potential.mod.lammps
 
+#  Loading the same fix 4 as in the init.lammps set of commands (to be used in all runs...)
+
+
 # Sample initial state
 variable nss equal ${nssample}
+fix   shak all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
 fix   wholevol all nvt temp 200.0 200.0 100.0
 include ${locbe}/sample.mod.lammps
 
 unfix wholevol
+unfix shak
 
 ## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
 ## simulation over sufficient time and get the initial stress (try to avoid doing it

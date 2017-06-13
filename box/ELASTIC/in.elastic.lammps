@@ -48,7 +48,7 @@ include ${locbe}/potential.mod.lammps
 # Sample initial state
 variable nss equal ${nssample}
 fix   wholevol all nvt temp 200.0 200.0 100.0
-include ${locbe}/in.sample.lammps
+include ${locbe}/sample.mod.lammps
 
 unfix wholevol
 

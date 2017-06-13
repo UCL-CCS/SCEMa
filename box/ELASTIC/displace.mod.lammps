@@ -53,7 +53,7 @@ if "${dir} == 6" then &
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}
-include ${locbe}/in.sample.lammps
+include ${locbe}/sample.mod.lammps
 
 unfix brocompl
 unfix infstrain
@@ -61,7 +61,7 @@ unfix infstrain
 # Sample stresses
 variable nss equal ${nssample}
 fix   wholevol all nvt temp 200.0 200.0 100.0
-include ${locbe}/in.sample.lammps
+include ${locbe}/sample.mod.lammps
 
 unfix wholevol
 
@@ -125,13 +125,13 @@ if "${dir} == 6" then &
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}
-include ${locbe}/in.sample.lammps
+include ${locbe}/sample.mod.lammps
 
 unfix infstrain
 
 # Sample stresses
 variable nss equal ${nssample}
-include ${locbe}/in.sample.lammps
+include ${locbe}/sample.mod.lammps
 
 # Obtain new stress tensor
 

@@ -39,5 +39,5 @@ fix             4 all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances 
 run             ${nss}
 
 #  Releasing fix constraints
-#unfix 3
+unfix 3
 unfix 4

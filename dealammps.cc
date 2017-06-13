@@ -1986,7 +1986,7 @@ int main (int argc, char **argv)
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
 		ElasticProblem<3> elastic_problem;
-		elastic_problem.run ();
+		elastic_problem.run_mol_test ();
 	}
 	catch (std::exception &exc)
 	{

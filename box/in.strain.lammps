@@ -53,7 +53,7 @@ fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances
 #  on all the components of the strain tensor...
 #fix             3 all nvt temp 200.0 200.0 100
 #fix             3 all langevin 200.0 200.0 100.0 699483
-fix             3 all nvt/sllod 200.0 200.0 100.0
+fix             3 all nvt temp 200.0 200.0 100.0
 
 # Note: these computes are present by default in any input script when using thermo command
 #compute thermo_press all temp

@@ -1894,23 +1894,23 @@ namespace HMM
 		char store_state_stiff[1024] = "./molecular_elasticity_testing/state.stiff";
 
 		// No strain
-	//	lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
-	//	write_tensor(store_init_stiff, initial_stress_strain_tensor);
+		lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+		write_tensor(store_init_stiff, initial_stress_strain_tensor);
 
 		// With strain
-		 double val = 0.;
-		 for(unsigned int k=0;k<dim;k++)
-		    for(unsigned int l=k;l<dim;l++)
-		       loc_strain[k][l] = val;
-
-		 loc_strain[0][0] = 0.05;
-
-		 write_tensor(store_state_strain, loc_strain);
-
-		 lammps_local_testing<dim> (loc_strain, loc_stress, loc_stiffness,
-		 					   a, b, c,
-		 					   lammps_global_communicator);
-		 write_tensor(store_state_stiff, loc_stiffness);
+//		 double val = 0.;
+//		 for(unsigned int k=0;k<dim;k++)
+//		    for(unsigned int l=k;l<dim;l++)
+//		       loc_strain[k][l] = val;
+//
+//		 loc_strain[0][0] = 0.05;
+//
+//		 write_tensor(store_state_strain, loc_strain);
+//
+//		 lammps_local_testing<dim> (loc_strain, loc_stress, loc_stiffness,
+//		 					   a, b, c,
+//		 					   lammps_global_communicator);
+//		 write_tensor(store_state_stiff, loc_stiffness);
 	}
 
 

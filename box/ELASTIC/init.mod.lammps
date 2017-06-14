@@ -3,8 +3,8 @@
 #
 # Sampling and strain application number of steps
 variable nssample0 equal 10000000
-variable nssample equal 25000
-variable nsstrain equal 20000
+variable nssample equal 1
+variable nsstrain equal 1
 
 # Define the finite deformation size. Try several values of this
 # variable to verify that results do not depend on it.

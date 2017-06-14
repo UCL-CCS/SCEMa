@@ -21,7 +21,7 @@ thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle 
 thermo_modify   flush yes line multi format float %g format 3 %15.8g
 
 #  Average stress tensor over the whole NVT run
-variable nav equal ${nss}/10
+variable nav equal ${nss}/100
 fix stress  all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
 
 print "Dir: ${dir} - Delta: ${delta}"
@@ -29,7 +29,7 @@ print "Dir: ${dir} - Delta: ${delta}"
 fix stress1 all ave/time 1 ${nav} ${nav} c_thermo_press[*] file ${loco}/ave_${nav}_${dir}_${delta}.dat
 fix stress2 all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running file ${loco}/ave_run_${nav}_${dir}_${delta}.dat
 
-variable nav equal ${nss}/100
+variable nav equal ${nss}/1000
 fix stress3 all ave/time 1 ${nav} ${nav} c_thermo_press[*] file ${loco}/ave_${nav}_${dir}_${delta}.dat
 fix stress4 all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running file ${loco}/ave_run_${nav}_${dir}_${delta}.dat
 

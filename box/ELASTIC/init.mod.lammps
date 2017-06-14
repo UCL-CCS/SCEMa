@@ -2,9 +2,9 @@
 # units, etc. See in.elastic for more info.
 #
 # Sampling and strain application number of steps
-variable nssample0 equal 1000
-variable nssample equal 1000
-variable nsstrain equal 500
+variable nssample0 equal 500
+variable nssample equal 500
+variable nsstrain equal 100
 
 # Number of nanoseconds per timestep
 variable dts equal 2.0

@@ -50,7 +50,7 @@ variable delta equal 0
 
 
 # Sample initial state
-variable nss equal ${nssample}
+variable nss equal ${nssample0}
 fix   shak all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
 fix   wholevol all nvt temp 200.0 200.0 100.0
 include ${locbe}/sample.mod.lammps

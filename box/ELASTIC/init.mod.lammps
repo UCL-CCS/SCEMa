@@ -2,12 +2,13 @@
 # units, etc. See in.elastic for more info.
 #
 # Sampling and strain application number of steps
-variable nssample equal 100000
-variable nsstrain equal 80000
+variable nssample0 equal 100000
+variable nssample equal 25000
+variable nsstrain equal 20000
 
 # Define the finite deformation size. Try several values of this
 # variable to verify that results do not depend on it.
-variable up equal 1.0e-3
+variable up equal 1.0e-2
 
 # Define the amount of random jiggle for atoms
 # This prevents atoms from staying on saddle points

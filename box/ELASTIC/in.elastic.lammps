@@ -45,7 +45,8 @@
 include ${locbe}/init.mod.lammps
 include ${locbe}/potential.mod.lammps
 
-#  Loading the same fix 4 as in the init.lammps set of commands (to be used in all runs...)
+variable dir equal 0
+variable delta equal 0
 
 
 # Sample initial state

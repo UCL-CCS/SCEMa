@@ -582,7 +582,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 20000; // number of timesteps
+			nts = 500; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).
@@ -1274,14 +1274,14 @@ namespace HMM
 								prev_time_id,
 								lammps_batch_communicator);
 
-						pcout << "Stiffnesses: "<< loc_stiffness[0][0][0][0]
-										 << " " << loc_stiffness[1][1][1][1]
-										 << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
-
 						// Write the new stress and stiffness tensors into two files, respectively
 						// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
 						if(this_lammps_batch_process == 0)
 						{
+							std::cout << "Stiffnesses: "<< loc_stiffness[0][0][0][0]
+											     << " " << loc_stiffness[1][1][1][1]
+											     << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
+
 							// Computation of the stress using the tangent stiffness operator instead of
 							// the homogenization of the LAMMPS sample.
 							// This should be done incrementally since using tangent stiffness...
@@ -1986,7 +1986,7 @@ int main (int argc, char **argv)
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
 		ElasticProblem<3> elastic_problem;
-		elastic_problem.run_mol_test ();
+		elastic_problem.run ();
 	}
 	catch (std::exception &exc)
 	{

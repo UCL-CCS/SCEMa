@@ -48,7 +48,6 @@ include ${locbe}/potential.mod.lammps
 variable dir equal 0
 variable delta equal 0
 
-
 # Sample initial state
 variable nss equal ${nssample0}
 fix   shak all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe

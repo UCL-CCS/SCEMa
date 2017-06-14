@@ -2,9 +2,12 @@
 # units, etc. See in.elastic for more info.
 #
 # Sampling and strain application number of steps
-variable nssample0 equal 5000000
-variable nssample equal 1
-variable nsstrain equal 1
+variable nssample0 equal 1000
+variable nssample equal 1000
+variable nsstrain equal 500
+
+# Number of nanoseconds per timestep
+variable dts equal 2.0
 
 # Define the finite deformation size. Try several values of this
 # variable to verify that results do not depend on it.

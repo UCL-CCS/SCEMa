@@ -21,28 +21,15 @@ thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle 
 thermo_modify   flush yes line multi format float %g format 3 %15.8g
 
 #  Average stress tensor over the whole NVT run
-variable nav equal ${nss}/100
-fix stress  all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
-
 print "Dir: ${dir} - Delta: ${delta}"
-
-fix stress1 all ave/time 1 ${nav} ${nav} c_thermo_press[*] file ${loco}/ave_${nav}_${dir}_${delta}.dat
-fix stress2 all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running file ${loco}/ave_run_${nav}_${dir}_${delta}.dat
-
 variable nav equal ${nss}/1000
+fix stress  all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
 fix stress3 all ave/time 1 ${nav} ${nav} c_thermo_press[*] file ${loco}/ave_${nav}_${dir}_${delta}.dat
-fix stress4 all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running file ${loco}/ave_run_${nav}_${dir}_${delta}.dat
-
-#  Setting printing position information on all atoms every nss steps PE_stress_strain_x.xyz
-#  file specifying atom type 1, 2 and 3 with names respectively C, C and H  (identical as
-#  previous with different file name)
-dump            xyz_dump all xyz ${nav}    ${loco}/PE_atom_${nav}_${dir}_${delta}.xyz
-dump_modify     xyz_dump element  C C H
 
 #  Setting a Verlet time solution algorithm/integrator
 run_style       verlet
 #  Setting 2fs timesteps for a Verlet time solution algorithm/integrator
-timestep        2.0 # 2fs - when used with SHAKE
+timestep        ${dts} # 2fs - when used with SHAKE
 
 #  Apply fixed NVT and let the system fluctuate during MD
 #fix             3 all nvt temp 200.0 200.0 100.0
@@ -52,5 +39,3 @@ run             ${nss}
 
 #  Releasing fix constraints
 #unfix 3
-
-undump            xyz_dump

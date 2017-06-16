@@ -471,6 +471,12 @@ namespace HMM
 		if (me == 0) std::cout << "(init) "
 				<< "Compute state using in.elastic.lammps...       " << std::endl;
 		// Compute the Tangent Stiffness Tensor at the initial state
+		sprintf(cline, "variable nssample0 equal 100000", location); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 5000000", location); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 100000", location); lammps_command(lmp,cline);
+		sprintf(cline, "variable up equal 1.0e-2", location); lammps_command(lmp,cline);
+		sprintf(cline, "variable dts equal 2.0", location); lammps_command(lmp,cline);
+
 		SymmetricTensor<2,dim> stresses;
 		lammps_state<dim>(lmp, location, stresses, initial_stress_strain_tensor);
 
@@ -582,7 +588,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 500; // number of timesteps
+			nts = 20000; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).
@@ -641,6 +647,12 @@ namespace HMM
 		if (me == 0) std::cout << "(" << timeid <<"."<< qptid << ") "
 				<< "Compute state using in.elastic.lammps...       " << std::endl;
 		// Compute the Tangent Stiffness Tensor at the given stress/strain state
+		sprintf(cline, "variable nssample0 equal 100000", location); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 5000000", location); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 100000", location); lammps_command(lmp,cline);
+		sprintf(cline, "variable up equal 1.0e-2", location); lammps_command(lmp,cline);
+		sprintf(cline, "variable dts equal 2.0", location); lammps_command(lmp,cline);
+
 		lammps_state<dim>(lmp, location, stresses, stress_strain_tensor);
 
 		// close down LAMMPS

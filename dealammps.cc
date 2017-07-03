@@ -91,11 +91,13 @@ namespace HMM
 	{
 		SymmetricTensor<2,dim> old_stress;
 		SymmetricTensor<2,dim> new_stress;
-		SymmetricTensor<2,dim> old_strain;
-		SymmetricTensor<2,dim> new_strain;
 		SymmetricTensor<4,dim> old_stiff;
 		SymmetricTensor<4,dim> new_stiff;
-		int nid;
+		SymmetricTensor<2,dim> old_strain;
+		SymmetricTensor<2,dim> new_strain;
+		SymmetricTensor<2,dim> inc_strain;
+		SymmetricTensor<2,dim> upd_strain;
+		bool to_be_updated;
 	};
 
 	bool file_exists(const char* file) {
@@ -105,9 +107,10 @@ namespace HMM
 
 	template <int dim>
 	inline
-	void
+	bool
 	read_tensor (char *filename, SymmetricTensor<2,dim> &tensor)
 	{
+		bool file_exist = false;
 		std::ifstream ifile;
 
 		ifile.open (filename);
@@ -121,9 +124,11 @@ namespace HMM
 						tensor[k][l] = std::strtod(line, NULL);
 				}
 			ifile.close();
+			file_exist = true;
 		}
-		else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+		//else std::cout << "Unable to open" << filename << " to read it" << std::endl;
 
+		return file_exist;
 	}
 
 	template <int dim>
@@ -147,7 +152,7 @@ namespace HMM
 						}
 			ifile.close();
 		}
-		else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+		else std::cout << "Unable to open" << filename << " to read it..." << std::endl;
 	}
 
 	template <int dim>
@@ -942,6 +947,8 @@ namespace HMM
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					local_quadrature_points_history[q].new_strain = 0;
+					local_quadrature_points_history[q].upd_strain = 0;
+					local_quadrature_points_history[q].to_be_updated = false;
 					local_quadrature_points_history[q].new_stiff = initial_stress_strain_tensor;
 					local_quadrature_points_history[q].new_stress = 0;
 				}
@@ -1141,9 +1148,11 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		std::vector<std::vector<bool> >
-		q_to_be_updated (triangulation.n_active_cells(),
-				std::vector<bool>(quadrature_formula.size()));
+		double strain_perturbation = 0.005;
+
+//		std::vector<std::vector<bool> >
+//		q_to_be_updated (triangulation.n_active_cells(),
+//				std::vector<bool>(quadrature_formula.size()));
 
 //		Assert (quadrature_point_history.size() > 0,
 //				ExcInternalError());
@@ -1171,8 +1180,6 @@ namespace HMM
 				{
 					local_quadrature_points_history[q].old_strain =
 							local_quadrature_points_history[q].new_strain;
-					local_quadrature_points_history[q].new_strain +=
-							get_strain (displacement_update_grads[q]);
 
 					local_quadrature_points_history[q].old_stress =
 							local_quadrature_points_history[q].new_stress;
@@ -1180,36 +1187,55 @@ namespace HMM
 					local_quadrature_points_history[q].old_stiff =
 							local_quadrature_points_history[q].new_stiff;
 
-					// TEST HERE IF QPT SHOULD BE UPDATED.
+					// Strain tensor update
+					local_quadrature_points_history[q].new_strain +=
+							get_strain (displacement_update_grads[q]);
+
+					local_quadrature_points_history[q].inc_strain =
+							get_strain (displacement_update_grads[q]);
+
+					local_quadrature_points_history[q].upd_strain +=
+							get_strain (displacement_update_grads[q]);
+
 					// CREATE FILES FOR STRAIN STORAGE ONLY FOR QPT TO BE UPDATED.
-					// BEFORE THIS LOOP SCATTER THE 'q_to_be_updated' VECTOR ON DIFFERENT
-					// PROCESSES ACCORDING TO 'is_locally_owned()'.
-					//   > This is tricky...
-					//   > Use PETScWrappers tools instead, as described in tutorials, they
-					// can be used since data shared is vector of vector of bool/int.
-					// AT THE END OF THIS LOOP USE A COLLECTIVE "ALLGATHER" SO EVERY PROCESS
-					// KNOWS WHAT QPT NEEDS TO BE UPDATED.
+					// Might want to create a more robust way of listing points, using list of points
+					// to be updated
+					// Share this list to all procs either using file dump or collective
+					//  	 > Use PETScWrappers tools d, as described in tutorials, they
+					// 		   can be used since data shared is vector of vector of bool/int.
 
-					// Store strains in a file named ./macrostate_storage/time.it-cellid.qid.strain
-					char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
-					char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
-					char filename[1024];
+					// Store the cumulative strain since last update, if one of components is above
+					// the 'strain perturbation' (curr. 0.005%) used in LAMMPS to compute the tangent
+					// linear stiffness, declare the quadrature point to be updated and reset the
+					// cummulative strain
+					if (cell->active_cell_index() == 10 && (q == 4)) // For debug...
+					for(unsigned int k=0;k<dim;k++)
+						for(unsigned int l=k;l<dim;l++){
+							if (local_quadrature_points_history[q].upd_strain[k][l] > strain_perturbation){
+								pcout << "Cell "<< cell->active_cell_index() << " QP " << q
+								      << " strain component " << k << l
+								      << " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
+								local_quadrature_points_history[q].to_be_updated = true;
+								local_quadrature_points_history[q].upd_strain[k][l] = 0;
 
-					sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
-					write_tensor<dim>(filename, local_quadrature_points_history[q].new_strain);
+								// Write total strains in a file named ./macrostate_storage/time.it-cellid.qid.strain
+								char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+								char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+								char filename[1024];
 
+								sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+								write_tensor<dim>(filename, local_quadrature_points_history[q].new_strain);
+							}
+						}
 				}
 			}
 
 		// Need to synchronize properly deal processes
 		MPI_Barrier(dealii_communicator);
 
-		// This loop could be integrated in the previous one, to choose to avoid storing data
-		// to disk for quadrature points that do not need an update (see CAPS)...
-		// It requires a collective! But it will the be parallelized (to try soon)!
-
+		// Old...
 		// Filling list of quadrature points to be updated.
-		for (typename DoFHandler<dim>::active_cell_iterator
+		/*for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
 		{
@@ -1228,6 +1254,8 @@ namespace HMM
 				read_tensor<dim>(filename, loc_strain);
 
 				//test_if q must be updated...
+				//store the amount of strain since last update, if one of components above the 'lammps strain perturbation' (curr. 0.005%)
+				//do the update of stiffness
 				double norm_strain;
 				norm_strain = loc_strain.norm();
 
@@ -1237,7 +1265,7 @@ namespace HMM
 						q_to_be_updated[cell->active_cell_index()][q] = true;
 					}
 			}
-		}
+		}*/
 
 		// Update of the quadrature points that need to be analysed using LAMMPS
 		nqptbu = 0;
@@ -1247,22 +1275,24 @@ namespace HMM
 		{
 			for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 			{
-				if (q_to_be_updated[cell->active_cell_index()][q])
+				SymmetricTensor<2,dim> loc_strain;
+
+				// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+				char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
+				char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
+				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+				char filename[1024];
+
+				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
+				int q_to_be_updated = read_tensor<dim>(filename, loc_strain);
+
+				if (q_to_be_updated)
 				{
 					nqptbu++;
 					if (lammps_pcolor == (nqptbu%n_lammps_batch))
 					{
-						SymmetricTensor<2,dim> loc_strain, loc_stress;
+						SymmetricTensor<2,dim> loc_stress;
 						SymmetricTensor<4,dim> loc_stiffness;
-
-						// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
-						char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
-						char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
-						char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
-						char filename[1024];
-
-						sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id);
-						read_tensor<dim>(filename, loc_strain);
 
 						// For debug...
 						int me;
@@ -1302,12 +1332,12 @@ namespace HMM
 							// Computation of the stress using the tangent stiffness operator instead of
 							// the homogenization of the LAMMPS sample.
 							// This should be done incrementally since using tangent stiffness...
-							loc_stress
-							= loc_stiffness
-							* loc_strain;
+//							loc_stress
+//							= loc_stiffness
+//							* loc_strain;
 
-							sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
-							write_tensor<dim>(filename, loc_stress);
+//							sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+//							write_tensor<dim>(filename, loc_stress);
 
 							sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
 							write_tensor<dim>(filename, loc_stiffness);
@@ -1320,9 +1350,9 @@ namespace HMM
 		// Synchronization of processes used to run LAMMPS instances
 		MPI_Barrier(lammps_global_communicator);
 
-		// This loop can be inserted in the next one, and file macrostate_storage could be done
-		// only for quadrature points that need to be updated using lammps
-		for (typename DoFHandler<dim>::active_cell_iterator
+		// Old...
+		// Only the stiffness update is achieved by lammps, so this is useless because stiffness are left unchanged here
+		/*for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
@@ -1360,7 +1390,7 @@ namespace HMM
 
 					}
 				}
-			}
+			}*/
 
 		// Retrieving all quadrature points computation and storing them in the
 		// quadrature_points_history structure
@@ -1389,11 +1419,14 @@ namespace HMM
 					char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
 					char filename[1024];
 
-					sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
-					read_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);
+//					sprintf(filename, "%s/%s.%s.stress", storloc, time_id, quad_id);
+//					read_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);
 
 					sprintf(filename, "%s/%s.%s.stiff", storloc, time_id, quad_id);
 					read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);
+
+					local_quadrature_points_history[q].new_stress +=
+							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].inc_strain;
 
 					// Apply rotation of the sample to the new state tensors
 					const Tensor<2,dim> rotation
@@ -1943,7 +1976,7 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		pcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
 
-//		lammps_initiation<dim> (initial_stress_strain_tensor, MPI_COMM_WORLD);
+		lammps_initiation<dim> (initial_stress_strain_tensor, MPI_COMM_WORLD);
 
 //		double mu = 9.695e10, lambda = 7.617e10;
 //		for (unsigned int i=0; i<dim; ++i)

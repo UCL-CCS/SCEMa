@@ -16,6 +16,7 @@ if "${dir} == 5" then &
 if "${dir} == 6" then &
    "variable len0 equal ${lz0}"
 
+variable ori string "neg"
 # Reset box and simulation parameters
 
 clear
@@ -28,7 +29,7 @@ include ${locbe}/potential.mod.lammps
 variable delta equal -${up}*${len0}
 
 fix   shak all shake 0.001 20 1000 m 1.0
-fix   sllod all nvt temp 200.0 200.0 100.0
+fix   partvol all nvt temp ${tempt} ${tempt} 100.0
 if "${dir} == 1" then &
    "fix infstrain all deform 1 x delta 0 ${delta} remap x"
 if "${dir} == 2" then &
@@ -47,14 +48,14 @@ variable nss equal ${nsstrain}
 include ${locbe}/sample.mod.lammps
 
 unfix infstrain
-unfix sllod
+unfix partvol
 unfix shak
 
 # Sample stresses
 variable nss equal ${nssample}
 
 fix   shak all shake 0.001 20 1000 m 1.0
-fix   wholevol all nvt temp 200.0 200.0 100.0
+fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
 include ${locbe}/sample.mod.lammps
 
 unfix wholevol
@@ -87,6 +88,7 @@ variable C5neg equal ${d5}
 variable C6neg equal ${d6}
 
 # Reset box and simulation parameters
+variable ori string "pos"
 
 clear
 box tilt large
@@ -98,7 +100,7 @@ include ${locbe}/potential.mod.lammps
 variable delta equal ${up}*${len0}
 
 fix   shak all shake 0.001 20 1000 m 1.0
-fix   sllod all nvt temp 200.0 200.0 100.0
+fix   partvol all nvt temp ${tempt} ${tempt} 100.0
 if "${dir} == 1" then &
    "fix infstrain all deform 1 x delta 0 ${delta} remap x"
 if "${dir} == 2" then &
@@ -117,17 +119,17 @@ variable nss equal ${nsstrain}
 include ${locbe}/sample.mod.lammps
 
 unfix infstrain
-unfix sllod
+unfix partvol
 unfix shak
 
 # Sample stresses
 variable nss equal ${nssample}
 
 fix   shak all shake 0.001 20 1000 m 1.0
-fix   wholevol all nvt temp 200.0 200.0 100.0
+fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
 include ${locbe}/sample.mod.lammps
 
-unfix   wholevol
+unfix wholevol
 unfix shak
 
 # Obtain new stress tensor

@@ -8,6 +8,9 @@
 #  Setting data input source for atoms initial positions, masses, bonds, and potential parameters
 read_data       ${locb}/PE.lammps05   # read LAMMPS data file
 
+#  Extending box volume by 2 in each direction
+#replicate       2 2 2
+
 #  Setting to create a binary file containing necessary information to restart simulation, a new file is
 #  created every 150000 steps which name contains the current time-step
 restart         150000 ${loco}/PE_heatup_cooldown.restart1
@@ -44,7 +47,7 @@ dump            lammps_dump all custom 5000 ${loco}/PE_atoms.pos id type xsu ysu
 
 #  Setting to change velocity of each atom following on the ensemble a gaussian distribution with null total
 #  angular momentum based on a temperature of 100K and generated using the 4928459 seed
-velocity        all create   100.0 4928459 rot yes dist gaussian # random velocities assigned to atoms according to Maxwell-Boltzmann distribution
+velocity        all create   200.0 ${sseed} rot yes dist gaussian # random velocities assigned to atoms according to Maxwell-Boltzmann distribution
 
 #  Setting compute minimization of the systems energy using a steepest descent algorithm and running minimize
 #  simulation following stopping criteria in energy and force, and iteration number limitations
@@ -52,7 +55,7 @@ min_style       sd   # energy minimisation
 
 #  Running a free energy minimization simulation with stopping criteria in energy and force, and iteration number
 #  limitations (purpose: finding atoms position)
-minimize        1.0e-7 1.0e-11 3000   50000   # 1.0e-7 1.0e-11 3000   50000
+minimize        1.0e-7 1.0e-11 10000   50000   # 1.0e-7 1.0e-11 3000   50000
 
 # Stopping dump
 undump            lammps_dump
@@ -72,20 +75,22 @@ variable pp equal "press"
 variable p0 equal "pxx"
 variable p1 equal "pyy"
 variable p2 equal "pzz"
-variable p3 equal "pxy"
-variable p4 equal "pxz"
-variable p5 equal "pyz"
+variable p3 equal "pe"
+variable p4 equal "ke"
+variable p5 equal "temp"
+variable p6 equal "lx"
+variable p7 equal "ly"
+variable p8 equal "lz"
+variable p9 equal "vol"
 
 #  Compute current stress using sampling over time and fixed NVT conditions
-fix 1e all print 1000 "${pt} ${pp} ${p0} ${p1} ${p2} ${p3} ${p4} ${p5}" file ${loco}/PE_press_evol.dat screen no
-
-#  Assess averages...
-variable nsa equal 1000
-fix 1a all ave/time 1 ${nsa} ${nsa} c_thermo_press c_thermo_press[*] file ${loco}/PE_press_ave.dat
-fix 1ar all ave/time 1 ${nsa} ${nsa} c_thermo_press c_thermo_press[*] ave running file ${loco}/PE_press_ave.dat
+fix 1e all print 1 "${pt} ${pp} ${p0} ${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8} ${p9}" file ${loco}/PE_init_press_evol.dat screen no
 
 #  Setting a Verlet time solution algorithm/integrator
 run_style       verlet
+
+#  Setting 2fs timesteps for a Verlet time solution algorithm/integrator
+timestep        2.0 # 2fs - when used with SHAKE
 
 #  Setting a displacement constraint on all atoms which mass is 1.0 (hydrogen), constraint consist in maintaining
 #  bond length or angles involving these atoms constant, the iterative solution algorithm to apply these constraint
@@ -95,42 +100,86 @@ fix             4 all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances 
 #  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is brought from 100K
 #  to 500K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with a relaxation time of
 #  1000fs
-fix             3 all npt temp 100.0 500.0 100.0  iso 1.0 1.0 1000
-
-#  Setting 2fs timesteps for a Verlet time solution algorithm/integrator
-timestep        2.0 # 2fs - when used with SHAKE
+fix             3 all nvt temp 300.0 300.0 100.0
 
 #  Running a molecular dynamics simulation for 100000 timesteps
-run             100000
+run             200000
 
+unfix           3
 #  Releasing previxou fix 3 and setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature
 #  is brought from 500K to 500K (constant) with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant)
 #  with a relaxation time of 1000fs
-unfix           3
-fix             3 all npt temp 500.0 500.0 100.0  iso 1.0 1.0 1000
+fix             3 all npt temp 300.0 500.0 100.0  iso 1.0 1.0 1000
 
 #  Running a molecular dynamics simulation for 100000 timesteps
 run             100000
 
+unfix           3
 #  Releasing previxou fix 3 and setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature
-#  is brought from 500K to 200K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with
-#  a relaxation time of 1000fs
-unfix           3
-fix             3 all npt temp 500.0 200.0 100.0  iso 1.0 1.0 1000
+#  is brought from 500K to 500K (constant) with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant)
+#  with a relaxation time of 1000fs
+fix             3 all npt temp 500.0 300.0 100.0  iso 1.0 1.0 1000
 
 #  Running a molecular dynamics simulation for 100000 timesteps
 run             100000
 
-# Apply fixed NVT and let the system fluctuate during MD to get away from
-# the Pressure constraint imposed during the heatup/cooldown
-#unfix           3
-#fix             3 all nvt temp 200.0 200.0 100.0
+unfix           3
+#  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is brought from 100K
+#  to 500K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with a relaxation time of
+#  1000fs
+fix             3 all nvt temp 300.0 300.0 100.0
 
 #  Running a molecular dynamics simulation for 100000 timesteps
-#run             200000
+run             400000
+
+unfix           3
+#  Releasing previxou fix 3 and setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature
+#  is brought from 500K to 500K (constant) with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant)
+#  with a relaxation time of 1000fs
+fix             3 all npt temp 300.0 500.0 100.0  iso 1.0 1.0 1000
+
+#  Running a molecular dynamics simulation for 100000 timesteps
+run             100000
+
+unfix           3
+#  Releasing previxou fix 3 and setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature
+#  is brought from 500K to 500K (constant) with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant)
+#  with a relaxation time of 1000fs
+fix             3 all npt temp 500.0 ${tempt} 100.0  iso 1.0 1.0 1000
+
+#  Running a molecular dynamics simulation for 100000 timesteps
+run             100000
+
+unfix           3
+#  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is brought from 100K
+#  to 500K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with a relaxation time of
+#  1000fs
+fix             3 all nvt temp ${tempt} ${tempt} 100.0
+
+#  Running a molecular dynamics simulation for 100000 timesteps
+run             400000
+
+unfix           3
+#  Releasing previxou fix 3 and setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature
+#  is brought from 500K to 500K (constant) with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant)
+#  with a relaxation time of 1000fs
+fix             3 all npt temp ${tempt} ${tempt} 100.0  iso 1.0 1.0 1000
+
+#  Running a molecular dynamics simulation for 100000 timesteps
+run             400000
+
+unfix           3
+#  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is brought from 100K
+#  to 500K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with a relaxation time of
+#  1000fs
+fix             3 all nvt temp ${tempt} ${tempt} 100.0
+
+#  Running a molecular dynamics simulation for 100000 timesteps
+run             400000
+
+unfix           3
 
 #  Releasing fix constraints
-unfix 3
 unfix 4
 
 undump            xyz_dump

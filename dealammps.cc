@@ -678,12 +678,13 @@ namespace HMM
 	class ElasticProblem
 	{
 	public:
-		ElasticProblem ();
+		ElasticProblem (MPI_Comm tcomm);
 		~ElasticProblem ();
 		void run ();
 		void run_mol_test ();
 
 	private:
+		void set_dealii_procs ();
 		void set_lammps_procs ();
 		void make_grid ();
 		void setup_system ();
@@ -704,9 +705,14 @@ namespace HMM
 
 		double compute_residual () const;
 
+		MPI_Comm 							world_communicator;
+		const int 							n_world_processes;
+		const int 							this_world_process;
+		int 								world_pcolor;
+
 		MPI_Comm 							dealii_communicator;
-		const unsigned int 					n_dealii_processes;
-		const unsigned int 					this_dealii_process;
+		int 								n_dealii_processes;
+		int 								this_dealii_process;
 		int 								dealii_pcolor;
 
 		MPI_Comm 							lammps_global_communicator;
@@ -722,10 +728,11 @@ namespace HMM
 
 		parallel::shared::Triangulation<dim> triangulation;
 		DoFHandler<dim>      				dof_handler;
-		FESystem<dim>        				fe;
-		ConstraintMatrix     				hanging_node_constraints;
 
+		FESystem<dim>        				fe;
 		const QGauss<dim>   				quadrature_formula;
+
+		ConstraintMatrix     				hanging_node_constraints;
 		std::vector<PointHistory<dim> > 	quadrature_point_history;
 
 		PETScWrappers::MPI::SparseMatrix	system_matrix;
@@ -749,7 +756,7 @@ namespace HMM
 		unsigned int 						n_local_cells;
 
 		SymmetricTensor<4,dim> 				initial_stress_strain_tensor,
-		stress_strain_tensor;
+											stress_strain_tensor;
 	};
 
 
@@ -886,14 +893,14 @@ namespace HMM
 	// In order to modify the processes used by the deal.ii run, another
 	// communicator should be used (e.g split from MPI_COMM_WORLD)
 	template <int dim>
-	ElasticProblem<dim>::ElasticProblem ()
+	ElasticProblem<dim>::ElasticProblem (MPI_Comm tcomm)
 	:
-		dealii_communicator (MPI_COMM_WORLD),
-		n_dealii_processes (Utilities::MPI::n_mpi_processes(dealii_communicator)),
-		this_dealii_process (Utilities::MPI::this_mpi_process(dealii_communicator)),
-		dealii_pcolor (0),
-		pcout (std::cout,(this_dealii_process == 0)),
-		triangulation(dealii_communicator/*or MPI_COMM_WORLD*/),
+		world_communicator (MPI_COMM_WORLD),
+		n_world_processes (Utilities::MPI::n_mpi_processes(world_communicator)),
+		this_world_process (Utilities::MPI::this_mpi_process(world_communicator)),
+		world_pcolor (0),
+		pcout (std::cout,(this_world_process == 0)),
+		triangulation(tcomm),
 		dof_handler (triangulation),
 		fe (FE_Q<dim>(1), dim),
 		quadrature_formula (2)
@@ -1785,7 +1792,7 @@ namespace HMM
 		if (this_dealii_process==0)
 		{
 			std::vector<std::string> filenames_loc;
-			for (unsigned int i=0; i<n_dealii_processes; ++i)
+			for (int i=0; i<n_dealii_processes; ++i)
 				filenames_loc.push_back ("solution-" + Utilities::int_to_string(timestep_no,4)
 			+ "." + Utilities::int_to_string(i,3)
 			+ ".vtu");
@@ -1847,19 +1854,25 @@ namespace HMM
 		// Definition of the communicators
 		MPI_Comm_split(lammps_global_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);
 		MPI_Comm_rank(lammps_batch_communicator,&this_lammps_batch_process);
-
-		// Recapitulating allocation of each process to deal and lammps
-		std::cout << "proc world rank: " << this_lammps_process
-				<< " - deal color: " << dealii_pcolor
-				<< " - lammps color: " << lammps_pcolor << std::endl;
 	}
 
 
+	template <int dim>
+	void ElasticProblem<dim>::set_dealii_procs ()
+	{
+		n_dealii_processes = 10;
+		dealii_pcolor = (this_world_process < n_dealii_processes) ? 0 : MPI_UNDEFINED;
 
+		MPI_Comm_split(MPI_COMM_WORLD, dealii_pcolor, this_world_process, &dealii_communicator);
+		MPI_Comm_rank(dealii_communicator, &this_dealii_process);
+	}
 
 	template <int dim>
 	void ElasticProblem<dim>::make_grid ()
 	{
+//		parallel::shared::Triangulation<dim> triangulation (dealii_communicator);
+//		DoFHandler<dim>      				 dof_handler (triangulation);
+
 		std::vector< unsigned int > sizes (GeometryInfo<dim>::faces_per_cell);
 		sizes[0] = 0; sizes[1] = 1;
 		sizes[2] = 0; sizes[3] = 1;
@@ -2008,9 +2021,16 @@ namespace HMM
 	template <int dim>
 	void ElasticProblem<dim>::run ()
 	{
+		set_dealii_procs();
+
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
 		set_lammps_procs();
+
+		// Recapitulating allocation of each process to deal and lammps
+		std::cout << "proc world rank: " << this_lammps_process
+				<< " - deal color: " << dealii_pcolor
+				<< " - lammps color: " << lammps_pcolor << std::endl;
 
 		// Since LAMMPS is highly scalable, the initiation number of processes NI
 		// can basically be equal to the maximum number of available processes NT which
@@ -2046,7 +2066,7 @@ namespace HMM
 		pcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
 				<< " (by partition:";
-		for (unsigned int p=0; p<n_dealii_processes; ++p)
+		for (int p=0; p<n_dealii_processes; ++p)
 			pcout << (p==0 ? ' ' : '+')
 			<< (GridTools::
 					count_cells_with_subdomain_association (triangulation,p));
@@ -2057,7 +2077,7 @@ namespace HMM
 		pcout << "    Number of degrees of freedom: "
 				<< dof_handler.n_dofs()
 				<< " (by partition:";
-		for (unsigned int p=0; p<n_dealii_processes; ++p)
+		for (int p=0; p<n_dealii_processes; ++p)
 			pcout << (p==0 ? ' ' : '+')
 			<< (DoFTools::
 					count_dofs_with_subdomain_association (dof_handler,p));
@@ -2079,7 +2099,17 @@ int main (int argc, char **argv)
 
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
-		ElasticProblem<3> elastic_problem;
+		int me;
+		MPI_Comm_rank(MPI_COMM_WORLD,&me);
+
+		int nprocs = 1;
+		int pcolor = (me < nprocs) ? 0 : MPI_UNDEFINED;
+
+		MPI_Comm tcomm;
+		//MPI_Comm_dup(MPI_COMM_WORLD, &tcomm);
+		MPI_Comm_split(MPI_COMM_WORLD, pcolor, me, &tcomm);
+
+		ElasticProblem<3> elastic_problem (tcomm);
 		elastic_problem.run ();
 	}
 	catch (std::exception &exc)

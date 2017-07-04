@@ -309,8 +309,8 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 100"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 100"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 1000"); lammps_command(lmp,cline);
 		sprintf(cline, "variable nsstrain  equal 500"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude

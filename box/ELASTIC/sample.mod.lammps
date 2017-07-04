@@ -39,10 +39,11 @@
 
 
 #  Average stress tensor over the whole NVT run
-variable nav equal ${nss}/1000
+if "${nss} > 10000" then "variable nav equal ${nss}/1000" else "variable nav equal ${nss}/10"
+print ${nav}
 fix stress  all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
 #
-#print "Dir: ${dir} - Delta: ${delta}"
+print "dir: ${dir} - orientation: ${ori}"
 #
 #fix stress1 all ave/time 1 ${nav} ${nav} c_thermo_press[*] file ${loco}/ave_${nav}_${dir}_${delta}.dat
 #fix stress2 all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running file ${loco}/ave_run_${nav}_${dir}_${delta}.dat
@@ -54,7 +55,7 @@ fix stress  all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
 #  Setting printing position information on all atoms every nss steps PE_stress_strain_x.xyz
 #  file specifying atom type 1, 2 and 3 with names respectively C, C and H  (identical as
 #  previous with different file name)
-variable ndump equal ${nss}/1000
+if "${nss} > 10000" then "variable ndump equal ${nss}/1000" else "variable ndump equal ${nss}/10"
 dump            xyz_dump all xyz ${ndump}    ${loco}/PE_atom_${dir}_${ori}.xyz
 dump_modify     xyz_dump element  C C H
 

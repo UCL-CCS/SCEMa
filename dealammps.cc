@@ -2100,13 +2100,15 @@ namespace HMM
 		// Construct FE class
 		FEProblem<dim> fe_problem (dealii_communicator, dealii_pcolor);
 		//if(dealii_pcolor==MPI_UNDEFINED) fe_problem.~FEProblem();
+		MPI_Barrier(world_communicator);
 
 		// Since LAMMPS is highly scalable, the initiation number of processes NI
 		// can basically be equal to the maximum number of available processes NT which
 		// can directly be found in the MPI_COMM.
 		hcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
 
-		lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+		MPI_Barrier(world_communicator);
 
 		/*double young = 3.0e9, poisson = 0.45;
 		double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));

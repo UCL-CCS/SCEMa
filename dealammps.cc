@@ -1031,9 +1031,9 @@ namespace HMM
 							std::cout << std::endl;
 						}*/
 
-//					if (//false
-//						(cell->active_cell_index() == 21)
-//						) // For debug...
+					if (//false
+						(cell->active_cell_index() == 21 && cell->active_cell_index() == 12)
+						) // For debug...
 					for(unsigned int k=0;k<dim;k++){
 						for(unsigned int l=k;l<dim;l++){
 //							std::cout << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
@@ -1073,6 +1073,9 @@ namespace HMM
 		ofile.close();
 		MPI_Barrier(FE_communicator);
 
+		// Gathering in a single file all the quadrature points to be updated...
+		// Might be worth replacing indivual local file writings by a parallel vector of string
+		// and globalizing this vector before this final writing step.
 		std::ifstream ifile;
 		std::ofstream outfile;
 		std::string iline;
@@ -1882,20 +1885,20 @@ namespace HMM
 				// microstructure and applying the complete new_strain or starting from
 				// the microstructure at the old_strain and applying the difference between
 				// the new_ and _old_strains, returns the new_stress state.
-//				lammps_local_testing<dim> (loc_strain,
-//						loc_stress,
-//						loc_stiffness,
-//						quad_id[q],
-//						time_id,
-//						prev_time_id,
-//						lammps_batch_communicator);
+				lammps_local_testing<dim> (loc_strain,
+						loc_stress,
+						loc_stiffness,
+						quad_id[q],
+						time_id,
+						prev_time_id,
+						lammps_batch_communicator);
 
 				// For debug...
-				for (unsigned int i=0; i<dim; ++i)
+				/*for (unsigned int i=0; i<dim; ++i)
 					for (unsigned int j=0; j<dim; ++j)
 						for (unsigned int k=0; k<dim; ++k)
 							for (unsigned int l=0; l<dim; ++l)
-								loc_stiffness[i][j][k][l] *= 0.95;
+								loc_stiffness[i][j][k][l] *= 0.95;*/
 
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -2053,7 +2056,7 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 2;
+		n_dealii_processes = 10;
 
 		dealii_pcolor = MPI_UNDEFINED;
 

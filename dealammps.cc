@@ -2137,7 +2137,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 1;
+		end_time = 10;
 		timestep_no = 0;
 
 		if(dealii_pcolor==0) fe_problem.make_grid ();

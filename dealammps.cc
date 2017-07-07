@@ -762,7 +762,7 @@ namespace HMM
 			const double present_timestep)
 			:
 			Function<dim> (dim),
-			velocity (.005),
+			velocity (.001),
 			present_time (present_time),
 			present_timestep (present_timestep)
 	{}
@@ -1032,7 +1032,8 @@ namespace HMM
 						}*/
 
 					if (//false
-						(cell->active_cell_index() == 21 && cell->active_cell_index() == 12)
+						(cell->active_cell_index() == 21 || cell->active_cell_index() == 12
+								|| cell->active_cell_index() == 10 || cell->active_cell_index() == 5)
 						) // For debug...
 					for(unsigned int k=0;k<dim;k++){
 						for(unsigned int l=k;l<dim;l++){
@@ -1944,13 +1945,15 @@ namespace HMM
 
 				hcout << "    Updating quadrature point data..." << std::flush;
 
-				if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.newton_update, timestep_no, newtonstep_no);
+				if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history
+						(fe_problem.newton_update, timestep_no, newtonstep_no);
 				MPI_Barrier(world_communicator);
 
 				if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
 				MPI_Barrier(world_communicator);
 
-				if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history (fe_problem.newton_update, timestep_no, newtonstep_no);
+				if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history
+						(fe_problem.newton_update, timestep_no, newtonstep_no);
 
 				hcout << std::endl;
 
@@ -2169,7 +2172,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 10;
+		end_time = 50;
 		timestep_no = 0;
 
 		if(dealii_pcolor==0) fe_problem.make_grid ();

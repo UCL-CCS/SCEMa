@@ -957,9 +957,9 @@ namespace HMM
 
 		// Create file with qptid to update at timeid
 		std::ofstream ofile;
-		char update_filename[1024];
-		sprintf(update_filename, "%s/%s.qpupdates", storloc, time_id);
-		ofile.open (update_filename);
+		char update_local_filename[1024];
+		sprintf(update_local_filename, "%s/%s.%d.qpupdates", storloc, time_id, this_FE_process);
+		ofile.open (update_local_filename);
 
 		// Preparing requirements for strain update
 		FEValues<dim> fe_values (fe, quadrature_formula,
@@ -1031,14 +1031,15 @@ namespace HMM
 							std::cout << std::endl;
 						}*/
 
-					if (//false
-						(cell->active_cell_index() == 21)
-						) // For debug...
+//					if (//false
+//						(cell->active_cell_index() == 21)
+//						) // For debug...
 					for(unsigned int k=0;k<dim;k++){
 						for(unsigned int l=k;l<dim;l++){
-							std::cout << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
+//							std::cout << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
 							if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
-									&& local_quadrature_points_history[q].to_be_updated == false){
+									&& local_quadrature_points_history[q].to_be_updated == false
+									&& newtonstep_no > 0){
 								std::cout << "Cell "<< cell->active_cell_index() << " QP " << q
 										<< " strain component " << k << l
 										<< " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
@@ -1047,7 +1048,7 @@ namespace HMM
 								local_quadrature_points_history[q].upd_strain = 0;
 							}
 						}
-						if(k==dim-1) std::cout << "****" << std::endl;
+//						if(k==dim-1) std::cout << "****" << std::endl;
 					}
 
 					// Write strain and previous stiffness tensors in case the quadrature point needs to be updated
@@ -1070,6 +1071,23 @@ namespace HMM
 				}
 			}
 		ofile.close();
+		MPI_Barrier(FE_communicator);
+
+		std::ifstream ifile;
+		std::ofstream outfile;
+		std::string iline;
+		if (this_FE_process == 0){
+			char update_filename[1024];
+			sprintf(update_filename, "%s/%s.qpupdates", storloc, time_id);
+			outfile.open (update_filename);
+			for (int ip=0; ip<n_FE_processes; ip++){
+				sprintf(update_local_filename, "%s/%s.%d.qpupdates", storloc, time_id, ip);
+				ifile.open (update_local_filename);
+				while (getline(ifile, iline)) outfile << iline << std::endl;
+				ifile.close();
+			}
+			outfile.close();
+		}
 	}
 
 
@@ -1124,8 +1142,9 @@ namespace HMM
 						read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);
 					}
 
-					local_quadrature_points_history[q].new_stress +=
-							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].inc_strain;
+					// Secant stiffness computation of the new stress tensor
+					local_quadrature_points_history[q].new_stress =
+							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].new_strain;
 
 					// Apply rotation of the sample to the new state tensors
 					const Tensor<2,dim> rotation
@@ -1822,17 +1841,17 @@ namespace HMM
 
 		for (int q=0; q<nqupd; ++q)
 		{
-			SymmetricTensor<2,dim> loc_strain;
-
-			// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
-			//				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
-			char filename[1024];
-
-			sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id[q]);
-			read_tensor<dim>(filename, loc_strain);
-
 			if (lammps_pcolor == (q%n_lammps_batch))
 			{
+				SymmetricTensor<2,dim> loc_strain;
+
+				// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
+				//				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+				char filename[1024];
+
+				sprintf(filename, "%s/%s.%s.strain", storloc, time_id, quad_id[q]);
+				read_tensor<dim>(filename, loc_strain);
+
 				SymmetricTensor<2,dim> loc_stress;
 				SymmetricTensor<4,dim> loc_stiffness;
 
@@ -1876,7 +1895,7 @@ namespace HMM
 					for (unsigned int j=0; j<dim; ++j)
 						for (unsigned int k=0; k<dim; ++k)
 							for (unsigned int l=0; l<dim; ++l)
-								loc_stiffness[i][j][k][l] *= 0.1;
+								loc_stiffness[i][j][k][l] *= 0.95;
 
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -1971,8 +1990,15 @@ namespace HMM
 		if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
 		MPI_Barrier(world_communicator);
 
-		if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
-		MPI_Barrier(world_communicator);
+		// At the moment, the stiffness is never updated here, due to checking condition
+		// when updating strains (newtonstep_no < 0).
+		// This is a safety check, because if load increment are important they force stiffness update,
+		// because all loading is localized in cells next to imposed DOF.
+		// When the loading increments will be reduced, the condition during the strain update can be removed
+		// although it might never really be useful to update the stress at that time, because new_strains at
+		// (newtonstep_no == 0) will always be quite far from the converged values..
+		//if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
+		//MPI_Barrier(world_communicator);
 
 		if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
 

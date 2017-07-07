@@ -305,9 +305,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 5000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 5000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 5000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 1000"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -602,7 +602,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 5000; // number of timesteps
+			nts = 1000; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).
@@ -1860,20 +1860,20 @@ namespace HMM
 				// microstructure and applying the complete new_strain or starting from
 				// the microstructure at the old_strain and applying the difference between
 				// the new_ and _old_strains, returns the new_stress state.
-				lammps_local_testing<dim> (loc_strain,
-						loc_stress,
-						loc_stiffness,
-						quad_id[q],
-						time_id,
-						prev_time_id,
-						lammps_batch_communicator);
+//				lammps_local_testing<dim> (loc_strain,
+//						loc_stress,
+//						loc_stiffness,
+//						quad_id[q],
+//						time_id,
+//						prev_time_id,
+//						lammps_batch_communicator);
 
 				// For debug...
-				/*for (unsigned int i=0; i<dim; ++i)
+				for (unsigned int i=0; i<dim; ++i)
 					for (unsigned int j=0; j<dim; ++j)
 						for (unsigned int k=0; k<dim; ++k)
 							for (unsigned int l=0; l<dim; ++l)
-								loc_stiffness[i][j][k][l] *= 0.1;*/
+								loc_stiffness[i][j][k][l] *= 0.1;
 
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -2110,18 +2110,20 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		hcout << " Initiation of the Molecular Dynamics sample...       " << std::endl;
 
-		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
-		/*double young = 3.0e9, poisson = 0.45;
-		double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
-		for (unsigned int i=0; i<dim; ++i)
-			for (unsigned int j=0; j<dim; ++j)
-				for (unsigned int k=0; k<dim; ++k)
-					for (unsigned int l=0; l<dim; ++l)
-						initial_stress_strain_tensor[i][j][k][l]
-															  = (((i==k) && (j==l) ? mu : 0.0) +
-																	  ((i==l) && (j==k) ? mu : 0.0) +
-																	  ((i==j) && (k==l) ? lambda : 0.0));*/
+//		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+
 		if(this_lammps_process == 0){
+			double young = 3.0e9, poisson = 0.45;
+			double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
+			for (unsigned int i=0; i<dim; ++i)
+				for (unsigned int j=0; j<dim; ++j)
+					for (unsigned int k=0; k<dim; ++k)
+						for (unsigned int l=0; l<dim; ++l)
+							initial_stress_strain_tensor[i][j][k][l]
+																  = (((i==k) && (j==l) ? mu : 0.0) +
+																		  ((i==l) && (j==k) ? mu : 0.0) +
+																		  ((i==j) && (k==l) ? lambda : 0.0));
+
 			char filename[1024];
 			char storloc[1024] = "./macrostate_storage";
 			std::string macrorepo(storloc);

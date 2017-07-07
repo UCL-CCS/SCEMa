@@ -1031,9 +1031,9 @@ namespace HMM
 							std::cout << std::endl;
 						}*/
 
-					/*if (//false
+					if (//false
 						(cell->active_cell_index() == 21)
-						) // For debug... */
+						) // For debug...
 					for(unsigned int k=0;k<dim;k++){
 						for(unsigned int l=k;l<dim;l++){
 							if (abs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation){

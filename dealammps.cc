@@ -865,10 +865,10 @@ namespace HMM
 	template <int dim>
 	FEProblem<dim>::FEProblem (MPI_Comm dcomm, int pcolor)
 	:
-		FE_communicator (pcolor >= 0 ? dcomm : MPI_COMM_WORLD),
+		FE_communicator (dcomm),
 		n_FE_processes (Utilities::MPI::n_mpi_processes(FE_communicator)),
 		this_FE_process (Utilities::MPI::this_mpi_process(FE_communicator)),
-		FE_pcolor (pcolor >= 0 ? 0 : MPI_UNDEFINED),
+		FE_pcolor (pcolor),
 		dcout (std::cout,(this_FE_process == 0)),
 		triangulation(FE_communicator),
 		dof_handler (triangulation),
@@ -1903,7 +1903,7 @@ namespace HMM
 
 		do
 		{
-			if(dealii_pcolor>=0) previous_res = fe_problem.compute_residual();
+			if(dealii_pcolor>0) previous_res = fe_problem.compute_residual();
 			hcout << "  Initial residual: "
 					<< previous_res
 					<< std::endl;
@@ -1912,24 +1912,24 @@ namespace HMM
 			{
 				++newtonstep_no;
 				hcout << "    Assembling FE system..." << std::flush;
-				if(dealii_pcolor>=0) fe_problem.assemble_system ();
+				if(dealii_pcolor>0) fe_problem.assemble_system ();
 
 				hcout << "    Solving FE system..." << std::flush;
-				if(dealii_pcolor>=0) fe_problem.solve_linear_problem ();
+				if(dealii_pcolor>0) fe_problem.solve_linear_problem ();
 
 				hcout << "    Updating quadrature point data..." << std::flush;
 
-				if(dealii_pcolor>=0) fe_problem.update_strain_quadrature_point_history (fe_problem.newton_update, timestep_no, newtonstep_no);
+				if(dealii_pcolor>0) fe_problem.update_strain_quadrature_point_history (fe_problem.newton_update, timestep_no, newtonstep_no);
 				MPI_Barrier(world_communicator);
 
 				if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
 				MPI_Barrier(world_communicator);
 
-				if(dealii_pcolor>=0) fe_problem.update_stress_quadrature_point_history (fe_problem.newton_update, timestep_no, newtonstep_no);
+				if(dealii_pcolor>0) fe_problem.update_stress_quadrature_point_history (fe_problem.newton_update, timestep_no, newtonstep_no);
 
 				hcout << std::endl;
 
-				if(dealii_pcolor>=0) previous_res = fe_problem.compute_residual();
+				if(dealii_pcolor>0) previous_res = fe_problem.compute_residual();
 				MPI_Barrier(world_communicator);
 
 				// Share the value of previous_res in between processors
@@ -1961,25 +1961,25 @@ namespace HMM
 
 		newtonstep_no = 0;
 
-		if(dealii_pcolor>=0) fe_problem.incremental_displacement = 0;
+		if(dealii_pcolor>0) fe_problem.incremental_displacement = 0;
 
-		if(dealii_pcolor>=0) fe_problem.set_boundary_values (present_time, present_timestep);
+		if(dealii_pcolor>0) fe_problem.set_boundary_values (present_time, present_timestep);
 
-		if(dealii_pcolor>=0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
+		if(dealii_pcolor>0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
 		MPI_Barrier(world_communicator);
 
 		if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
 		MPI_Barrier(world_communicator);
 
-		if(dealii_pcolor>=0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
+		if(dealii_pcolor>0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
 
 		solve_timestep (fe_problem);
 
-		if(dealii_pcolor>=0) fe_problem.solution+=fe_problem.incremental_displacement;
+		if(dealii_pcolor>0) fe_problem.solution+=fe_problem.incremental_displacement;
 
-		if(dealii_pcolor>=0) fe_problem.error_estimation ();
+		if(dealii_pcolor>0) fe_problem.error_estimation ();
 
-		if(dealii_pcolor>=0) fe_problem.output_results (present_time, timestep_no);
+		if(dealii_pcolor>0) fe_problem.output_results (present_time, timestep_no);
 
 		hcout << std::endl;
 	}
@@ -2026,9 +2026,11 @@ namespace HMM
 		root_dealii_process = 0;
 		n_dealii_processes = 10;
 
-		dealii_pcolor = MPI_UNDEFINED;
+		dealii_pcolor = 0;
+
+		// Color set above 0 for processors that are going to be used
 		if (root_dealii_process <= this_world_process &&
-				this_world_process < root_dealii_process + n_dealii_processes) dealii_pcolor = 0;
+				this_world_process < root_dealii_process + n_dealii_processes) dealii_pcolor = 1;
 
 		MPI_Comm_split(MPI_COMM_WORLD, dealii_pcolor, this_world_process, &dealii_communicator);
 		MPI_Comm_rank(dealii_communicator, &this_dealii_process);
@@ -2107,10 +2109,10 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		hcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
 
-		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
-		MPI_Barrier(world_communicator);
+//		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+//		MPI_Barrier(world_communicator);
 
-		/*double young = 3.0e9, poisson = 0.45;
+		double young = 3.0e9, poisson = 0.45;
 		double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 		for (unsigned int i=0; i<dim; ++i)
 			for (unsigned int j=0; j<dim; ++j)
@@ -2119,7 +2121,7 @@ namespace HMM
 						initial_stress_strain_tensor[i][j][k][l]
 															  = (((i==k) && (j==l) ? mu : 0.0) +
 																	  ((i==l) && (j==k) ? mu : 0.0) +
-																	  ((i==j) && (k==l) ? lambda : 0.0));*/
+																	  ((i==j) && (k==l) ? lambda : 0.0));
 
 		char filename[1024];
 		char storloc[1024] = "./macrostate_storage";
@@ -2132,12 +2134,12 @@ namespace HMM
 		end_time = 10;
 		timestep_no = 0;
 
-		if(dealii_pcolor>=0) fe_problem.make_grid ();
+		if(dealii_pcolor>0) fe_problem.make_grid ();
 
-		if(dealii_pcolor>=0) fe_problem.setup_system ();
+//		if(dealii_pcolor>0) fe_problem.setup_system ();
 
-		while (present_time < end_time)
-			do_timestep (fe_problem);
+//		while (present_time < end_time)
+//			do_timestep (fe_problem);
 
 	}
 }

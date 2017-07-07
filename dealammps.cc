@@ -2101,14 +2101,14 @@ namespace HMM
 				<< " - lammps color: " << lammps_pcolor << std::endl;
 
 		// Construct FE class
+		hcout << " Initiation of the Finite Element problem...       " << std::endl;
 		FEProblem<dim> fe_problem (dealii_communicator, dealii_pcolor);
-		//if(dealii_pcolor==MPI_UNDEFINED) fe_problem.~FEProblem();
 		MPI_Barrier(world_communicator);
 
 		// Since LAMMPS is highly scalable, the initiation number of processes NI
 		// can basically be equal to the maximum number of available processes NT which
 		// can directly be found in the MPI_COMM.
-		hcout << " Initiation of LAMMPS Testing Box...       " << std::endl;
+		hcout << " Initiation of the Molecular Dynamics sample...       " << std::endl;
 
 		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
 		/*double young = 3.0e9, poisson = 0.45;
@@ -2135,7 +2135,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 10;
+		end_time = 1;
 		timestep_no = 0;
 
 		if(dealii_pcolor==0) fe_problem.make_grid ();

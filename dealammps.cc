@@ -423,7 +423,6 @@ namespace HMM
 		char sfile[1024];
 
 		// Specifying the command line options for screen and log output file
-		/*
 		int nargs = 5;
 		char **lmparg = new char*[nargs];
 		lmparg[0] = NULL;
@@ -432,14 +431,13 @@ namespace HMM
 		lmparg[3] = (char *) "-log";
 		lmparg[4] = new char[1024];
 		sprintf(lmparg[4], "%s/log.PE_heatup_cooldown", qpoutloc);
-		*/
 
-		int nargs = 3;
+		/*int nargs = 3;
 		char **lmparg = new char*[nargs];
 		lmparg[0] = NULL;
 		lmparg[1] = (char *) "-log";
 		lmparg[2] = new char[1024];
-		sprintf(lmparg[2], "%s/log.PE_heatup_cooldown", qpoutloc);
+		sprintf(lmparg[2], "%s/log.PE_heatup_cooldown", qpoutloc);*/
 
 
 		// Creating LAMMPS instance
@@ -555,7 +553,6 @@ namespace HMM
 		double dts;
 
 		// Specifying the command line options for screen and log output file
-		/*
 		int nargs = 5;
 		char **lmparg = new char*[nargs];
 		lmparg[0] = NULL;
@@ -564,13 +561,13 @@ namespace HMM
 		lmparg[3] = (char *) "-log";
 		lmparg[4] = new char[1024];
 		sprintf(lmparg[4], "%s/log.PE_stress_strain", qpoutloc);
-		*/
-		int nargs = 3;
+
+		/*int nargs = 3;
 		char **lmparg = new char*[nargs];
 		lmparg[0] = NULL;
 		lmparg[1] = (char *) "-log";
 		lmparg[2] = new char[1024];
-		sprintf(lmparg[2], "%s/log.PE_stress_strain", qpoutloc);
+		sprintf(lmparg[2], "%s/log.PE_stress_strain", qpoutloc);*/
 
 
 		// Creating LAMMPS instance
@@ -1031,10 +1028,10 @@ namespace HMM
 							std::cout << std::endl;
 						}*/
 
-					if (//false
+					/*if (//false
 						(cell->active_cell_index() == 21 || cell->active_cell_index() == 12
 								|| cell->active_cell_index() == 10 || cell->active_cell_index() == 5)
-						) // For debug...
+						) // For debug... */
 					for(unsigned int k=0;k<dim;k++){
 						for(unsigned int l=k;l<dim;l++){
 //							std::cout << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
@@ -1741,7 +1738,6 @@ namespace HMM
 		HMMProblem ();
 		~HMMProblem ();
 		void run ();
-		void run_mol_test ();
 
 	private:
 		void set_dealii_procs ();
@@ -1842,6 +1838,10 @@ namespace HMM
 		ifile.close();
 
 		//hcout << "Number of quadrature points to update: " << nqupd << " - Number of lines read: " << nline << std::endl;
+
+		// It might be worth doing the splitting of in batches of lammps processors here according to
+		// the number of quadrature points to update, because if the number of points is smaller than
+		// the number of batches predefined initially part of the lammps allocated processors remain idle...
 
 		for (int q=0; q<nqupd; ++q)
 		{
@@ -2003,8 +2003,8 @@ namespace HMM
 		// When the loading increments will be reduced, the condition during the strain update can be removed
 		// although it might never really be useful to update the stress at that time, because new_strains at
 		// (newtonstep_no == 0) will always be quite far from the converged values..
-		//if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
-		//MPI_Barrier(world_communicator);
+		/*if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
+		//MPI_Barrier(world_communicator);*/
 
 		if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
 
@@ -2070,49 +2070,6 @@ namespace HMM
 
 		MPI_Comm_split(MPI_COMM_WORLD, dealii_pcolor, this_world_process, &dealii_communicator);
 		MPI_Comm_rank(dealii_communicator, &this_dealii_process);
-	}
-
-
-
-
-	// Function remplacement of RUN for debugg purposes of LAMMPS
-	template <int dim>
-	void HMMProblem<dim>::run_mol_test ()
-	{
-		char a[10] = "0"; char b[10] = "1"; char c[10] = "0";
-
-		SymmetricTensor<2,dim> loc_strain, loc_stress;
-		SymmetricTensor<4,dim> loc_stiffness;
-
-		set_lammps_procs();
-
-		// Study the variation of the elastic properties homogenized with the strain state
-		char storloc[1024] = "./molecular_elasticity_testing/";
-		std::string macrorepo(storloc);
-		mkdir((macrorepo).c_str(), ACCESSPERMS);
-
-		char store_init_stiff[1024] = "./molecular_elasticity_testing/init.stiff";
-		char store_state_strain[1024] = "./molecular_elasticity_testing/state.strain";
-		char store_state_stiff[1024] = "./molecular_elasticity_testing/state.stiff";
-
-		// No strain
-		lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
-		write_tensor(store_init_stiff, initial_stress_strain_tensor);
-
-		// With strain
-//		 double val = 0.;
-//		 for(unsigned int k=0;k<dim;k++)
-//		    for(unsigned int l=k;l<dim;l++)
-//		       loc_strain[k][l] = val;
-//
-//		 loc_strain[0][0] = 0.05;
-//
-//		 write_tensor(store_state_strain, loc_strain);
-//
-//		 lammps_local_testing<dim> (loc_strain, loc_stress, loc_stiffness,
-//		 					   a, b, c,
-//		 					   lammps_global_communicator);
-//		 write_tensor(store_state_stiff, loc_stiffness);
 	}
 
 

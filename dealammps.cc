@@ -1036,7 +1036,9 @@ namespace HMM
 						) // For debug...
 					for(unsigned int k=0;k<dim;k++){
 						for(unsigned int l=k;l<dim;l++){
-							if (abs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation){
+							std::cout << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
+							if (abs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
+									&& local_quadrature_points_history[q].to_be_updated == false){
 								std::cout << "Cell "<< cell->active_cell_index() << " QP " << q
 										<< " strain component " << k << l
 										<< " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
@@ -1045,6 +1047,7 @@ namespace HMM
 								local_quadrature_points_history[q].upd_strain = 0;
 							}
 						}
+						if(k==dim-1) std::cout << "****" << std::endl;
 					}
 
 					// Write strain and previous stiffness tensors in case the quadrature point needs to be updated
@@ -2024,12 +2027,12 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 4;
+		n_dealii_processes = 2;
 
 		dealii_pcolor = MPI_UNDEFINED;
 
 		// Color set above 0 for processors that are going to be used
-		if (root_dealii_process <= this_world_process &&
+		if (this_world_process >= root_dealii_process &&
 				this_world_process < root_dealii_process + n_dealii_processes) dealii_pcolor = 0;
 		else dealii_pcolor = 1;
 

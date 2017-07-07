@@ -1037,7 +1037,7 @@ namespace HMM
 					for(unsigned int k=0;k<dim;k++){
 						for(unsigned int l=k;l<dim;l++){
 							std::cout << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
-							if (abs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
+							if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
 									&& local_quadrature_points_history[q].to_be_updated == false){
 								std::cout << "Cell "<< cell->active_cell_index() << " QP " << q
 										<< " strain component " << k << l

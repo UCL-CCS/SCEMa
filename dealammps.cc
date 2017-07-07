@@ -305,9 +305,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 1000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 1000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 5000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 5000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 5000"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -602,7 +602,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 1000; // number of timesteps
+			nts = 5000; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).

@@ -2024,7 +2024,7 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 10;
+		n_dealii_processes = 4;
 
 		dealii_pcolor = MPI_UNDEFINED;
 

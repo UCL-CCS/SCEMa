@@ -2123,12 +2123,17 @@ namespace HMM
 																	  ((i==l) && (j==k) ? mu : 0.0) +
 																	  ((i==j) && (k==l) ? lambda : 0.0));
 
-		char filename[1024];
-		char storloc[1024] = "./macrostate_storage";
-		sprintf(filename, "%s/init.stiff", storloc);
-		write_tensor<dim>(filename, initial_stress_strain_tensor);
-//		read_tensor<dim>(filename, initial_stress_strain_tensor);
+		if(this_lammps_process == 0){
+			char filename[1024];
+			char storloc[1024] = "./macrostate_storage";
+			std::string macrorepo(storloc);
+			mkdir((macrorepo).c_str(), ACCESSPERMS);
+			sprintf(filename, "%s/init.stiff", storloc);
+			write_tensor<dim>(filename, initial_stress_strain_tensor);
+//			read_tensor<dim>(filename, initial_stress_strain_tensor);
+		}
 
+		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
 		end_time = 10;

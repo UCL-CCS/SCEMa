@@ -305,9 +305,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 1000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 1000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 100"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 100"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 100"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -599,7 +599,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 1000; // number of timesteps
+			nts = 100; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).
@@ -1828,13 +1828,22 @@ namespace HMM
 		// Create list of quadid
 		char **quad_id = new char *[nqupd];
 
-		int nline = -1;
+		// To debug: Do not fill if the list of quadrature points is empty...
 		ifile.open (filenamelist);
-		do{
-			nline++;
+//		int nline = -1;
+//		do{
+//			nline++;
+//			quad_id[nline] = new char[1024];
+//		}
+//	    while (ifile.getline(quad_id[nline], sizeof(quad_id[nline])));
+		int nline = 0;
+		char ctmp[1024];
+		while (ifile.getline(ctmp, sizeof(ctmp))){
 			quad_id[nline] = new char[1024];
+			quad_id[nline] = ctmp;
+			nline++;
 		}
-	    while (ifile.getline(quad_id[nline], sizeof(quad_id[nline])));
+
 		ifile.close();
 
 		//hcout << "Number of quadrature points to update: " << nqupd << " - Number of lines read: " << nline << std::endl;
@@ -2041,9 +2050,10 @@ namespace HMM
 		n_lammps_batch = int(n_lammps_processes/n_lammps_processes_per_batch);
 		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_processes_per_batch=n_lammps_processes;}
 
+		lammps_pcolor = MPI_UNDEFINED;
+
 		// LAMMPS processes color: regroup processes by batches of size NB, except
 		// the last ones (me >= NB*NC) to create batches of only NB processes, nor smaller.
-		lammps_pcolor = MPI_UNDEFINED;
 		if(this_lammps_process < n_lammps_processes_per_batch*n_lammps_batch)
 			lammps_pcolor = int(this_lammps_process/n_lammps_processes_per_batch);
 
@@ -2059,7 +2069,7 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 10;
+		n_dealii_processes = 2;
 
 		dealii_pcolor = MPI_UNDEFINED;
 

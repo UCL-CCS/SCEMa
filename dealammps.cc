@@ -305,9 +305,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 1000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 1000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 2000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 2000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 2000"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -337,7 +337,7 @@ namespace HMM
 				char vcoef[1024];
 				sprintf(vcoef, "C%d%dall", k+1, l+1);
 				tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
-				/*
+
 				// In case problmes arise due to negative terms of stiffness tensor...
 				if(tmp[k][l] < 0.)
 				{
@@ -345,7 +345,7 @@ namespace HMM
 					tmp[k][l] = -0.01*tmp[k][l];
 					if (me == 0) std::cout << "Carefull... Replacing with " << tmp[k][l] << std::endl;
 				}
-				*/
+
 			}
 
 		// Write test... (on the data returned by lammps)
@@ -598,7 +598,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 1000; // number of timesteps
+			nts = 2000; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).
@@ -1829,23 +1829,12 @@ namespace HMM
 
 		// Create list of quadid
 		char **quad_id = new char *[nqupd];
+		for (int q=0; q<nqupd; ++q) quad_id[q] = new char[1024];
 
-		// To debug: Do not fill if the list of quadrature points is empty...
 		ifile.open (filenamelist);
 		int nline = 0;
-		char ctmp[1024];
-		while (ifile.getline(ctmp, sizeof(ctmp))){
-			quad_id[nline] = new char[sizeof(ctmp)];
-			quad_id[nline] = ctmp;
-			nline++;
-		}
+		while (nline<nqupd && ifile.getline(quad_id[nline], sizeof(quad_id[nline]))) nline++;
 		ifile.close();
-
-		hcout << "qpt to update: ";
-		for (int q=0; q<nqupd; ++q) hcout << quad_id[q] << " ";
-		hcout << std::endl;
-
-		//hcout << "Number of quadrature points to update: " << nqupd << " - Number of lines read: " << nline << std::endl;
 
 		// It might be worth doing the splitting of in batches of lammps processors here according to
 		// the number of quadrature points to update, because if the number of points is smaller than
@@ -2110,10 +2099,10 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		hcout << " Initiation of the Molecular Dynamics sample...       " << std::endl;
 
-		//if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
 
 		if(this_lammps_process == 0){
-			double young = 3.0e9, poisson = 0.45;
+			/*double young = 3.0e9, poisson = 0.45;
 			double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 			for (unsigned int i=0; i<dim; ++i)
 				for (unsigned int j=0; j<dim; ++j)
@@ -2122,7 +2111,7 @@ namespace HMM
 							initial_stress_strain_tensor[i][j][k][l]
 																  = (((i==k) && (j==l) ? mu : 0.0) +
 																		  ((i==l) && (j==k) ? mu : 0.0) +
-																		  ((i==j) && (k==l) ? lambda : 0.0));
+																		  ((i==j) && (k==l) ? lambda : 0.0));*/
 
 			char filename[1024];
 			char storloc[1024] = "./macrostate_storage";

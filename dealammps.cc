@@ -1039,7 +1039,7 @@ namespace HMM
 //								std::cout << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
 								if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
 										&& local_quadrature_points_history[q].to_be_updated == false){
-									std::cout << "       "
+									std::cout << "           "
 											<< " cell "<< cell->active_cell_index() << " QP " << q
 											<< " strain component " << k << l
 											<< " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
@@ -1835,11 +1835,15 @@ namespace HMM
 		int nline = 0;
 		char ctmp[1024];
 		while (ifile.getline(ctmp, sizeof(ctmp))){
-			quad_id[nline] = new char[1024];
+			quad_id[nline] = new char[sizeof(ctmp)];
 			quad_id[nline] = ctmp;
 			nline++;
 		}
 		ifile.close();
+
+		hcout << "qpt to update: ";
+		for (int q=0; q<nqupd; ++q) hcout << quad_id[q] << " ";
+		hcout << std::endl;
 
 		//hcout << "Number of quadrature points to update: " << nqupd << " - Number of lines read: " << nline << std::endl;
 
@@ -1866,7 +1870,7 @@ namespace HMM
 				// For debug...
 				int me;
 				MPI_Comm_rank(lammps_batch_communicator, &me);
-				std::cout << "        "
+				std::cout << "            "
 						<< "nqptbu: " << q
 						<< " - cell - qp : " << quad_id[q]
 						<< " - proc_world_rank: " << this_lammps_process
@@ -2106,10 +2110,10 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		hcout << " Initiation of the Molecular Dynamics sample...       " << std::endl;
 
-		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+		//if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
 
 		if(this_lammps_process == 0){
-			/*double young = 3.0e9, poisson = 0.45;
+			double young = 3.0e9, poisson = 0.45;
 			double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 			for (unsigned int i=0; i<dim; ++i)
 				for (unsigned int j=0; j<dim; ++j)
@@ -2118,7 +2122,7 @@ namespace HMM
 							initial_stress_strain_tensor[i][j][k][l]
 																  = (((i==k) && (j==l) ? mu : 0.0) +
 																		  ((i==l) && (j==k) ? mu : 0.0) +
-																		  ((i==j) && (k==l) ? lambda : 0.0));*/
+																		  ((i==j) && (k==l) ? lambda : 0.0));
 
 			char filename[1024];
 			char storloc[1024] = "./macrostate_storage";

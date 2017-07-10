@@ -1522,6 +1522,7 @@ namespace HMM
 		std::string macrorepo = "./macroscale_output/";
 		mkdir((macrorepo).c_str(), ACCESSPERMS);
 
+		// Output of displacement as a vector
 		std::vector<std::string>  solution_names (dim, "displacement");
 		std::vector<DataComponentInterpretation::DataComponentInterpretation>
 		data_component_interpretation
@@ -1531,42 +1532,60 @@ namespace HMM
 				DataOut<dim>::type_dof_data,
 				data_component_interpretation);
 
+		// Output of error per cell as a scalar
 		data_out.add_data_vector (error_per_cell, "error_per_cell");
 
+		// Output of the cell averaged striffness over quadrature
+		// points as a scalar in direction 0000, 1111 and 2222
+		std::vector<Vector<double> > avg_stiff (dim,
+				Vector<double>(triangulation.n_active_cells()));
+		for (int i=0;i<dim;++i){
+			{
+				typename Triangulation<dim>::active_cell_iterator
+				cell = triangulation.begin_active(),
+				endc = triangulation.end();
+				for (; cell!=endc; ++cell)
+					if (cell->is_locally_owned())
+					{
+						double accumulated_stiffi = 0.;
+						for (unsigned int q=0;q<quadrature_formula.size();++q)
+							accumulated_stiffi += reinterpret_cast<PointHistory<dim>*>
+								(cell->user_pointer())[q].new_stiff[i][i][i][i];
+
+						avg_stiff[i](cell->active_cell_index()) = accumulated_stiffi/quadrature_formula.size();
+					}
+					else avg_stiff[i](cell->active_cell_index()) = -1e+20;
+			}
+			std::string si = std::to_string(i);
+			std::string name = "stiffness_"+si+si+si+si;
+			data_out.add_data_vector (avg_stiff[i], name);
+		}
+
+
+		// Output of the cell norm of the averaged strain tensor over quadrature
+		// points as a scalar
 		Vector<double> norm_of_strain (triangulation.n_active_cells());
 		{
-			FEValues<dim> fe_values (fe, quadrature_formula,
-					update_values   | update_gradients |
-					update_quadrature_points | update_JxW_values);
-			std::vector<std::vector<Tensor<1,dim> > >
-			solution_grads (quadrature_formula.size(),
-					std::vector<Tensor<1,dim> >(dim));
-
-			typename DoFHandler<dim>::active_cell_iterator
-			cell = dof_handler.begin_active(),
-			endc = dof_handler.end();
+			typename Triangulation<dim>::active_cell_iterator
+			cell = triangulation.begin_active(),
+			endc = triangulation.end();
 			for (; cell!=endc; ++cell)
 				if (cell->is_locally_owned())
 				{
-					fe_values.reinit (cell);
-					fe_values.get_function_gradients (solution,
-							solution_grads);
 					SymmetricTensor<2,dim> accumulated_strain;
+					for (unsigned int q=0;q<quadrature_formula.size();++q)
+						accumulated_strain += reinterpret_cast<PointHistory<dim>*>
+					(cell->user_pointer())[q].new_strain;
 
-					for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-					{
-						const SymmetricTensor<2,dim> new_strain
-						= get_strain (solution_grads[q]);
-						accumulated_strain += new_strain;
-						norm_of_strain(cell->active_cell_index())
-						= (accumulated_strain /
-								quadrature_formula.size()).norm();
-					}
+					norm_of_strain(cell->active_cell_index())
+					= (accumulated_strain / quadrature_formula.size()).norm();
 				}
 				else norm_of_strain(cell->active_cell_index()) = -1e+20;
 		}
 		data_out.add_data_vector (norm_of_strain, "norm_of_strain");
 
+		// Output of the cell norm of the averaged stress tensor over quadrature
+		// points as a scalar
 		Vector<double> norm_of_stress (triangulation.n_active_cells());
 		{
 			typename Triangulation<dim>::active_cell_iterator
@@ -1578,7 +1597,7 @@ namespace HMM
 					SymmetricTensor<2,dim> accumulated_stress;
 					for (unsigned int q=0;q<quadrature_formula.size();++q)
 						accumulated_stress += reinterpret_cast<PointHistory<dim>*>
-					(cell->user_pointer())[q].old_stress;
+					(cell->user_pointer())[q].new_stress;
 
 					norm_of_stress(cell->active_cell_index())
 					= (accumulated_stress / quadrature_formula.size()).norm();
@@ -1587,6 +1606,7 @@ namespace HMM
 		}
 		data_out.add_data_vector (norm_of_stress, "norm_of_stress");
 
+		// Output of the partitioning of the mesh on processors
 		std::vector<types::subdomain_id> partition_int (triangulation.n_active_cells());
 		GridTools::get_subdomain_association (triangulation, partition_int);
 		const Vector<double> partitioning(partition_int.begin(),
@@ -1595,6 +1615,7 @@ namespace HMM
 
 		data_out.build_patches ();
 
+		// Grouping spatially partitioned outputs
 		std::string filename = macrorepo + "solution-" + Utilities::int_to_string(timestep_no,4)
 		+ "." + Utilities::int_to_string(this_FE_process,3)
 		+ ".vtu";
@@ -2099,10 +2120,10 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		hcout << " Initiation of the Molecular Dynamics sample...       " << std::endl;
 
-		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+		//if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
 
 		if(this_lammps_process == 0){
-			/*double young = 3.0e9, poisson = 0.45;
+			double young = 3.0e9, poisson = 0.45;
 			double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 			for (unsigned int i=0; i<dim; ++i)
 				for (unsigned int j=0; j<dim; ++j)
@@ -2111,7 +2132,7 @@ namespace HMM
 							initial_stress_strain_tensor[i][j][k][l]
 																  = (((i==k) && (j==l) ? mu : 0.0) +
 																		  ((i==l) && (j==k) ? mu : 0.0) +
-																		  ((i==j) && (k==l) ? lambda : 0.0));*/
+																		  ((i==j) && (k==l) ? lambda : 0.0));
 
 			char filename[1024];
 			char storloc[1024] = "./macrostate_storage";

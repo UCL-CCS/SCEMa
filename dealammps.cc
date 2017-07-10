@@ -305,9 +305,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 2000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 2000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 2000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 5000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 5000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 5000"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -598,7 +598,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 2000; // number of timesteps
+			nts = 5000; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).
@@ -758,7 +758,7 @@ namespace HMM
 			const double present_timestep)
 			:
 			Function<dim> (dim),
-			velocity (.001),
+			velocity (.002),
 			present_time (present_time),
 			present_timestep (present_timestep)
 	{}
@@ -1688,7 +1688,7 @@ namespace HMM
 					if (cell->face(f)->center()[2] == 0.5)
 						cell->face(f)->set_boundary_id (32);
 				}
-		triangulation.refine_global (1);
+		triangulation.refine_global (3);
 
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
@@ -2120,10 +2120,10 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		hcout << " Initiation of the Molecular Dynamics sample...       " << std::endl;
 
-		//if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
 
 		if(this_lammps_process == 0){
-			double young = 3.0e9, poisson = 0.45;
+			/*double young = 3.0e9, poisson = 0.45;
 			double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 			for (unsigned int i=0; i<dim; ++i)
 				for (unsigned int j=0; j<dim; ++j)
@@ -2132,7 +2132,7 @@ namespace HMM
 							initial_stress_strain_tensor[i][j][k][l]
 																  = (((i==k) && (j==l) ? mu : 0.0) +
 																		  ((i==l) && (j==k) ? mu : 0.0) +
-																		  ((i==j) && (k==l) ? lambda : 0.0));
+																		  ((i==j) && (k==l) ? lambda : 0.0));*/
 
 			char filename[1024];
 			char storloc[1024] = "./macrostate_storage";
@@ -2147,7 +2147,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 50;
+		end_time = 100;
 		timestep_no = 0;
 
 		if(dealii_pcolor==0) fe_problem.make_grid ();

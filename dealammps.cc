@@ -966,7 +966,7 @@ namespace HMM
 
 		double strain_perturbation = 0.005;
 
-		dcout << "        " << "...checking quadrature points requiring update..." << std::endl;
+		if (newtonstep_no > 0) dcout << "        " << "...checking quadrature points requiring update..." << std::endl;
 
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
@@ -1033,23 +1033,23 @@ namespace HMM
 						(cell->active_cell_index() == 21 || cell->active_cell_index() == 12
 								|| cell->active_cell_index() == 10 || cell->active_cell_index() == 5)
 						) // For debug... */
-					for(unsigned int k=0;k<dim;k++){
-						for(unsigned int l=k;l<dim;l++){
-//							std::cout << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
-							if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
-									&& local_quadrature_points_history[q].to_be_updated == false
-									&& newtonstep_no > 0){
-								std::cout << "       "
-										<< " cell "<< cell->active_cell_index() << " QP " << q
-										<< " strain component " << k << l
-										<< " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
+					if (newtonstep_no > 0)
+						for(unsigned int k=0;k<dim;k++){
+							for(unsigned int l=k;l<dim;l++){
+//								std::cout << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
+								if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
+										&& local_quadrature_points_history[q].to_be_updated == false){
+									std::cout << "       "
+											<< " cell "<< cell->active_cell_index() << " QP " << q
+											<< " strain component " << k << l
+											<< " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
 
-								local_quadrature_points_history[q].to_be_updated = true;
-								local_quadrature_points_history[q].upd_strain = 0;
+									local_quadrature_points_history[q].to_be_updated = true;
+									local_quadrature_points_history[q].upd_strain = 0;
+								}
 							}
+//							if(k==dim-1) std::cout << "****" << std::endl;
 						}
-//						if(k==dim-1) std::cout << "****" << std::endl;
-					}
 
 					// Write strain and previous stiffness tensors in case the quadrature point needs to be updated
 					if (local_quadrature_points_history[q].to_be_updated){
@@ -2106,10 +2106,10 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		hcout << " Initiation of the Molecular Dynamics sample...       " << std::endl;
 
-//		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
 
 		if(this_lammps_process == 0){
-			double young = 3.0e9, poisson = 0.45;
+			/*double young = 3.0e9, poisson = 0.45;
 			double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 			for (unsigned int i=0; i<dim; ++i)
 				for (unsigned int j=0; j<dim; ++j)
@@ -2118,7 +2118,7 @@ namespace HMM
 							initial_stress_strain_tensor[i][j][k][l]
 																  = (((i==k) && (j==l) ? mu : 0.0) +
 																		  ((i==l) && (j==k) ? mu : 0.0) +
-																		  ((i==j) && (k==l) ? lambda : 0.0));
+																		  ((i==j) && (k==l) ? lambda : 0.0));*/
 
 			char filename[1024];
 			char storloc[1024] = "./macrostate_storage";

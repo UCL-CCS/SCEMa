@@ -305,9 +305,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 100"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 100"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 100"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 1000"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -317,19 +317,18 @@ namespace HMM
 		sprintf(cfile, "%s/%s", location, "ELASTIC/in.elastic.lammps");
 		lammps_file(lmp,cfile);
 
-		if (me == 0) std::cout << "... retrieving stress tensor       " << std::endl;
 		// Filling 3x3 stress tensor and conversion from ATM to Pa
+		// Useless at the moment, since it cannot be used in the Newton-Raphson algorithm.
+		// The MD evaluated stress is flucutating too much (few MPa), therefore prevents
+		// the iterative algorithm to converge...
 		for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
 			{
 				char vcoef[1024];
 				sprintf(vcoef, "pp%d%d", k+1, l+1);
 				stresses[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.01325e+05;
-				if (me == 0) std::cout << stresses[k][l] << std::endl;
-
 			}
 
-		if (me == 0) std::cout << "... retrieving stiffness tensor       " << std::endl;
 		// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
 		// by LAMMPS and conversion from GPa to Pa
 		for(unsigned int k=0;k<2*dim;k++)
@@ -599,7 +598,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 100; // number of timesteps
+			nts = 1000; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).
@@ -967,6 +966,8 @@ namespace HMM
 
 		double strain_perturbation = 0.005;
 
+		dcout << "        " << "...checking quadrature points requiring update..." << std::endl;
+
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1038,7 +1039,8 @@ namespace HMM
 							if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
 									&& local_quadrature_points_history[q].to_be_updated == false
 									&& newtonstep_no > 0){
-								std::cout << "Cell "<< cell->active_cell_index() << " QP " << q
+								std::cout << "       "
+										<< " cell "<< cell->active_cell_index() << " QP " << q
 										<< " strain component " << k << l
 										<< " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
 
@@ -1830,12 +1832,6 @@ namespace HMM
 
 		// To debug: Do not fill if the list of quadrature points is empty...
 		ifile.open (filenamelist);
-//		int nline = -1;
-//		do{
-//			nline++;
-//			quad_id[nline] = new char[1024];
-//		}
-//	    while (ifile.getline(quad_id[nline], sizeof(quad_id[nline])));
 		int nline = 0;
 		char ctmp[1024];
 		while (ifile.getline(ctmp, sizeof(ctmp))){
@@ -1843,7 +1839,6 @@ namespace HMM
 			quad_id[nline] = ctmp;
 			nline++;
 		}
-
 		ifile.close();
 
 		//hcout << "Number of quadrature points to update: " << nqupd << " - Number of lines read: " << nline << std::endl;
@@ -1851,7 +1846,7 @@ namespace HMM
 		// It might be worth doing the splitting of in batches of lammps processors here according to
 		// the number of quadrature points to update, because if the number of points is smaller than
 		// the number of batches predefined initially part of the lammps allocated processors remain idle...
-
+		hcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
 		for (int q=0; q<nqupd; ++q)
 		{
 			if (lammps_pcolor == (q%n_lammps_batch))
@@ -1871,7 +1866,8 @@ namespace HMM
 				// For debug...
 				int me;
 				MPI_Comm_rank(lammps_batch_communicator, &me);
-				std::cout << "nqptbu: " << q
+				std::cout << "        "
+						<< "nqptbu: " << q
 						<< " - cell - qp : " << quad_id[q]
 						<< " - proc_world_rank: " << this_lammps_process
 						<< " - lammps batch computed: " << (q%n_lammps_batch)
@@ -1952,7 +1948,7 @@ namespace HMM
 				hcout << "    Solving FE system..." << std::flush;
 				if(dealii_pcolor==0) fe_problem.solve_linear_problem ();
 
-				hcout << "    Updating quadrature point data..." << std::flush;
+				hcout << "    Updating quadrature point data..." << std::endl;
 
 				if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history
 						(fe_problem.newton_update, timestep_no, newtonstep_no);
@@ -1963,8 +1959,6 @@ namespace HMM
 
 				if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history
 						(fe_problem.newton_update, timestep_no, newtonstep_no);
-
-				hcout << std::endl;
 
 				if(dealii_pcolor==0) previous_res = fe_problem.compute_residual();
 				MPI_Barrier(world_communicator);
@@ -2069,7 +2063,7 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 2;
+		n_dealii_processes = 10;
 
 		dealii_pcolor = MPI_UNDEFINED;
 

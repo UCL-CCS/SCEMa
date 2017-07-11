@@ -806,6 +806,7 @@ namespace HMM
 
 		void make_grid ();
 		void setup_system ();
+		void restart_system ();
 		void set_boundary_values (const double present_time, const double present_timestep);
 		void assemble_system ();
 		void solve_linear_problem ();
@@ -1657,6 +1658,14 @@ namespace HMM
 			data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
 			//DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
 		}
+
+		// Write solution vector to binary for simulation restart
+		const std::string bin_solution_filename = (macrorepo + "solution-" +
+										Utilities::int_to_string(timestep_no,4) +
+										".bin");
+		std::ofstream ofile(bin_solution_filename);
+		solution.block_write(ofile);
+		ofile.close();
 	}
 
 
@@ -1688,7 +1697,7 @@ namespace HMM
 					if (cell->face(f)->center()[2] == 0.5)
 						cell->face(f)->set_boundary_id (32);
 				}
-		triangulation.refine_global (3);
+		triangulation.refine_global (2);
 
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
@@ -1749,6 +1758,23 @@ namespace HMM
 		dcout << ")" << std::endl;
 	}
 
+
+
+	template <int dim>
+	void FEProblem<dim>::restart_system ()
+	{
+		std::string macrorepo = "./macroscale_input/";
+		// Write solution vector to binary for simulation restart
+		const std::string bin_solution_filename = (macrorepo + "solution-last.bin");
+		std::ifstream ifile(bin_solution_filename);
+		if (ifile.is_open())
+		{
+			dcout << "    Loading solution vector from previous simulation... " << std::endl;
+			solution.block_read(ifile);
+			ifile.close();
+		}
+		else dcout << "    No solution vector from previous simulation to load... " << std::endl;
+	}
 
 
 
@@ -2147,12 +2173,14 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 1;
+		end_time = 2;
 		timestep_no = 0;
 
 		if(dealii_pcolor==0) fe_problem.make_grid ();
 
 		if(dealii_pcolor==0) fe_problem.setup_system ();
+
+		if(dealii_pcolor==0) fe_problem.restart_system ();
 
 		while (present_time < end_time)
 			do_timestep (fe_problem);

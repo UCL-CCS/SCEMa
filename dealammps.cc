@@ -1905,20 +1905,20 @@ namespace HMM
 				// microstructure and applying the complete new_strain or starting from
 				// the microstructure at the old_strain and applying the difference between
 				// the new_ and _old_strains, returns the new_stress state.
-				lammps_local_testing<dim> (loc_strain,
+				/*lammps_local_testing<dim> (loc_strain,
 						loc_stress,
 						loc_stiffness,
 						quad_id[q],
 						time_id,
 						prev_time_id,
-						lammps_batch_communicator);
+						lammps_batch_communicator);*/
 
 				// For debug...
-				/*for (unsigned int i=0; i<dim; ++i)
+				for (unsigned int i=0; i<dim; ++i)
 					for (unsigned int j=0; j<dim; ++j)
 						for (unsigned int k=0; k<dim; ++k)
 							for (unsigned int l=0; l<dim; ++l)
-								loc_stiffness[i][j][k][l] *= 0.95;*/
+								loc_stiffness[i][j][k][l] *= 0.90;
 
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -2054,7 +2054,7 @@ namespace HMM
 		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
 
 		// Arbitrary setting of NB and NT
-		n_lammps_processes_per_batch = 24;
+		n_lammps_processes_per_batch = 2;
 		n_lammps_batch = int(n_lammps_processes/n_lammps_processes_per_batch);
 		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_processes_per_batch=n_lammps_processes;}
 
@@ -2077,7 +2077,7 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 10;
+		n_dealii_processes = 2;
 
 		dealii_pcolor = MPI_UNDEFINED;
 
@@ -2120,10 +2120,10 @@ namespace HMM
 		// can directly be found in the MPI_COMM.
 		hcout << " Initiation of the Molecular Dynamics sample...       " << std::endl;
 
-		if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
+		//if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator);
 
 		if(this_lammps_process == 0){
-			/*double young = 3.0e9, poisson = 0.45;
+			double young = 3.0e9, poisson = 0.45;
 			double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 			for (unsigned int i=0; i<dim; ++i)
 				for (unsigned int j=0; j<dim; ++j)
@@ -2132,7 +2132,7 @@ namespace HMM
 							initial_stress_strain_tensor[i][j][k][l]
 																  = (((i==k) && (j==l) ? mu : 0.0) +
 																		  ((i==l) && (j==k) ? mu : 0.0) +
-																		  ((i==j) && (k==l) ? lambda : 0.0));*/
+																		  ((i==j) && (k==l) ? lambda : 0.0));
 
 			char filename[1024];
 			char storloc[1024] = "./macrostate_storage";
@@ -2147,7 +2147,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 100;
+		end_time = 1;
 		timestep_no = 0;
 
 		if(dealii_pcolor==0) fe_problem.make_grid ();

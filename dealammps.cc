@@ -305,9 +305,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 100"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 100"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 100"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 10000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 10000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 10000"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -586,7 +586,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 100; // number of timesteps
+			nts = 10000; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).
@@ -747,7 +747,7 @@ namespace HMM
 			const double present_timestep)
 			:
 			Function<dim> (dim),
-			velocity (.002),
+			velocity (-0.001),
 			present_time (present_time),
 			present_timestep (present_timestep)
 	{}
@@ -1171,6 +1171,13 @@ namespace HMM
 		FEValuesExtractors::Scalar h_component (dim-2);
 		FEValuesExtractors::Scalar v_component (dim-1);
 		std::map<types::global_dof_index,double> boundary_values;
+
+		VectorTools::
+		interpolate_boundary_values (dof_handler,
+				11,
+				ZeroFunction<dim>(dim),
+				boundary_values);
+
 		VectorTools::
 		interpolate_boundary_values (dof_handler,
 				12,
@@ -1179,11 +1186,11 @@ namespace HMM
 
 		VectorTools::
 		interpolate_boundary_values (dof_handler,
-				22,
+				12,
 				IncrementalBoundaryValues<dim>(present_time,
 						present_timestep),
-						boundary_values,
-						fe.component_mask(h_component));
+				boundary_values,
+				fe.component_mask(t_component));
 
 		for (std::map<types::global_dof_index, double>::const_iterator
 				p = boundary_values.begin();
@@ -1288,16 +1295,22 @@ namespace HMM
 
 		VectorTools::
 		interpolate_boundary_values (dof_handler,
+				11,
+				ZeroFunction<dim>(dim),
+				boundary_values);
+
+		VectorTools::
+		interpolate_boundary_values (dof_handler,
 				12,
 				ZeroFunction<dim>(dim),
 				boundary_values);
 
 		VectorTools::
 		interpolate_boundary_values (dof_handler,
-				22,
+				12,
 				ZeroFunction<dim>(dim),
 				boundary_values,
-				fe.component_mask(h_component));
+				fe.component_mask(t_component));
 
 		PETScWrappers::MPI::Vector tmp (locally_owned_dofs,FE_communicator);
 		MatrixTools::apply_boundary_values (boundary_values,
@@ -1693,7 +1706,7 @@ namespace HMM
 	{
 		std::vector< unsigned int > sizes (GeometryInfo<dim>::faces_per_cell);
 		sizes[0] = 0; sizes[1] = 1;
-		sizes[2] = 0; sizes[3] = 1;
+		sizes[2] = 0; sizes[3] = 0;
 		sizes[4] = 0; sizes[5] = 0;
 		GridGenerator::hyper_cross(triangulation, sizes);
 		for (typename Triangulation<dim>::active_cell_iterator cell = triangulation.begin_active();
@@ -1708,14 +1721,14 @@ namespace HMM
 						cell->face(f)->set_boundary_id (12);
 					if (cell->face(f)->center()[1] == -0.5)
 						cell->face(f)->set_boundary_id (21);
-					if (cell->face(f)->center()[1] == 1.5)
+					if (cell->face(f)->center()[1] == 0.5)
 						cell->face(f)->set_boundary_id (22);
 					if (cell->face(f)->center()[2] == -0.5)
 						cell->face(f)->set_boundary_id (31);
 					if (cell->face(f)->center()[2] == 0.5)
 						cell->face(f)->set_boundary_id (32);
 				}
-		triangulation.refine_global (1);
+		triangulation.refine_global (3);
 
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
@@ -1998,14 +2011,14 @@ namespace HMM
 						nanologloc);
 
 				// For debug...
-				sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, prev_time_id, quad_id[q]);
+				/*sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, prev_time_id, quad_id[q]);
 				read_tensor<dim>(filename, loc_stiffness);
 				// For debug...
 				for (unsigned int i=0; i<dim; ++i)
 					for (unsigned int j=0; j<dim; ++j)
 						for (unsigned int k=0; k<dim; ++k)
 							for (unsigned int l=0; l<dim; ++l)
-								loc_stiffness[i][j][k][l] *= 0.90;
+								loc_stiffness[i][j][k][l] *= 0.90;*/
 
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -2149,7 +2162,7 @@ namespace HMM
 					                                     nanostatelocin, nanostatelocout, nanologloc);
 
 			// For debug... using arbitrary stiffness tensor...
-			if(this_lammps_process == 0){
+			/*if(this_lammps_process == 0){
 				double young = 3.0e9, poisson = 0.45;
 				double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 				for (unsigned int i=0; i<dim; ++i)
@@ -2161,7 +2174,7 @@ namespace HMM
 																			  ((i==l) && (j==k) ? mu : 0.0) +
 																			  ((i==j) && (k==l) ? lambda : 0.0));
 			}
-			MPI_Barrier(world_communicator);
+			MPI_Barrier(world_communicator);*/
 
 
 			if(this_lammps_process == 0) write_tensor<dim>(macrofilenameout, initial_stress_strain_tensor);
@@ -2202,7 +2215,8 @@ namespace HMM
 		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
 
 		// Arbitrary setting of NB and NT
-		n_lammps_processes_per_batch = 2;
+		n_lammps_processes_per_batch = 24;
+
 		n_lammps_batch = int(n_lammps_processes/n_lammps_processes_per_batch);
 		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_processes_per_batch=n_lammps_processes;}
 
@@ -2225,7 +2239,7 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 2;
+		n_dealii_processes = 10;
 
 		dealii_pcolor = MPI_UNDEFINED;
 
@@ -2295,7 +2309,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 10;
+		end_time = 30;
 		timestep_no = 0;
 
 		hcout << " Initiation of the Mesh...       " << std::endl;

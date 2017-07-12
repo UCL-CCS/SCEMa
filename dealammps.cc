@@ -305,9 +305,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 100"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 100"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 100"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 10000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 10000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 10000"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -586,7 +586,7 @@ namespace HMM
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
 			dts = 2.0; // timestep length in fs
-			nts = 100; // number of timesteps
+			nts = 10000; // number of timesteps
 
 			// Set initial state of the testing box (either from initial end state
 			// or from previous testing end state).
@@ -1728,7 +1728,7 @@ namespace HMM
 					if (cell->face(f)->center()[2] == 0.5)
 						cell->face(f)->set_boundary_id (32);
 				}
-		triangulation.refine_global (2);
+		triangulation.refine_global (3);
 
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
@@ -1999,26 +1999,26 @@ namespace HMM
 				// microstructure and applying the complete new_strain or starting from
 				// the microstructure at the old_strain and applying the difference between
 				// the new_ and _old_strains, returns the new_stress state.
-//				lammps_local_testing<dim> (loc_strain,
-//						loc_stress,
-//						loc_stiffness,
-//						quad_id[q],
-//						time_id,
-//						prev_time_id,
-//						lammps_batch_communicator,
-//						nanostatelocin,
-//						nanostatelocout,
-//						nanologloc);
+				lammps_local_testing<dim> (loc_strain,
+						loc_stress,
+						loc_stiffness,
+						quad_id[q],
+						time_id,
+						prev_time_id,
+						lammps_batch_communicator,
+						nanostatelocin,
+						nanostatelocout,
+						nanologloc);
 
 				// For debug...
-				sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, prev_time_id, quad_id[q]);
+				/*sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, prev_time_id, quad_id[q]);
 				read_tensor<dim>(filename, loc_stiffness);
 				// For debug...
 				for (unsigned int i=0; i<dim; ++i)
 					for (unsigned int j=0; j<dim; ++j)
 						for (unsigned int k=0; k<dim; ++k)
 							for (unsigned int l=0; l<dim; ++l)
-								loc_stiffness[i][j][k][l] *= 0.90;
+								loc_stiffness[i][j][k][l] *= 0.90;*/
 
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -2158,11 +2158,11 @@ namespace HMM
 
 		if(!macrostate_exists || !nanostate_exists){
 			hcout << " ...from a molecular dynamics simulation       " << std::endl;
-//			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator,
-//					                                     nanostatelocin, nanostatelocout, nanologloc);
+			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator,
+					                                     nanostatelocin, nanostatelocout, nanologloc);
 
 			// For debug... using arbitrary stiffness tensor...
-			if(this_lammps_process == 0){
+			/*if(this_lammps_process == 0){
 				double young = 3.0e9, poisson = 0.45;
 				double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 				for (unsigned int i=0; i<dim; ++i)
@@ -2174,7 +2174,7 @@ namespace HMM
 																			  ((i==l) && (j==k) ? mu : 0.0) +
 																			  ((i==j) && (k==l) ? lambda : 0.0));
 			}
-			MPI_Barrier(world_communicator);
+			MPI_Barrier(world_communicator);*/
 
 
 			if(this_lammps_process == 0) write_tensor<dim>(macrofilenameout, initial_stress_strain_tensor);
@@ -2215,7 +2215,7 @@ namespace HMM
 		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
 
 		// Arbitrary setting of NB and NT
-		n_lammps_processes_per_batch = 2;
+		n_lammps_processes_per_batch = 24;
 
 		n_lammps_batch = int(n_lammps_processes/n_lammps_processes_per_batch);
 		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_processes_per_batch=n_lammps_processes;}
@@ -2239,7 +2239,7 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 2;
+		n_dealii_processes = 10;
 
 		dealii_pcolor = MPI_UNDEFINED;
 
@@ -2309,7 +2309,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 10;
+		end_time = 30;
 		timestep_no = 0;
 
 		hcout << " Initiation of the Mesh...       " << std::endl;

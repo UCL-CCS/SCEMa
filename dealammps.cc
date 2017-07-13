@@ -334,12 +334,12 @@ namespace HMM
 				tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
 
 				// In case problmes arise due to negative terms of stiffness tensor...
-				if(tmp[k][l] < 0.)
+				/*if(tmp[k][l] < 0.)
 				{
 					if (me == 0) std::cout << "Carefull... Negative stiffness coefficient " << k << l << " - " << tmp[k][l] << std::endl;
 					tmp[k][l] = -0.01*tmp[k][l];
 					if (me == 0) std::cout << "Carefull... Replacing with " << tmp[k][l] << std::endl;
-				}
+				}*/
 
 			}
 
@@ -474,9 +474,9 @@ namespace HMM
 				<< "Compute state using in.elastic.lammps...       " << std::endl;
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 100000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 100000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 100000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 10000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 10000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 10000"); lammps_command(lmp,cline);
 
 		// Compute tangent stiffness operator
 		SymmetricTensor<2,dim> stresses;

@@ -2184,23 +2184,23 @@ namespace HMM
 
 		if(!macrostate_exists || !nanostate_exists){
 			hcout << " ...from a molecular dynamics simulation       " << std::endl;
-			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator,
-					                                     nanostatelocin, nanostatelocout, nanologloc);
+//			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator,
+//					                                     nanostatelocin, nanostatelocout, nanologloc);
 
 			// For debug... using arbitrary stiffness tensor...
-			// if(this_lammps_process == 0){
-			// 	double young = 3.0e9, poisson = 0.45;
-			// 	double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
-			// 	for (unsigned int i=0; i<dim; ++i)
-			// 		for (unsigned int j=0; j<dim; ++j)
-			// 			for (unsigned int k=0; k<dim; ++k)
-			// 				for (unsigned int l=0; l<dim; ++l)
-			// 					initial_stress_strain_tensor[i][j][k][l]
-			// 														  = (((i==k) && (j==l) ? mu : 0.0) +
-			// 																  ((i==l) && (j==k) ? mu : 0.0) +
-			// 																  ((i==j) && (k==l) ? lambda : 0.0));
-			// }
-			// MPI_Barrier(world_communicator);
+			 if(this_lammps_process == 0){
+			 	double young = 3.0e9, poisson = 0.45;
+			 	double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
+			 	for (unsigned int i=0; i<dim; ++i)
+			 		for (unsigned int j=0; j<dim; ++j)
+			 			for (unsigned int k=0; k<dim; ++k)
+			 				for (unsigned int l=0; l<dim; ++l)
+			 					initial_stress_strain_tensor[i][j][k][l]
+			 														  = (((i==k) && (j==l) ? mu : 0.0) +
+			 																  ((i==l) && (j==k) ? mu : 0.0) +
+			 																  ((i==j) && (k==l) ? lambda : 0.0));
+			 }
+			 MPI_Barrier(world_communicator);
 
 			if(this_lammps_process == 0) write_tensor<dim>(macrofilenameout, initial_stress_strain_tensor);
 		}

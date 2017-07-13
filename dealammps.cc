@@ -1162,35 +1162,45 @@ namespace HMM
 	}
 
 
-
+	// Might want to restructure this function to avoid repetitions
+	// with boundary conditions correction performed at the end of the
+	// assemble_system() function
 	template <int dim>
 	void FEProblem<dim>::set_boundary_values
 	(const double present_time, const double present_timestep)
 	{
-		FEValuesExtractors::Scalar t_component (dim-3);
-		FEValuesExtractors::Scalar h_component (dim-2);
-		FEValuesExtractors::Scalar v_component (dim-1);
+		FEValuesExtractors::Scalar x_component (dim-3);
+		FEValuesExtractors::Scalar y_component (dim-2);
+		FEValuesExtractors::Scalar z_component (dim-1);
 		std::map<types::global_dof_index,double> boundary_values;
 
 		VectorTools::
 		interpolate_boundary_values (dof_handler,
 				11,
 				ZeroFunction<dim>(dim),
-				boundary_values);
-
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				12,
-				ZeroFunction<dim>(dim),
-				boundary_values);
-
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				12,
-				IncrementalBoundaryValues<dim>(present_time,
-						present_timestep),
 				boundary_values,
-				fe.component_mask(t_component));
+				fe.component_mask(x_component));
+
+		VectorTools::
+		interpolate_boundary_values (dof_handler,
+				21,
+				ZeroFunction<dim>(dim),
+				boundary_values,
+				fe.component_mask(y_component));
+
+		VectorTools::
+		interpolate_boundary_values (dof_handler,
+				31,
+				ZeroFunction<dim>(dim),
+				boundary_values,
+				fe.component_mask(z_component));
+
+		VectorTools::
+		interpolate_boundary_values (dof_handler,
+				12,
+				IncrementalBoundaryValues<dim>(present_time, present_timestep),
+				boundary_values,
+				fe.component_mask(x_component));
 
 		for (std::map<types::global_dof_index, double>::const_iterator
 				p = boundary_values.begin();
@@ -1288,29 +1298,38 @@ namespace HMM
 		system_matrix.compress(VectorOperation::add);
 		system_rhs.compress(VectorOperation::add);
 
-		FEValuesExtractors::Scalar t_component (dim-3);
-		FEValuesExtractors::Scalar h_component (dim-2);
-		FEValuesExtractors::Scalar v_component (dim-1);
+		FEValuesExtractors::Scalar x_component (dim-3);
+		FEValuesExtractors::Scalar y_component (dim-2);
+		FEValuesExtractors::Scalar z_component (dim-1);
 		std::map<types::global_dof_index,double> boundary_values;
 
 		VectorTools::
 		interpolate_boundary_values (dof_handler,
 				11,
 				ZeroFunction<dim>(dim),
-				boundary_values);
+				boundary_values,
+				fe.component_mask(x_component));
 
 		VectorTools::
 		interpolate_boundary_values (dof_handler,
-				12,
+				21,
 				ZeroFunction<dim>(dim),
-				boundary_values);
+				boundary_values,
+				fe.component_mask(y_component));
+
+		VectorTools::
+		interpolate_boundary_values (dof_handler,
+				31,
+				ZeroFunction<dim>(dim),
+				boundary_values,
+				fe.component_mask(z_component));
 
 		VectorTools::
 		interpolate_boundary_values (dof_handler,
 				12,
 				ZeroFunction<dim>(dim),
 				boundary_values,
-				fe.component_mask(t_component));
+				fe.component_mask(x_component));
 
 		PETScWrappers::MPI::Vector tmp (locally_owned_dofs,FE_communicator);
 		MatrixTools::apply_boundary_values (boundary_values,
@@ -1711,7 +1730,7 @@ namespace HMM
 		GridGenerator::hyper_cross(triangulation, sizes);
 		for (typename Triangulation<dim>::active_cell_iterator cell = triangulation.begin_active();
 				cell != triangulation.end();
-				++cell)
+				++cell){
 			for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
 				if (cell->face(f)->at_boundary())
 				{
@@ -1728,6 +1747,8 @@ namespace HMM
 					if (cell->face(f)->center()[2] == 0.5)
 						cell->face(f)->set_boundary_id (32);
 				}
+		}
+
 		triangulation.refine_global (3);
 
 		dcout << "    Number of active cells:       "
@@ -1999,26 +2020,26 @@ namespace HMM
 				// microstructure and applying the complete new_strain or starting from
 				// the microstructure at the old_strain and applying the difference between
 				// the new_ and _old_strains, returns the new_stress state.
-				lammps_local_testing<dim> (loc_strain,
-						loc_stress,
-						loc_stiffness,
-						quad_id[q],
-						time_id,
-						prev_time_id,
-						lammps_batch_communicator,
-						nanostatelocin,
-						nanostatelocout,
-						nanologloc);
+//				lammps_local_testing<dim> (loc_strain,
+//						loc_stress,
+//						loc_stiffness,
+//						quad_id[q],
+//						time_id,
+//						prev_time_id,
+//						lammps_batch_communicator,
+//						nanostatelocin,
+//						nanostatelocout,
+//						nanologloc);
 
 				// For debug...
-				/*sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, prev_time_id, quad_id[q]);
+				sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, prev_time_id, quad_id[q]);
 				read_tensor<dim>(filename, loc_stiffness);
 				// For debug...
 				for (unsigned int i=0; i<dim; ++i)
 					for (unsigned int j=0; j<dim; ++j)
 						for (unsigned int k=0; k<dim; ++k)
 							for (unsigned int l=0; l<dim; ++l)
-								loc_stiffness[i][j][k][l] *= 0.90;*/
+								loc_stiffness[i][j][k][l] *= 0.90;
 
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -2158,11 +2179,11 @@ namespace HMM
 
 		if(!macrostate_exists || !nanostate_exists){
 			hcout << " ...from a molecular dynamics simulation       " << std::endl;
-			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator,
-					                                     nanostatelocin, nanostatelocout, nanologloc);
+//			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator,
+//					                                     nanostatelocin, nanostatelocout, nanologloc);
 
 			// For debug... using arbitrary stiffness tensor...
-			/*if(this_lammps_process == 0){
+			if(this_lammps_process == 0){
 				double young = 3.0e9, poisson = 0.45;
 				double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
 				for (unsigned int i=0; i<dim; ++i)
@@ -2174,7 +2195,7 @@ namespace HMM
 																			  ((i==l) && (j==k) ? mu : 0.0) +
 																			  ((i==j) && (k==l) ? lambda : 0.0));
 			}
-			MPI_Barrier(world_communicator);*/
+			MPI_Barrier(world_communicator);
 
 
 			if(this_lammps_process == 0) write_tensor<dim>(macrofilenameout, initial_stress_strain_tensor);

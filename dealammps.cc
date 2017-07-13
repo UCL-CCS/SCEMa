@@ -333,8 +333,8 @@ namespace HMM
 				sprintf(vcoef, "C%d%dall", k+1, l+1);
 				tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
 
-				// In case problmes arise due to negative terms of stiffness tensor...
-				/*if(tmp[k][l] < 0.)
+				// In case problmes arise due to negative terms on diagonal of stiffness tensor...
+				/*if(tmp[k][l] < 0. && k==l)
 				{
 					if (me == 0) std::cout << "Carefull... Negative stiffness coefficient " << k << l << " - " << tmp[k][l] << std::endl;
 					tmp[k][l] = -0.01*tmp[k][l];

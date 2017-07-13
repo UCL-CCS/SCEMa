@@ -2179,8 +2179,8 @@ namespace HMM
 
 		if(!macrostate_exists || !nanostate_exists){
 			hcout << " ...from a molecular dynamics simulation       " << std::endl;
-//			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator,
-//					                                     nanostatelocin, nanostatelocout, nanologloc);
+			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator,
+					                                     nanostatelocin, nanostatelocout, nanologloc);
 
 			// For debug... using arbitrary stiffness tensor...
 			// if(this_lammps_process == 0){
@@ -2196,7 +2196,6 @@ namespace HMM
 			// 																  ((i==j) && (k==l) ? lambda : 0.0));
 			// }
 			// MPI_Barrier(world_communicator);
-
 
 			if(this_lammps_process == 0) write_tensor<dim>(macrofilenameout, initial_stress_strain_tensor);
 		}

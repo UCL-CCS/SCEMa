@@ -55,11 +55,7 @@
   
   ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
                              COMMAND rm
-                             ARGS -rf core output.* error.* log.* nanoscale_output/* macroscale_output/*
+                             ARGS -rf core output.* error.* log.* *_log *_state/out
     )
   
-  ADD_CUSTOM_TARGET(storeclean COMMENT "State storage clean"
-                             COMMAND rm
-                             ARGS -rf nanostate_storage/* macrostate_storage/*
-    )
 

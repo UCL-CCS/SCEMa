@@ -337,15 +337,6 @@ namespace HMM
 				char vcoef[1024];
 				sprintf(vcoef, "C%d%dall", k+1, l+1);
 				tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
-
-				// In case problmes arise due to negative terms on diagonal of stiffness tensor...
-				/*if(tmp[k][l] < 0. && k==l)
-				{
-					if (me == 0) std::cout << "Carefull... Negative stiffness coefficient " << k << l << " - " << tmp[k][l] << std::endl;
-					tmp[k][l] = -0.01*tmp[k][l];
-					if (me == 0) std::cout << "Carefull... Replacing with " << tmp[k][l] << std::endl;
-				}*/
-
 			}
 
 		// Write test... (on the data returned by lammps)
@@ -894,6 +885,34 @@ namespace HMM
 		char filename[1024];
 		sprintf(filename, "%s/init.stiff", macrostatelocout);
 		read_tensor<dim>(filename, stiffness_tensor);
+
+		if(this_FE_process==0){
+			  std::cout << " 00 " << stiffness_tensor[0][0][0][0] << " 01 " << stiffness_tensor[0][0][1][1] << " 02 " << stiffness_tensor[0][0][2][2] << " 03 " << stiffness_tensor[0][0][0][1] << " 04 " << stiffness_tensor[0][0][0][2] << " 05 " << stiffness_tensor[0][0][1][2] << std::endl;
+			  std::cout << " 10 " << stiffness_tensor[1][1][0][0] << " 11 " << stiffness_tensor[1][1][1][1] << " 12 " << stiffness_tensor[1][1][2][2] << " 13 " << stiffness_tensor[1][1][0][1] << " 14 " << stiffness_tensor[1][1][0][2] << " 15 " << stiffness_tensor[1][1][1][2] << std::endl;
+			  std::cout << " 20 " << stiffness_tensor[2][2][0][0] << " 21 " << stiffness_tensor[2][2][1][1] << " 22 " << stiffness_tensor[2][2][2][2] << " 23 " << stiffness_tensor[2][2][0][1] << " 24 " << stiffness_tensor[2][2][0][2] << " 25 " << stiffness_tensor[2][2][1][2] << std::endl;
+			  std::cout << " 30 " << stiffness_tensor[0][1][0][0] << " 31 " << stiffness_tensor[0][1][1][1] << " 32 " << stiffness_tensor[0][1][2][2] << " 33 " << stiffness_tensor[0][1][0][1] << " 34 " << stiffness_tensor[0][1][0][2] << " 35 " << stiffness_tensor[0][1][1][2] << std::endl;
+			  std::cout << " 40 " << stiffness_tensor[0][2][0][0] << " 41 " << stiffness_tensor[0][2][1][1] << " 42 " << stiffness_tensor[0][2][2][2] << " 43 " << stiffness_tensor[0][2][0][1] << " 44 " << stiffness_tensor[0][2][0][2] << " 45 " << stiffness_tensor[0][2][1][2] << std::endl;
+			  std::cout << " 50 " << stiffness_tensor[1][2][0][0] << " 51 " << stiffness_tensor[1][2][1][1] << " 52 " << stiffness_tensor[1][2][2][2] << " 53 " << stiffness_tensor[1][2][0][1] << " 54 " << stiffness_tensor[1][2][0][2] << " 55 " << stiffness_tensor[1][2][1][2] << std::endl;
+		}
+
+		// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+				for(unsigned int m=0;m<dim;m++)
+					for(unsigned int n=m;n<dim;n++)
+						if(!((k==l && m==n) || (k==m && l==n))){
+							stiffness_tensor[k][l][m][n] *= 0.0;
+						}
+						else if(stiffness_tensor[k][l][m][n]<0.0) stiffness_tensor[k][l][m][n] *= -1.0;
+
+		if(this_FE_process==0){
+			  std::cout << " 00 " << stiffness_tensor[0][0][0][0] << " 01 " << stiffness_tensor[0][0][1][1] << " 02 " << stiffness_tensor[0][0][2][2] << " 03 " << stiffness_tensor[0][0][0][1] << " 04 " << stiffness_tensor[0][0][0][2] << " 05 " << stiffness_tensor[0][0][1][2] << std::endl;
+			  std::cout << " 10 " << stiffness_tensor[1][1][0][0] << " 11 " << stiffness_tensor[1][1][1][1] << " 12 " << stiffness_tensor[1][1][2][2] << " 13 " << stiffness_tensor[1][1][0][1] << " 14 " << stiffness_tensor[1][1][0][2] << " 15 " << stiffness_tensor[1][1][1][2] << std::endl;
+			  std::cout << " 20 " << stiffness_tensor[2][2][0][0] << " 21 " << stiffness_tensor[2][2][1][1] << " 22 " << stiffness_tensor[2][2][2][2] << " 23 " << stiffness_tensor[2][2][0][1] << " 24 " << stiffness_tensor[2][2][0][2] << " 25 " << stiffness_tensor[2][2][1][2] << std::endl;
+			  std::cout << " 30 " << stiffness_tensor[0][1][0][0] << " 31 " << stiffness_tensor[0][1][1][1] << " 32 " << stiffness_tensor[0][1][2][2] << " 33 " << stiffness_tensor[0][1][0][1] << " 34 " << stiffness_tensor[0][1][0][2] << " 35 " << stiffness_tensor[0][1][1][2] << std::endl;
+			  std::cout << " 40 " << stiffness_tensor[0][2][0][0] << " 41 " << stiffness_tensor[0][2][1][1] << " 42 " << stiffness_tensor[0][2][2][2] << " 43 " << stiffness_tensor[0][2][0][1] << " 44 " << stiffness_tensor[0][2][0][2] << " 45 " << stiffness_tensor[0][2][1][2] << std::endl;
+			  std::cout << " 50 " << stiffness_tensor[1][2][0][0] << " 51 " << stiffness_tensor[1][2][1][1] << " 52 " << stiffness_tensor[1][2][2][2] << " 53 " << stiffness_tensor[1][2][0][1] << " 54 " << stiffness_tensor[1][2][0][2] << " 55 " << stiffness_tensor[1][2][1][2] << std::endl;
+		}
 
 		unsigned int history_index = 0;
 		for (typename Triangulation<dim>::active_cell_iterator

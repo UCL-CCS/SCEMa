@@ -355,18 +355,18 @@ namespace HMM
 		for(unsigned int i=0;i<2*dim;i++)
 		{
 			int k, l;
-			if     (i==(3+0)){k=1; l=2;}
+			if     (i==(3+0)){k=0; l=1;}
 			else if(i==(3+1)){k=0; l=2;}
-			else if(i==(3+2)){k=0; l=1;}
+			else if(i==(3+2)){k=1; l=2;}
 			else  /*(i<3)*/  {k=i; l=i;}
 
 
 			for(unsigned int j=0;j<2*dim;j++)
 			{
 				int m, n;
-				if     (j==(3+0)){m=1; n=2;}
+				if     (j==(3+0)){m=0; n=1;}
 				else if(j==(3+1)){m=0; n=2;}
-				else if(j==(3+2)){m=0; n=1;}
+				else if(j==(3+2)){m=1; n=2;}
 				else  /*(j<3)*/  {m=j; n=j;}
 
 				stiffnesses[k][l][m][n]=tmp[i][j];

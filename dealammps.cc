@@ -1723,7 +1723,7 @@ namespace HMM
 	void FEProblem<dim>::make_grid ()
 	{
 		std::vector< unsigned int > sizes (GeometryInfo<dim>::faces_per_cell);
-		sizes[0] = 0; sizes[1] = 1;
+		sizes[0] = 0; sizes[1] = 0;
 		sizes[2] = 0; sizes[3] = 0;
 		sizes[4] = 0; sizes[5] = 0;
 		GridGenerator::hyper_cross(triangulation, sizes);
@@ -1735,7 +1735,7 @@ namespace HMM
 				{
 					if (cell->face(f)->center()[0] == -0.5)
 						cell->face(f)->set_boundary_id (11);
-					if (cell->face(f)->center()[0] == 1.5)
+					if (cell->face(f)->center()[0] == 0.5)
 						cell->face(f)->set_boundary_id (12);
 					if (cell->face(f)->center()[1] == -0.5)
 						cell->face(f)->set_boundary_id (21);

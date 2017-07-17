@@ -337,15 +337,6 @@ namespace HMM
 				char vcoef[1024];
 				sprintf(vcoef, "C%d%dall", k+1, l+1);
 				tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
-
-				// In case problmes arise due to negative terms on diagonal of stiffness tensor...
-				/*if(tmp[k][l] < 0. && k==l)
-				{
-					if (me == 0) std::cout << "Carefull... Negative stiffness coefficient " << k << l << " - " << tmp[k][l] << std::endl;
-					tmp[k][l] = -0.01*tmp[k][l];
-					if (me == 0) std::cout << "Carefull... Replacing with " << tmp[k][l] << std::endl;
-				}*/
-
 			}
 
 		// Write test... (on the data returned by lammps)
@@ -355,18 +346,18 @@ namespace HMM
 		for(unsigned int i=0;i<2*dim;i++)
 		{
 			int k, l;
-			if     (i==(3+0)){k=1; l=2;}
+			if     (i==(3+0)){k=0; l=1;}
 			else if(i==(3+1)){k=0; l=2;}
-			else if(i==(3+2)){k=0; l=1;}
+			else if(i==(3+2)){k=1; l=2;}
 			else  /*(i<3)*/  {k=i; l=i;}
 
 
 			for(unsigned int j=0;j<2*dim;j++)
 			{
 				int m, n;
-				if     (j==(3+0)){m=1; n=2;}
+				if     (j==(3+0)){m=0; n=1;}
 				else if(j==(3+1)){m=0; n=2;}
-				else if(j==(3+2)){m=0; n=1;}
+				else if(j==(3+2)){m=1; n=2;}
 				else  /*(j<3)*/  {m=j; n=j;}
 
 				stiffnesses[k][l][m][n]=tmp[i][j];
@@ -797,7 +788,9 @@ namespace HMM
 		void restart_system ();
 		void set_boundary_values (const double present_time, const double present_timestep);
 		void assemble_system ();
-		void solve_linear_problem ();
+		void solve_linear_problem_CG ();
+		void solve_linear_problem_BiCGStab ();
+		void solve_linear_problem_direct ();
 		void error_estimation ();
 		double determine_step_length () const;
 		void move_mesh ();
@@ -894,6 +887,34 @@ namespace HMM
 		char filename[1024];
 		sprintf(filename, "%s/init.stiff", macrostatelocout);
 		read_tensor<dim>(filename, stiffness_tensor);
+
+		if(this_FE_process==0){
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
+		}
+
+		// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+				for(unsigned int m=0;m<dim;m++)
+					for(unsigned int n=m;n<dim;n++)
+						if(!((k==l && m==n) || (k==m && l==n))){
+							stiffness_tensor[k][l][m][n] *= 0.0;
+						}
+						else if(stiffness_tensor[k][l][m][n]<0.0) stiffness_tensor[k][l][m][n] *= +1.0; // correction -> -1.0
+
+		if(this_FE_process==0){
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
+			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
+		}
 
 		unsigned int history_index = 0;
 		for (typename Triangulation<dim>::active_cell_iterator
@@ -1021,10 +1042,10 @@ namespace HMM
 							std::cout << std::endl;
 						}*/
 
-					/*if (//false
-						(cell->active_cell_index() == 21 || cell->active_cell_index() == 12
+					/*if ((cell->active_cell_index() == 21 || cell->active_cell_index() == 12
 								|| cell->active_cell_index() == 10 || cell->active_cell_index() == 5)
 						) // For debug... */
+					//if (false)
 					if (newtonstep_no > 0)
 						for(unsigned int k=0;k<dim;k++){
 							for(unsigned int l=k;l<dim;l++){
@@ -1347,14 +1368,15 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::solve_linear_problem ()
+	void FEProblem<dim>::solve_linear_problem_CG ()
 	{
 		PETScWrappers::MPI::Vector
 		distributed_newton_update (locally_owned_dofs,FE_communicator);
 		distributed_newton_update = newton_update;
 
-		SolverControl       solver_control (1000,
+		SolverControl       solver_control (dof_handler.n_dofs(),
 				1e-16*system_rhs.l2_norm());
+
 		PETScWrappers::SolverCG cg (solver_control,
 				FE_communicator);
 
@@ -1363,6 +1385,74 @@ namespace HMM
 		PETScWrappers::PreconditionBlockJacobi preconditioner(system_matrix);
 		cg.solve (system_matrix, distributed_newton_update, system_rhs,
 				preconditioner);
+
+		newton_update = distributed_newton_update;
+		hanging_node_constraints.distribute (newton_update);
+
+		const double alpha = determine_step_length();
+		incremental_displacement.add (alpha, newton_update);
+
+		dcout << "    FE Solver - norm of newton update is " << newton_update.l2_norm()
+							  << std::endl;
+		dcout << "    FE Solver converged in " << solver_control.last_step()
+				<< " iterations." << std::endl;
+	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::solve_linear_problem_BiCGStab ()
+	{
+		PETScWrappers::MPI::Vector
+		distributed_newton_update (locally_owned_dofs,FE_communicator);
+		distributed_newton_update = newton_update;
+
+		PETScWrappers::PreconditionBoomerAMG preconditioner;
+		  {
+		    PETScWrappers::PreconditionBoomerAMG::AdditionalData additional_data;
+		    additional_data.symmetric_operator = true;
+
+		    preconditioner.initialize(system_matrix, additional_data);
+		  }
+
+		SolverControl       solver_control (dof_handler.n_dofs()*1000,
+				1e-16*system_rhs.l2_norm());
+
+		PETScWrappers::SolverBicgstab bicgs (solver_control,
+				FE_communicator);
+
+		bicgs.solve (system_matrix, distributed_newton_update, system_rhs,
+				preconditioner);
+
+		newton_update = distributed_newton_update;
+		hanging_node_constraints.distribute (newton_update);
+
+		const double alpha = determine_step_length();
+		incremental_displacement.add (alpha, newton_update);
+
+		dcout << "    FE Solver - norm of newton update is " << newton_update.l2_norm()
+							  << std::endl;
+		dcout << "    FE Solver converged in " << solver_control.last_step()
+				<< " iterations." << std::endl;
+	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::solve_linear_problem_direct ()
+	{
+		PETScWrappers::MPI::Vector
+		distributed_newton_update (locally_owned_dofs,FE_communicator);
+		distributed_newton_update = newton_update;
+
+		SolverControl       solver_control;
+
+		PETScWrappers::SparseDirectMUMPS solver (solver_control,
+				FE_communicator);
+
+		solver.set_symmetric_mode(false);
+
+		solver.solve (system_matrix, distributed_newton_update, system_rhs);
 
 		newton_update = distributed_newton_update;
 		hanging_node_constraints.distribute (newton_update);
@@ -2030,15 +2120,15 @@ namespace HMM
 						nanostatelocout,
 						nanologloc);
 
-				// // For debug...
-				// sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, prev_time_id, quad_id[q]);
-				// read_tensor<dim>(filename, loc_stiffness);
-				// // For debug...
-				// for (unsigned int i=0; i<dim; ++i)
-				// 	for (unsigned int j=0; j<dim; ++j)
-				// 		for (unsigned int k=0; k<dim; ++k)
-				// 			for (unsigned int l=0; l<dim; ++l)
-				// 				loc_stiffness[i][j][k][l] *= 0.90;
+				 // For debug...
+//				 sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, prev_time_id, quad_id[q]);
+//				 read_tensor<dim>(filename, loc_stiffness);
+//				 // For debug...
+//				 for (unsigned int i=0; i<dim; ++i)
+//				 	for (unsigned int j=0; j<dim; ++j)
+//				 		for (unsigned int k=0; k<dim; ++k)
+//				 			for (unsigned int l=0; l<dim; ++l)
+//				 				loc_stiffness[i][j][k][l] *= 0.99;
 
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
@@ -2080,7 +2170,7 @@ namespace HMM
 				if(dealii_pcolor==0) fe_problem.assemble_system ();
 
 				hcout << "    Solving FE system..." << std::flush;
-				if(dealii_pcolor==0) fe_problem.solve_linear_problem ();
+				if(dealii_pcolor==0) fe_problem.solve_linear_problem_direct();
 
 				hcout << "    Updating quadrature point data..." << std::endl;
 

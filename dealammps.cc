@@ -1045,7 +1045,7 @@ namespace HMM
 					/*if ((cell->active_cell_index() == 21 || cell->active_cell_index() == 12
 								|| cell->active_cell_index() == 10 || cell->active_cell_index() == 5)
 						) // For debug... */
-					//if (false)
+					if (false)
 					if (newtonstep_no > 0)
 						for(unsigned int k=0;k<dim;k++){
 							for(unsigned int l=k;l<dim;l++){
@@ -1915,7 +1915,7 @@ namespace HMM
 		}
 		else dcout << "       ...to zero " << std::endl;
 
-		/*dcout << "  Initialization of the local stress tensors... " << std::endl;
+		/*dcout << "    initialization of the local history tensors... " << std::endl;
 		for (typename DoFHandler<dim>::active_cell_iterator
 					cell = dof_handler.begin_active();
 					cell != dof_handler.end(); ++cell)
@@ -1934,13 +1934,24 @@ namespace HMM
 					{
 						char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
 
-						// Write stress tensor to human readable format file for simulation restart
+						// Read stress tensor to human readable format file for simulation restart
 						sprintf(filename, "%s/last.%s.stress", macrostatelocin, quad_id);
 
 						ifile.open (filename);
 						if (ifile.is_open())
 						{
+							dcout << "       ...stress: " << quad_id << std::endl;
 							read_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);
+						}
+
+						// Read stiffness tensor to human readable format file for simulation restart
+						sprintf(filename, "%s/last.%s.stiff", macrostatelocin, quad_id);
+
+						ifile.open (filename);
+						if (ifile.is_open())
+						{
+							dcout << "       ...stiffness: " << quad_id << std::endl;
+							read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);
 						}
 					}
 				}*/
@@ -2144,6 +2155,8 @@ namespace HMM
 
 					sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, time_id, quad_id[q]);
 					write_tensor<dim>(filename, loc_stiffness);
+//					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id[q]);
+//					write_tensor<dim>(filename, loc_stiffness);
 				}
 			}
 		}

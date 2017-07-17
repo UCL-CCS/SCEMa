@@ -31,8 +31,8 @@ CMakeLists.txt
 *.out
 *.app
 
-# Build repository
-build/
+# Build repositories
+build*/
 Debug/
 
 # Deal reference tutorials

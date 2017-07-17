@@ -30,6 +30,7 @@ INCLUDE_DIRECTORIES(
 
 ## Include LAMMPS library shared (or static)
 SET(CMAKE_CXX_FLAGS "-dynamic /work/e283/e283/vassaux/lib/liblammps.so")
+SET(CMAKE_CXX_FLAGS_DEBUG "-g -L/fs2/e283/e283/vassaux/lib/map-libraries -lmap-sampler-pmpi -lmap-sampler -Wl,--eh-frame-hdr")
 #SET(CMAKE_CXX_FLAGS "/work/e283/e283/vassaux/lib/liblammps.a")
 
 ## Create additional targets to the standard DEAL.II targets

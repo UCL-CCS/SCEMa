@@ -898,14 +898,14 @@ namespace HMM
 		}
 
 		// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
-		for(unsigned int k=0;k<dim;k++)
+		/*for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
 				for(unsigned int m=0;m<dim;m++)
 					for(unsigned int n=m;n<dim;n++)
 						if(!((k==l && m==n) || (k==m && l==n))){
 							stiffness_tensor[k][l][m][n] *= 0.0;
 						}
-						else if(stiffness_tensor[k][l][m][n]<0.0) stiffness_tensor[k][l][m][n] *= +1.0; // correction -> -1.0
+						else if(stiffness_tensor[k][l][m][n]<0.0) stiffness_tensor[k][l][m][n] *= +1.0; // correction -> -1.0 *
 
 		if(this_FE_process==0){
 			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
@@ -914,7 +914,7 @@ namespace HMM
 			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
 			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
 			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
-		}
+		} */
 
 		unsigned int history_index = 0;
 		for (typename Triangulation<dim>::active_cell_iterator
@@ -1045,7 +1045,7 @@ namespace HMM
 					/*if ((cell->active_cell_index() == 21 || cell->active_cell_index() == 12
 								|| cell->active_cell_index() == 10 || cell->active_cell_index() == 5)
 						) // For debug... */
-					if (false)
+					//if (false)
 					if (newtonstep_no > 0)
 						for(unsigned int k=0;k<dim;k++){
 							for(unsigned int l=k;l<dim;l++){
@@ -2183,7 +2183,7 @@ namespace HMM
 				if(dealii_pcolor==0) fe_problem.assemble_system ();
 
 				hcout << "    Solving FE system..." << std::flush;
-				if(dealii_pcolor==0) fe_problem.solve_linear_problem_direct();
+				if(dealii_pcolor==0) fe_problem.solve_linear_problem_CG();
 
 				hcout << "    Updating quadrature point data..." << std::endl;
 
@@ -2337,7 +2337,7 @@ namespace HMM
 		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
 
 		// Arbitrary setting of NB and NT
-		n_lammps_processes_per_batch = 24;
+		n_lammps_processes_per_batch = 96;
 
 		n_lammps_batch = int(n_lammps_processes/n_lammps_processes_per_batch);
 		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_processes_per_batch=n_lammps_processes;}

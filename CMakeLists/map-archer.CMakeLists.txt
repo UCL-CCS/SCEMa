@@ -1,64 +1,59 @@
-SET(TARGET "dealammps")
-
-SET(TARGET_SRC
-  ${TARGET}.cc
-  )
-
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
-
-FIND_PACKAGE(deal.II 8.4 QUIET
-  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
-  )
-IF(NOT ${deal.II_FOUND})
-  MESSAGE(FATAL_ERROR "\n"
-    "*** Could not locate a (sufficiently recent) version of deal.II. ***\n\n"
-    "You may want to either pass a flag -DDEAL_II_DIR=/path/to/deal.II to cmake\n"
-    "or set an environment variable \"DEAL_II_DIR\" that contains this path."
+  SET(TARGET "dealammps")
+  
+  SET(TARGET_SRC
+    ${TARGET}.cc
     )
-ENDIF()
-
-DEAL_II_INITIALIZE_CACHED_VARIABLES()
-
-PROJECT(${TARGET})
-
-DEAL_II_INVOKE_AUTOPILOT()
-
-## Include LAMMPS sources repository
-INCLUDE_DIRECTORIES(
-  /usr/local/packages/lammps/lammps-17Nov16/lammps-17Nov16/src/
-  )
-
-## Include LAMMPS library shared (or static)
-SET(CMAKE_CXX_FLAGS "-dynamic /work/e283/e283/vassaux/lib/liblammps.so")
-SET(CMAKE_CXX_FLAGS_DEBUG "-g -L/fs2/e283/e283/vassaux/lib/map-libraries -lmap-sampler-pmpi -lmap-sampler -Wl,--eh-frame-hdr")
-#SET(CMAKE_CXX_FLAGS "/work/e283/e283/vassaux/lib/liblammps.a")
-
-## Create additional targets to the standard DEAL.II targets
-## Use "aprun" as follow: e.g "make aprun NTHR=24"
-ADD_CUSTOM_TARGET(aprun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
-                      DEPENDS ${TARGET}
-                      COMMAND @echo "... APRUN on $(NTHR) threads ..."
-                      COMMAND aprun -n $(NTHR) ${TARGET}
-  )
-
-ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
-                             DEPENDS buildclean
+  
+  CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
+  
+  FIND_PACKAGE(deal.II 8.4 QUIET
+    HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
+    )
+  IF(NOT ${deal.II_FOUND})
+    MESSAGE(FATAL_ERROR "\n"
+      "*** Could not locate a (sufficiently recent) version of deal.II. ***\n\n"
+      "You may want to either pass a flag -DDEAL_II_DIR=/path/to/deal.II to cmake\n"
+      "or set an environment variable \"DEAL_II_DIR\" that contains this path."
+      )
+  ENDIF()
+  
+  DEAL_II_INITIALIZE_CACHED_VARIABLES()
+  
+  PROJECT(${TARGET})
+  
+  DEAL_II_INVOKE_AUTOPILOT()
+  
+  ## Include LAMMPS sources repository
+  INCLUDE_DIRECTORIES(
+    /usr/local/packages/lammps/lammps-17Nov16/lammps-17Nov16/src/
+    )
+  
+  ## Include LAMMPS library shared (or static)
+  SET(CMAKE_CXX_FLAGS "-dynamic /work/e283/e283/vassaux/lib/liblammps.so") 
+  SET(CMAKE_CXX_FLAGS_DEBUG "-g -L/fs2/e283/e283/vassaux/lib/map-libraries -lmap-sampler-pmpi -lmap-sampler -Wl,--eh-frame-hdr")
+  #SET(CMAKE_CXX_FLAGS "/work/e283/e283/vassaux/lib/liblammps.a")
+  
+  ## Create additional targets to the standard DEAL.II targets
+  ## Use "aprun" as follow: e.g "make aprun NTHR=24"
+  ADD_CUSTOM_TARGET(aprun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
+                        DEPENDS ${TARGET}
+                        COMMAND @echo "... APRUN on $(NTHR) threads ..."
+                        COMMAND aprun -n $(NTHR) ${TARGET}
+    )
+  
+  ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
+                               DEPENDS buildclean
+                               COMMAND rm
+                               ARGS -rf CMakeFiles cmake_install.cmake CMakeCache.txt Makefile
+    )
+  
+  ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
+                               DEPENDS outclean
+                               COMMAND rm
+                               ARGS -rf ${TARGET}
+    )
+  
+  ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
                              COMMAND rm
-                             ARGS -rf CMakeFiles cmake_install.cmake CMakeCache.txt Makefile
-  )
-
-ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
-                             DEPENDS outclean
-                             COMMAND rm
-                             ARGS -rf ${TARGET}
-  )
-
-ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
-                           COMMAND rm
-                           ARGS -rf core output.* error.* log.* nanoscale_output/* macroscale_output/*
-  )
-
-ADD_CUSTOM_TARGET(storeclean COMMENT "State storage clean"
-                           COMMAND rm
-                           ARGS -rf nanostate_storage/* macrostate_storage/*
-  )
+                             ARGS -rf core output.* error.* log.* *_log *_state/out
+    )

@@ -291,7 +291,7 @@ namespace HMM
 	// Computes the stress tensor and the complete tanget elastic stiffness tensor
 	template <int dim>
 	void
-	lammps_state (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses)
+	lammps_state (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, int flinit)
 	{
 		int me;
 		MPI_Comm_rank(MPI_COMM_WORLD, &me);
@@ -305,12 +305,15 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 10000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 10000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 10000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 100"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 100"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 100"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
+
+		// Set flag to define if stiffness is computed from initial or current stresses
+		sprintf(cline, "variable flinit equal %d", flinit); lammps_command(lmp,cline);
 
 		// Using a routine based on the example ELASTIC/ to compute the stress and the
 		// stiffness tensors
@@ -471,8 +474,7 @@ namespace HMM
 				<< "Compute state using in.elastic.lammps...       " << std::endl;
 
 		// Compute tangent stiffness operator
-		sprintf(cline, "variable init equal %d", 1); lammps_command(lmp,cline);
-		lammps_state<dim>(lmp, location, stress, stiffness);
+		lammps_state<dim>(lmp, location, stress, stiffness, 0);
 
 		// close down LAMMPS
 		delete lmp;
@@ -639,15 +641,16 @@ namespace HMM
 		if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
 				<< "Compute state using in.elastic.lammps...       " << std::endl;
 
-		// Compute the Tangent Stiffness Tensor at the given stress/strain state
-		sprintf(cline, "variable init equal %d", 0); lammps_command(lmp,cline);
+		// Loading initial state stresses used to compute stiffness
 		for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
 			{
 				sprintf(cline, "variable isig_%d%d equal %.6e", k, l, init_stress[k][l]/1.01325e+05);
 				lammps_command(lmp,cline);
 			}
-		lammps_state<dim>(lmp, location, stress, stiffness);
+
+		// Compute the Tangent Stiffness Tensor at the given stress/strain state
+		lammps_state<dim>(lmp, location, stress, stiffness, 1);
 
 		// close down LAMMPS
 		delete lmp;
@@ -898,32 +901,34 @@ namespace HMM
 		read_tensor<dim>(filename, stiffness_tensor);
 
 		if(this_FE_process==0){
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
+			std::cout << "Imported initial stiffness..." << std::endl;
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
 		}
 
 		// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
-		/*for(unsigned int k=0;k<dim;k++)
+		for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
 				for(unsigned int m=0;m<dim;m++)
 					for(unsigned int n=m;n<dim;n++)
 						if(!((k==l && m==n) || (k==m && l==n))){
 							stiffness_tensor[k][l][m][n] *= 0.0;
 						}
-						else if(stiffness_tensor[k][l][m][n]<0.0) stiffness_tensor[k][l][m][n] *= +1.0; // correction -> -1.0 *
+						else if(stiffness_tensor[k][l][m][n]<0.0) stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
 
 		if(this_FE_process==0){
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
-			  printf("%+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
-		} */
+			std::cout << "Corrected initial stiffness..." << std::endl;
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
+			printf("   %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
+		}
 
 		unsigned int history_index = 0;
 		for (typename Triangulation<dim>::active_cell_iterator
@@ -1051,10 +1056,8 @@ namespace HMM
 							std::cout << std::endl;
 						}*/
 
-					/*if ((cell->active_cell_index() == 21 || cell->active_cell_index() == 12
-								|| cell->active_cell_index() == 10 || cell->active_cell_index() == 5)
-						) // For debug... */
-					//if (false)
+					if ((cell->active_cell_index() == 6)) // For debug...
+					//if (false) // For debug...
 					if (newtonstep_no > 0)
 						for(unsigned int k=0;k<dim;k++){
 							for(unsigned int l=k;l<dim;l++){
@@ -2089,6 +2092,8 @@ namespace HMM
 			if (lammps_pcolor == (q%n_lammps_batch))
 			{
 				SymmetricTensor<2,dim> loc_strain;
+				SymmetricTensor<2,dim> init_stress, loc_stress;
+				SymmetricTensor<4,dim> loc_stiffness;
 
 				// Restore the strain tensor from the file ./macrostate_storage/time.it-cellid.qid.strain
 				//				char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
@@ -2097,11 +2102,8 @@ namespace HMM
 				sprintf(filename, "%s/%s.%s.strain", macrostatelocout, time_id, quad_id[q]);
 				read_tensor<dim>(filename, loc_strain);
 
-				SymmetricTensor<2,dim> init_stress, loc_stress;
-				SymmetricTensor<4,dim> loc_stiffness;
-
-				sprintf(filename, "init.stress", macrostatelocout);
-				read_tensor<dim>(filename, loc_strain);
+				sprintf(filename, "%s/init.stress", macrostatelocout);
+				read_tensor<dim>(filename, init_stress);
 
 				// For debug...
 				int me;
@@ -2291,7 +2293,7 @@ namespace HMM
 		sprintf(macrofilenameinstress, "%s/init.stress", macrostatelocin);
 		char macrofilenameoutstress[1024];
 		sprintf(macrofilenameoutstress, "%s/init.stress", macrostatelocout);
-		bool macrostate_exists = file_exists(macrofilenamein);
+		bool macrostatestress_exists = file_exists(macrofilenameinstress);
 
 		char nanofilenamein[1024];
 		sprintf(nanofilenamein, "%s/PE_init_end.bin", nanostatelocin);
@@ -2299,7 +2301,7 @@ namespace HMM
 		sprintf(nanofilenameout, "%s/PE_init_end.bin", nanostatelocout);
 		bool nanostate_exists = file_exists(nanofilenamein);
 
-		if(!macrostate_exists || !nanostate_exists){
+		if(!(macrostate_exists && macrostatestress_exists) || !nanostate_exists){
 			hcout << " ...from a molecular dynamics simulation       " << std::endl;
 			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, lammps_global_communicator,
 					                                     nanostatelocin, nanostatelocout, nanologloc);
@@ -2334,11 +2336,11 @@ namespace HMM
 			    macroin.close();
 			    macroout.close();
 
-			    std::ifstream  macroin(macrofilenameinstress, std::ios::binary);
-			    std::ofstream  macroout(macrofilenameoutstress,   std::ios::binary);
-			    macroout << macroin.rdbuf();
-			    macroin.close();
-			    macroout.close();
+			    std::ifstream  macrostressin(macrofilenameinstress, std::ios::binary);
+			    std::ofstream  macrostressout(macrofilenameoutstress,   std::ios::binary);
+			    macrostressout << macrostressin.rdbuf();
+			    macrostressin.close();
+			    macrostressout.close();
 
 			    std::ifstream  nanoin(nanofilenamein, std::ios::binary);
 			    std::ofstream  nanoout(nanofilenameout,   std::ios::binary);
@@ -2467,7 +2469,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 30;
+		end_time = 10;
 		timestep_no = 0;
 
 		hcout << " Initiation of the Mesh...       " << std::endl;

@@ -57,5 +57,3 @@
                              COMMAND rm
                              ARGS -rf core output.* error.* log.* *_log *_state/out
     )
-  
-

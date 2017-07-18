@@ -2348,6 +2348,12 @@ namespace HMM
 		// the last ones (me >= NB*NC) to create batches of only NB processes, nor smaller.
 		if(this_lammps_process < n_lammps_processes_per_batch*n_lammps_batch)
 			lammps_pcolor = int(this_lammps_process/n_lammps_processes_per_batch);
+		// Initially we used MPI_UNDEFINED, but why waste processes... The processes over
+		// 'n_lammps_processes_per_batch*n_lammps_batch' are assigned to the last batch...
+		else
+			lammps_pcolor = int((n_lammps_processes_per_batch*n_lammps_batch-1)/n_lammps_processes_per_batch);
+
+
 
 		// Definition of the communicators
 		MPI_Comm_split(lammps_global_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);

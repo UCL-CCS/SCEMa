@@ -376,7 +376,8 @@ namespace HMM
 	// task at the time it will be called.
 	template <int dim>
 	void
-	lammps_initiation (SymmetricTensor<4,dim>& initial_stress_strain_tensor,
+	lammps_initiation (SymmetricTensor<2,dim>& stress,
+					   SymmetricTensor<4,dim>& stiffness,
 					   MPI_Comm comm_lammps,
 					   char* statelocin,
 					   char* statelocout,
@@ -470,8 +471,8 @@ namespace HMM
 				<< "Compute state using in.elastic.lammps...       " << std::endl;
 
 		// Compute tangent stiffness operator
-		SymmetricTensor<2,dim> stresses;
-		lammps_state<dim>(lmp, location, stresses, initial_stress_strain_tensor);
+		sprintf(cline, "variable init equal %d", 1); lammps_command(lmp,cline);
+		lammps_state<dim>(lmp, location, stress, stiffness);
 
 		// close down LAMMPS
 		delete lmp;
@@ -484,12 +485,12 @@ namespace HMM
 	// parallelized on the N processes.
 	template <int dim>
 	void
-	lammps_local_testing (const SymmetricTensor<2,dim>& strains,
-			SymmetricTensor<2,dim>& stresses,
-			SymmetricTensor<4,dim>& stress_strain_tensor,
+	lammps_local_testing (const SymmetricTensor<2,dim>& strain,
+			SymmetricTensor<2,dim>& init_stress,
+			SymmetricTensor<2,dim>& stress,
+			SymmetricTensor<4,dim>& stiffness,
 			char* qptid,
 			char* timeid,
-			char* prev_timeid,
 			MPI_Comm comm_lammps,
 			char* statelocin,
 			char* statelocout,
@@ -520,7 +521,7 @@ namespace HMM
 		char straindata[1024];
 		sprintf(straindata, "%s.%s.%s", timeid, qptid, strainstate);
 		char straindata_old[1024];
-		sprintf(straindata_old, "%s.%s.%s", prev_timeid, qptid, strainstate);
+		sprintf(straindata_old, "last.%s.%s", qptid, strainstate);
 
 		char cline[1024];
 		char cfile[1024];
@@ -572,7 +573,7 @@ namespace HMM
 			if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
 					<< "Compute current state data...       " << std::endl;
 			// Compute from the initial state (true) or the previous state (false)
-			bool compute_finit = true;
+			bool compute_finit = false;
 			// v_sound in PE is 2000m/s, since l0 = 4nm, with dts = 2.0fs, the condition
 			// is nts > 1000 * strain so that v_load < v_sound...
 			// Declaration of run parameters
@@ -606,7 +607,7 @@ namespace HMM
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
 				{
-					sprintf(cline, "variable eeps_%d%d equal %.6e", k, l, strains[k][l]/(nts*dts));
+					sprintf(cline, "variable eeps_%d%d equal %.6e", k, l, strain[k][l]/(nts*dts));
 					lammps_command(lmp,cline);
 				}
 
@@ -631,14 +632,22 @@ namespace HMM
 
 		if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
 				<< "Saving state data...       " << std::endl;
-		// Save data to specific file for this quadrature point
+		// Save data to specific file for this quadrature point and into last updated state file
 		sprintf(cline, "write_restart %s/%s", statelocout, straindata); lammps_command(lmp,cline);
+		sprintf(cline, "write_restart %s/%s", statelocout, straindata_old); lammps_command(lmp,cline);
 
 		if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
 				<< "Compute state using in.elastic.lammps...       " << std::endl;
 
 		// Compute the Tangent Stiffness Tensor at the given stress/strain state
-		lammps_state<dim>(lmp, location, stresses, stress_strain_tensor);
+		sprintf(cline, "variable init equal %d", 0); lammps_command(lmp,cline);
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+			{
+				sprintf(cline, "variable isig_%d%d equal %.6e", k, l, init_stress[k][l]/1.01325e+05);
+				lammps_command(lmp,cline);
+			}
+		lammps_state<dim>(lmp, location, stress, stiffness);
 
 		// close down LAMMPS
 		delete lmp;
@@ -1058,7 +1067,6 @@ namespace HMM
 											<< " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
 
 									local_quadrature_points_history[q].to_be_updated = true;
-									local_quadrature_points_history[q].upd_strain = 0;
 								}
 							}
 //							if(k==dim-1) std::cout << "****" << std::endl;
@@ -1071,7 +1079,9 @@ namespace HMM
 						char filename[1024];
 
 						sprintf(filename, "%s/%s.%s.strain", macrostatelocout, time_id, quad_id);
-						write_tensor<dim>(filename, local_quadrature_points_history[q].new_strain);
+						write_tensor<dim>(filename, local_quadrature_points_history[q].upd_strain);
+
+						local_quadrature_points_history[q].upd_strain = 0;
 
 						// For debug...
 						char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
@@ -2007,8 +2017,6 @@ namespace HMM
 		int        							timestep_no;
 		int        							newtonstep_no;
 
-		SymmetricTensor<4,dim> 				initial_stress_strain_tensor;
-
 		char                                macrostateloc[1024];
 		char                                macrostatelocin[1024];
 		char                                macrostatelocout[1024];
@@ -2044,7 +2052,7 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::update_stiffness_with_molecular_dynamics()
 	{
-		char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
+		//char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
 		// Check list of files corresponding to current "time_id"
@@ -2089,8 +2097,11 @@ namespace HMM
 				sprintf(filename, "%s/%s.%s.strain", macrostatelocout, time_id, quad_id[q]);
 				read_tensor<dim>(filename, loc_strain);
 
-				SymmetricTensor<2,dim> loc_stress;
+				SymmetricTensor<2,dim> init_stress, loc_stress;
 				SymmetricTensor<4,dim> loc_stiffness;
+
+				sprintf(filename, "init.stress", macrostatelocout);
+				read_tensor<dim>(filename, loc_strain);
 
 				// For debug...
 				int me;
@@ -2105,7 +2116,7 @@ namespace HMM
 						<< std::endl;
 
 				// For debug...
-				sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, prev_time_id, quad_id[q]);
+				sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id[q]);
 				read_tensor<dim>(filename, loc_stiffness);
 
 				// For debug...
@@ -2121,11 +2132,11 @@ namespace HMM
 				// the microstructure at the old_strain and applying the difference between
 				// the new_ and _old_strains, returns the new_stress state.
 				lammps_local_testing<dim> (loc_strain,
+						init_stress,
 						loc_stress,
 						loc_stiffness,
 						quad_id[q],
 						time_id,
-						prev_time_id,
 						lammps_batch_communicator,
 						nanostatelocin,
 						nanostatelocout,
@@ -2155,8 +2166,8 @@ namespace HMM
 
 					sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, time_id, quad_id[q]);
 					write_tensor<dim>(filename, loc_stiffness);
-//					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id[q]);
-//					write_tensor<dim>(filename, loc_stiffness);
+					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id[q]);
+					write_tensor<dim>(filename, loc_stiffness);
 				}
 			}
 		}
@@ -2267,10 +2278,19 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::initial_stiffness_with_molecular_dynamics ()
 	{
+		SymmetricTensor<2,dim> 				initial_stress_tensor;
+		SymmetricTensor<4,dim> 				initial_stiffness_tensor;
+
 		char macrofilenamein[1024];
 		sprintf(macrofilenamein, "%s/init.stiff", macrostatelocin);
 		char macrofilenameout[1024];
 		sprintf(macrofilenameout, "%s/init.stiff", macrostatelocout);
+		bool macrostate_exists = file_exists(macrofilenamein);
+
+		char macrofilenameinstress[1024];
+		sprintf(macrofilenameinstress, "%s/init.stress", macrostatelocin);
+		char macrofilenameoutstress[1024];
+		sprintf(macrofilenameoutstress, "%s/init.stress", macrostatelocout);
 		bool macrostate_exists = file_exists(macrofilenamein);
 
 		char nanofilenamein[1024];
@@ -2281,7 +2301,7 @@ namespace HMM
 
 		if(!macrostate_exists || !nanostate_exists){
 			hcout << " ...from a molecular dynamics simulation       " << std::endl;
-			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_strain_tensor, lammps_global_communicator,
+			if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, lammps_global_communicator,
 					                                     nanostatelocin, nanostatelocout, nanologloc);
 
 			// For debug... using arbitrary stiffness tensor...
@@ -2292,20 +2312,30 @@ namespace HMM
 			// 		for (unsigned int j=0; j<dim; ++j)
 			// 			for (unsigned int k=0; k<dim; ++k)
 			// 				for (unsigned int l=0; l<dim; ++l)
-			// 					initial_stress_strain_tensor[i][j][k][l]
+			// 					initial_stiffness_tensor[i][j][k][l]
 			// 														  = (((i==k) && (j==l) ? mu : 0.0) +
 			// 																  ((i==l) && (j==k) ? mu : 0.0) +
 			// 																  ((i==j) && (k==l) ? lambda : 0.0));
+			// 	for (unsigned int i=0; i<dim; ++i)
+			// 		for (unsigned int j=0; j<dim; ++j)
+			// 			initial_stress_tensor[i][j] = 0.0;
 			// }
 			// MPI_Barrier(world_communicator);
 
-			if(this_lammps_process == 0) write_tensor<dim>(macrofilenameout, initial_stress_strain_tensor);
+			if(this_lammps_process == 0) write_tensor<dim>(macrofilenameout, initial_stiffness_tensor);
+			if(this_lammps_process == 0) write_tensor<dim>(macrofilenameoutstress, initial_stress_tensor);
 		}
 		else{
 			hcout << " ...from an existing stiffness tensor       " << std::endl;
 			if(this_lammps_process == 0){
 			    std::ifstream  macroin(macrofilenamein, std::ios::binary);
 			    std::ofstream  macroout(macrofilenameout,   std::ios::binary);
+			    macroout << macroin.rdbuf();
+			    macroin.close();
+			    macroout.close();
+
+			    std::ifstream  macroin(macrofilenameinstress, std::ios::binary);
+			    std::ofstream  macroout(macrofilenameoutstress,   std::ios::binary);
 			    macroout << macroin.rdbuf();
 			    macroin.close();
 			    macroout.close();

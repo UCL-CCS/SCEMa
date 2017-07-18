@@ -49,41 +49,48 @@ variable ori string 'org'
 
 include ${locbe}/potential.mod.lammps
 
-# Sample initial state
-variable nss equal ${nssample0}
-fix   shak all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
-fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
+# Sample initial state (if initialization only, otherwise
+# restore initial stress tensor)
+if "${init} == 1" then &
+    "variable nss equal ${nssample0}" &
+    "fix   shak all shake 0.001 20 1000 m 1.0" &  # SHAKE to keep bond distances / angles involving H-atoms fixe
+    "fix   wholevol all nvt temp ${tempt} ${tempt} 100.0" &
+    "include ${locbe}/sample.mod.lammps" &
+    "unfix wholevol" &
+    "unfix shak" &
+    "variable tmp equal f_stress[1]" &
+    "variable pxx0 equal ${tmp}" &
+    "variable tmp equal f_stress[2]" &
+    "variable pyy0 equal ${tmp}" &
+    "variable tmp equal f_stress[3]" &
+    "variable pzz0 equal ${tmp}" &
+    "variable tmp equal f_stress[4]" &
+    "variable pxy0 equal ${tmp}" &
+    "variable tmp equal f_stress[5]" &
+    "variable pxz0 equal ${tmp}" &
+    "variable tmp equal f_stress[6]" &
+    "variable pyz0 equal ${tmp}" &
+else &
+    "variable pxx0 equal ${isig_00}" &
+    "variable pyy0 equal ${isig_11}" &
+    "variable pzz0 equal ${isig_22}" &
+    "variable pxy0 equal ${isig_01}" &
+    "variable pxz0 equal ${isig_02}" &
+    "variable pyz0 equal ${isig_12}"
 
-include ${locbe}/sample.mod.lammps
-
-unfix wholevol
-unfix shak
+print "${pxx0} ${pyy0} ${pzz0} ${pyz0} ${pxz0} ${pxy0} "
 
 ## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
 ## simulation over sufficient time and get the initial stress (try to avoid doing it
 ## again if this has been done at the end of the application of the strain state).
 ## Need to pay attention to indexes conversion because compute pressure does not use
 ## Voigt indexes to order stress vector...
-variable tmp equal f_stress[1]
-variable pxx0 equal ${tmp}
-variable pp11 equal ${tmp}
-variable tmp equal f_stress[2]
-variable pyy0 equal ${tmp}
-variable pp22 equal ${tmp}
-variable tmp equal f_stress[3]
-variable pzz0 equal ${tmp}
-variable pp33 equal ${tmp}
-variable tmp equal f_stress[4]
-variable pxy0 equal ${tmp}
-variable pp12 equal ${tmp}
-variable tmp equal f_stress[5]
-variable pxz0 equal ${tmp}
-variable pp13 equal ${tmp}
-variable tmp equal f_stress[6]
-variable pyz0 equal ${tmp}
-variable pp23 equal ${tmp}
-
-print "${pxx0} ${pyy0} ${pzz0} ${pyz0} ${pxz0} ${pxy0} "
+variable pp11 equal ${pxx0}
+variable pp22 equal ${pyy0}
+variable pp33 equal ${pzz0}
+variable pp12 equal ${pxy0}
+variable pp13 equal ${pxz0}
+variable pp23 equal ${pyz0}
 
 variable tmp equal lx
 variable lx0 equal ${tmp}

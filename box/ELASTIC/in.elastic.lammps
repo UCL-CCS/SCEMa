@@ -91,7 +91,10 @@ else &
     "variable pxz0 equal ${isig_02}" &
     "variable pyz0 equal ${isig_12}"
 
-print "${pxx0} ${pyy0} ${pzz0} ${pyz0} ${pxz0} ${pxy0} "
+print "Current stress: ${pp11} ${pp22} ${pp33} ${pp12} ${pp13} ${pp23} "
+if "${flinit} == 1" then &
+    'print "Initial stress: ${isig_00} ${isig_11} ${isig_22} ${isig_01} ${isig_02} ${isig_12} "'
+print "Used stress for homogenization: ${pxx0} ${pyy0} ${pzz0} ${pyz0} ${pxz0} ${pxy0} "
 
 variable tmp equal lx
 variable lx0 equal ${tmp}

@@ -765,7 +765,7 @@ namespace HMM
 		void setup_system ();
 		void restart_system (char* nanostatelocin, char* nanostatelocout);
 		void set_boundary_values (const double present_time, const double present_timestep);
-		void assemble_system ();
+		double assemble_system ();
 		void solve_linear_problem_CG ();
 		void solve_linear_problem_BiCGStab ();
 		void solve_linear_problem_direct ();
@@ -884,7 +884,7 @@ namespace HMM
 				for(unsigned int m=0;m<dim;m++)
 					for(unsigned int n=m;n<dim;n++)
 						if(!((k==l && m==n) || (k==m && l==n))){
-							stiffness_tensor[k][l][m][n] *= 0.0;
+							stiffness_tensor[k][l][m][n] *= 1.0;
 						}
 						else if(stiffness_tensor[k][l][m][n]<0.0) stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
 
@@ -1002,7 +1002,6 @@ namespace HMM
 
 					local_quadrature_points_history[q].upd_strain +=
 							get_strain (displacement_update_grads[q]);
-
 
 					//if ((cell->active_cell_index() == 6) && q<2) // For debug...
 					//if (false) // For debug...
@@ -1213,8 +1212,10 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::assemble_system ()
+	double FEProblem<dim>::assemble_system ()
 	{
+		double rhs_residual;
+
 		system_rhs = 0;
 		system_matrix = 0;
 
@@ -1237,6 +1238,7 @@ namespace HMM
 		typename DoFHandler<dim>::active_cell_iterator
 		cell = dof_handler.begin_active(),
 		endc = dof_handler.end();
+
 		for (; cell!=endc; ++cell)
 			if (cell->is_locally_owned())
 			{
@@ -1297,6 +1299,7 @@ namespace HMM
 						system_matrix, system_rhs);
 			}
 
+
 		system_matrix.compress(VectorOperation::add);
 		system_rhs.compress(VectorOperation::add);
 
@@ -1341,10 +1344,11 @@ namespace HMM
 				false);
 		newton_update = tmp;
 
-		dcout << "    FE System - norm of rhs is " << system_rhs.l2_norm()
+		rhs_residual = system_rhs.l2_norm();
+		dcout << "    FE System - norm of rhs is " << rhs_residual
 							  << std::endl;
 
-
+		return rhs_residual;
 	}
 
 
@@ -1357,7 +1361,7 @@ namespace HMM
 		distributed_newton_update = newton_update;
 
 		SolverControl       solver_control (dof_handler.n_dofs(),
-				1e-16*system_rhs.l2_norm());
+				1e-12/system_matrix.l1_norm());
 
 		PETScWrappers::SolverCG cg (solver_control,
 				FE_communicator);
@@ -1377,7 +1381,9 @@ namespace HMM
 		dcout << "    FE Solver - norm of newton update is " << newton_update.l2_norm()
 							  << std::endl;
 		dcout << "    FE Solver converged in " << solver_control.last_step()
-				<< " iterations." << std::endl;
+				<< " iterations. "
+				<< " with value " << solver_control.last_value()
+				<<  std::endl;
 	}
 
 
@@ -1397,8 +1403,8 @@ namespace HMM
 		    preconditioner.initialize(system_matrix, additional_data);
 		  }
 
-		SolverControl       solver_control (dof_handler.n_dofs()*1000,
-				1e-16*system_rhs.l2_norm());
+		SolverControl       solver_control (dof_handler.n_dofs(),
+				1e-12/system_matrix.l1_norm());
 
 		PETScWrappers::SolverBicgstab bicgs (solver_control,
 				FE_communicator);
@@ -1726,8 +1732,8 @@ namespace HMM
 					Utilities::int_to_string(timestep_no,4) +
 					".visit");
 			std::ofstream visit_master (visit_master_filename.c_str());
-			data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
-			//DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
+			//data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
+			DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
 
 			const std::string
 			pvtu_master_filename = (smacrologloc + "/" + "solution-" +
@@ -1743,8 +1749,8 @@ namespace HMM
 								".pvtu");
 			times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename_loc));
 			std::ofstream pvd_output (smacrologloc + "/" + "solution.pvd");
-			data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
-			//DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
+			//data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
+			DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
 		}
 	}
 
@@ -2245,7 +2251,8 @@ namespace HMM
 
 		do
 		{
-			if(dealii_pcolor==0) previous_res = fe_problem.compute_residual();
+			hcout << "  Initial assembling FE system..." << std::flush;
+			if(dealii_pcolor==0) previous_res = fe_problem.assemble_system ();
 			hcout << "  Initial residual: "
 					<< previous_res
 					<< std::endl;
@@ -2253,8 +2260,6 @@ namespace HMM
 			for (unsigned int inner_iteration=0; inner_iteration<5; ++inner_iteration)
 			{
 				++newtonstep_no;
-				hcout << "    Assembling FE system..." << std::flush;
-				if(dealii_pcolor==0) fe_problem.assemble_system ();
 
 				hcout << "    Solving FE system..." << std::flush;
 				if(dealii_pcolor==0) fe_problem.solve_linear_problem_CG();
@@ -2271,7 +2276,8 @@ namespace HMM
 				if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history
 						(fe_problem.newton_update);
 
-				if(dealii_pcolor==0) previous_res = fe_problem.compute_residual();
+				hcout << "    Re-assembling FE system..." << std::flush;
+				if(dealii_pcolor==0) previous_res = fe_problem.assemble_system ();
 				MPI_Barrier(world_communicator);
 
 				// Share the value of previous_res in between processors

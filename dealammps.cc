@@ -1360,6 +1360,10 @@ namespace HMM
 		distributed_newton_update (locally_owned_dofs,FE_communicator);
 		distributed_newton_update = newton_update;
 
+		// The residual used internally to test solver convergence is
+		// not identical to ours, it probably considers preconditionning.
+		// Therefore, extra precision is required in the solver proportionnaly
+		// to the norm of the system matrix, to reduce sufficiently our residual
 		SolverControl       solver_control (dof_handler.n_dofs(),
 				1e-12/system_matrix.l1_norm());
 
@@ -1403,6 +1407,10 @@ namespace HMM
 		    preconditioner.initialize(system_matrix, additional_data);
 		  }
 
+		// The residual used internally to test solver convergence is
+		// not identical to ours, it probably considers preconditionning.
+		// Therefore, extra precision is required in the solver proportionnaly
+		// to the norm of the system matrix, to reduce sufficiently our residual
 		SolverControl       solver_control (dof_handler.n_dofs(),
 				1e-12/system_matrix.l1_norm());
 

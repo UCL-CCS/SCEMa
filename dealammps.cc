@@ -428,7 +428,7 @@ namespace HMM
 		sprintf(cfile, "%s/%s", location, "in.set.lammps"); lammps_file(lmp,cfile);
 
 		// Setting testing temperature
-		sprintf(cline, "variable tempt equal 200.0"); lammps_command(lmp,cline);
+		sprintf(cline, "variable tempt equal 0.001"); lammps_command(lmp,cline);
 		sprintf(cline, "variable sseed equal 1111"); lammps_command(lmp,cline);
 
 		// Check if 'init.PE.bin' has been computed already
@@ -478,7 +478,7 @@ namespace HMM
 			SymmetricTensor<2,dim>& init_stress,
 			SymmetricTensor<2,dim>& stress,
 			SymmetricTensor<4,dim>& stiffness,
-			char* qptid,
+			char* cellid,
 			char* timeid,
 			MPI_Comm comm_lammps,
 			char* statelocout,
@@ -499,13 +499,13 @@ namespace HMM
 		MPI_Comm_rank(comm_lammps, &me);
 
 		char qplogloc[1024];
-		sprintf(qplogloc, "%s/%s.%s", logloc, timeid, qptid);
+		sprintf(qplogloc, "%s/%s.%s", logloc, timeid, cellid);
 		mkdir(qplogloc, ACCESSPERMS);
 
 		char straindata[1024];
-		sprintf(straindata, "%s.%s.%s", timeid, qptid, mdstate);
+		sprintf(straindata, "%s.%s.%s", timeid, cellid, mdstate);
 		char straindata_last[1024];
-		sprintf(straindata_last, "last.%s.%s", qptid, mdstate);
+		sprintf(straindata_last, "last.%s.%s", cellid, mdstate);
 
 		char cline[1024];
 		char cfile[1024];
@@ -537,14 +537,15 @@ namespace HMM
 		sprintf(cline, "variable loco string %s", qplogloc); lammps_command(lmp,cline);
 
 		// Setting testing temperature
-		sprintf(cline, "variable tempt equal 200.0"); lammps_command(lmp,cline);
+		sprintf(cline, "variable tempt equal 0.001"); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
 		sprintf(cfile, "%s/%s", location, "in.set.lammps");
 		lammps_file(lmp,cfile);
 
-		if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
+		if (me == 0) std::cout << "               "
+				<< "(MD - " << timeid <<"."<< cellid << ") "
 				<< "Compute current state data...       " << std::endl;
 		// Set the state of the testing box at the beginning of the simulation
 		// (either from initial end state or from previous testing end state).
@@ -552,7 +553,8 @@ namespace HMM
 		{
 			// Use the initial state if history path in the phases space is to be
 			// discarded
-			if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
+			if (me == 0) std::cout << "               "
+					<< "(MD - " << timeid <<"."<< cellid << ") "
 					<< "   ... from init state data...       " << std::endl;
 			sprintf(mfile, "%s/%s", statelocout, initdata);
 		}
@@ -561,7 +563,8 @@ namespace HMM
 			// Check if a previous state has already been computed specifically for
 			// this quadrature point, otherwise use the initial state (which is the
 			// last state of this quadrature point)
-			if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
+			if (me == 0) std::cout << "               "
+					<< "(MD - " << timeid <<"."<< cellid << ") "
 					<< "   ... from previous state data...   " << std::flush;
 			sprintf(mfile, "%s/%s", statelocout, straindata_last);
 			std::ifstream ifile(mfile);
@@ -576,7 +579,8 @@ namespace HMM
 		}
 		std::ifstream ifile(mfile);
 		if (!ifile.good()){
-			if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
+			if (me == 0) std::cout << "               "
+					<< "(MD - " << timeid <<"."<< cellid << ") "
 					<< "Unable to open beginning state file to read" << std::endl;
 		}
 		else ifile.close();
@@ -594,19 +598,22 @@ namespace HMM
 			}
 
 		// Run the NEMD simulations of the strained box
-		if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
+		if (me == 0) std::cout << "               "
+				<< "(MD - " << timeid <<"."<< cellid << ") "
 				<< "   ... reading and executing in.strain.lammps.       " << std::endl;
 		sprintf(cfile, "%s/%s", location, "in.strain.lammps");
 		lammps_file(lmp,cfile);
 
 
-		if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
+		if (me == 0) std::cout << "               "
+				<< "(MD - " << timeid <<"."<< cellid << ") "
 				<< "Saving state data...       " << std::endl;
 		// Save data to specific file for this quadrature point
 		sprintf(cline, "write_restart %s/%s", statelocout, straindata_last); lammps_command(lmp,cline);
 
 
-		if (me == 0) std::cout << "(MD - " << timeid <<"."<< qptid << ") "
+		if (me == 0) std::cout << "               "
+				<< "(MD - " << timeid <<"."<< cellid << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;
 		// Loading initial state stresses used to compute stiffness
 		for(unsigned int k=0;k<dim;k++)
@@ -778,7 +785,7 @@ namespace HMM
 		void update_strain_quadrature_point_history
 		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no);
 		void update_stress_quadrature_point_history
-		(const Vector<double>& displacement_update);
+		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no);
 
 		void output_results (const double present_time, const int timestep_no) const;
 		void restart_output (char* nanostatelocout, char* nanostatelocres) const;
@@ -984,9 +991,10 @@ namespace HMM
 						displacement_update_grads);
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-				{
 					local_quadrature_points_history[q].to_be_updated = false;
 
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+				{
 					local_quadrature_points_history[q].old_strain =
 							local_quadrature_points_history[q].new_strain;
 
@@ -1015,23 +1023,25 @@ namespace HMM
 											<< " strain component " << k << l
 											<< " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
 
-									local_quadrature_points_history[q].to_be_updated = true;
+									for (unsigned int qc=0; qc<quadrature_formula.size(); ++qc)
+										local_quadrature_points_history[qc].to_be_updated = true;
 								}
 							}
 						}
+				}
 
-					// Write strain and previous stiffness tensors in case the quadrature point needs to be updated
-					if (local_quadrature_points_history[q].to_be_updated){
-						// Write strains since last update in a file named ./macrostate_storage/last.cellid-qid.strain
-						char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
-						char filename[1024];
+				// Write update_strain tensor in case the cell need to be updated. Arbitrary use the data from the
+				// qp 0.
+				// Might be worth using data from the qp that exceeds most the threshold (norm?).
+				if (local_quadrature_points_history[0].to_be_updated){
+					// Write strains since last update in a file named ./macrostate_storage/last.cellid-qid.strain
+					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+					char filename[1024];
 
-						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, quad_id);
-						write_tensor<dim>(filename, local_quadrature_points_history[q].upd_strain);
+					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
+					write_tensor<dim>(filename, local_quadrature_points_history[0].upd_strain);
 
-						ofile << quad_id << std::endl;
-					}
-
+					ofile << cell_id << std::endl;
 				}
 			}
 		ofile.close();
@@ -1055,7 +1065,7 @@ namespace HMM
 			}
 			outfile.close();
 
-//			// Save quadrature point updates history for later checking...
+			// Save quadrature point updates history for later checking...
 //			sprintf(update_filename, "%s/last.qpupdates", macrostatelocout);
 //		    std::ifstream  macroin(update_filename, std::ios::binary);
 //		    sprintf(update_filename, "%s/%s.qpupdates", macrostatelocout, time_id);
@@ -1071,7 +1081,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::update_stress_quadrature_point_history
-	(const Vector<double>& displacement_update)
+	(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no)
 	{
 		FEValues<dim> fe_values (fe, quadrature_formula,
 				update_values | update_gradients);
@@ -1079,6 +1089,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
+		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
 		// Retrieving all quadrature points computation and storing them in the
 		// quadrature_points_history structure
@@ -1099,14 +1110,14 @@ namespace HMM
 				fe_values.get_function_gradients (displacement_update,
 						displacement_update_grads);
 
+				// Restore the new stiffness tensors from ./macroscale_state/out/last.cellid-qid.stiff
+				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+				char filename[1024];
+
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
-					// Restore the new stiffness tensors from ./macroscale_state/out/last.cellid-qid.stiff
-					char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
-					char filename[1024];
-
 					if (local_quadrature_points_history[q].to_be_updated){
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id);
+						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);
 
 						local_quadrature_points_history[q].upd_strain = 0;
@@ -1116,8 +1127,9 @@ namespace HMM
 					local_quadrature_points_history[q].new_stress =
 							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].new_strain;
 
-					// Apply rotation of the sample to the new state tensors
-					const Tensor<2,dim> rotation
+					// Apply rotation of the sample to the new state tensors.
+					// Only needed if the mesh is modified...
+					/*const Tensor<2,dim> rotation
 					= get_rotation_matrix (displacement_update_grads[q]);
 
 					const SymmetricTensor<2,dim> rotated_new_stress
@@ -1143,22 +1155,22 @@ namespace HMM
 					local_quadrature_points_history[q].new_strain
 					= rotated_new_strain;
 					local_quadrature_points_history[q].upd_strain
-					= rotated_upd_strain;
-
-					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, quad_id);
-					write_tensor<dim>(filename, local_quadrature_points_history[q].upd_strain);
-
-//					// Save strain since update history for later checking...
-//					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, quad_id);
-//				    std::ifstream  macroinstrain(filename, std::ios::binary);
-//					sprintf(filename, "%s/%s.%s.upstrain", macrostatelocout, time_id, quad_id);
-//				    std::ofstream  macrooutstrain(filename,   std::ios::binary);
-//				    macrooutstrain << macroinstrain.rdbuf();
-//				    macroinstrain.close();
-//				    macrooutstrain.close();
-
-
+					= rotated_upd_strain;*/
 				}
+
+				// Write update_strain tensor. Arbitrary use the data from the qp 0.
+				// Might be worth using data from the qp that exceeds most the threshold (norm?).
+				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
+				write_tensor<dim>(filename, local_quadrature_points_history[0].upd_strain);
+
+				// Save strain since update history for later checking...
+//				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
+//			    std::ifstream  macroinstrain(filename, std::ios::binary);
+//				sprintf(filename, "%s/%s.%s.upstrain", macrostatelocout, time_id, cell_id);
+//			    std::ofstream  macrooutstrain(filename,   std::ios::binary);
+//			    macrooutstrain << macroinstrain.rdbuf();
+//			    macroinstrain.close();
+//			    macrooutstrain.close();
 			}
 	}
 
@@ -1385,7 +1397,7 @@ namespace HMM
 		dcout << "    FE Solver - norm of newton update is " << newton_update.l2_norm()
 							  << std::endl;
 		dcout << "    FE Solver converged in " << solver_control.last_step()
-				<< " iterations. "
+				<< " iterations "
 				<< " with value " << solver_control.last_value()
 				<<  std::endl;
 	}
@@ -1429,7 +1441,9 @@ namespace HMM
 		dcout << "    FE Solver - norm of newton update is " << newton_update.l2_norm()
 							  << std::endl;
 		dcout << "    FE Solver converged in " << solver_control.last_step()
-				<< " iterations." << std::endl;
+				<< " iterations "
+				<< " with value " << solver_control.last_value()
+				<<  std::endl;
 	}
 
 
@@ -1458,8 +1472,6 @@ namespace HMM
 
 		dcout << "    FE Solver - norm of newton update is " << newton_update.l2_norm()
 							  << std::endl;
-		dcout << "    FE Solver converged in " << solver_control.last_step()
-				<< " iterations." << std::endl;
 	}
 
 
@@ -1789,23 +1801,23 @@ namespace HMM
 				{
 					for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 					{
-						char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+						char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
 						char filename[1024];
 
 						// Save strain since last update history
-						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, quad_id);
+						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
 						std::ifstream  macroinstrain(filename, std::ios::binary);
-						sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocres, quad_id);
+						sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocres, cell_id);
 						std::ofstream  macrooutstrain(filename,   std::ios::binary);
 						macrooutstrain << macroinstrain.rdbuf();
 						macroinstrain.close();
 						macrooutstrain.close();
 
 						// Save stiffness history
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id);
+						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 					    std::ifstream  macroin(filename, std::ios::binary);
 					    if (macroin.good()){
-					    	sprintf(filename, "%s/lcts.%s.stiff", macrostatelocres, quad_id);
+					    	sprintf(filename, "%s/lcts.%s.stiff", macrostatelocres, cell_id);
 					    	std::ofstream  macroout(filename,   std::ios::binary);
 					    	macroout << macroin.rdbuf();
 					    	macroin.close();
@@ -1813,10 +1825,10 @@ namespace HMM
 						}
 
 					    // Save box state history
-						sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, quad_id);
+						sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, cell_id);
 					    std::ifstream  nanoin(filename, std::ios::binary);
 						if (nanoin.good()){
-						    sprintf(filename, "%s/lcts.%s.PE.bin", nanostatelocres, quad_id);
+						    sprintf(filename, "%s/lcts.%s.PE.bin", nanostatelocres, cell_id);
 						    std::ofstream  nanoout(filename,   std::ios::binary);
 						    nanoout << nanoin.rdbuf();
 						    nanoin.close();
@@ -1857,7 +1869,7 @@ namespace HMM
 				}
 		}
 
-		triangulation.refine_global (3);
+		triangulation.refine_global (1);
 
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
@@ -1963,7 +1975,8 @@ namespace HMM
 						local_quadrature_points_history[q].new_strain =
 								get_strain (solution_grads[q]);
 
-						const Tensor<2,dim> rotation
+						// Only needed if the mesh is modified after every timestep...
+						/*const Tensor<2,dim> rotation
 						= get_rotation_matrix (solution_grads[q]);
 
 						const SymmetricTensor<2,dim> rotated_new_strain
@@ -1973,7 +1986,7 @@ namespace HMM
 						rotation);
 
 						local_quadrature_points_history[q].new_strain
-						= rotated_new_strain;
+						= rotated_new_strain;*/
 					}
 				}
 		}
@@ -1996,14 +2009,14 @@ namespace HMM
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
-					char quad_id[1024]; sprintf(quad_id, "%d-%d", cell->active_cell_index(), q);
+					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
 					char filename[1024];
 
 					// Restore strain since last update history
-					sprintf(filename, "%s/restart/lcts.%s.upstrain", macrostatelocin, quad_id);
+					sprintf(filename, "%s/restart/lcts.%s.upstrain", macrostatelocin, cell_id);
 					std::ifstream  macroinstrain(filename, std::ios::binary);
 					if (macroinstrain.good()){
-						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, quad_id);
+						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
 						std::ofstream  macrooutstrain(filename,   std::ios::binary);
 						macrooutstrain << macroinstrain.rdbuf();
 						macroinstrain.close();
@@ -2013,10 +2026,10 @@ namespace HMM
 					}
 
 					// Restore stiffness history
-					sprintf(filename, "%s/restart/lcts.%s.stiff", macrostatelocin, quad_id);
+					sprintf(filename, "%s/restart/lcts.%s.stiff", macrostatelocin, cell_id);
 					std::ifstream  macroin(filename, std::ios::binary);
 					if (macroin.good()){
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id);
+						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 						std::ofstream  macroout(filename,   std::ios::binary);
 						macroout << macroin.rdbuf();
 						macroin.close();
@@ -2026,10 +2039,10 @@ namespace HMM
 					}
 
 					// Restore box state history
-					sprintf(filename, "%s/restart/lcts.%s.PE.bin", nanostatelocin, quad_id);
+					sprintf(filename, "%s/restart/lcts.%s.PE.bin", nanostatelocin, cell_id);
 					std::ifstream  nanoin(filename, std::ios::binary);
 					if (nanoin.good()){
-						sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, quad_id);
+						sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, cell_id);
 						std::ofstream  nanoout(filename,   std::ios::binary);
 						nanoout << nanoin.rdbuf();
 						nanoin.close();
@@ -2130,7 +2143,7 @@ namespace HMM
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
 		// Check list of files corresponding to current "time_id"
-		int nqupd = 0;
+		int ncupd = 0;
 		char filenamelist[1024];
 		sprintf(filenamelist, "%s/last.qpupdates", macrostatelocout);
 		std::ifstream ifile;
@@ -2140,27 +2153,27 @@ namespace HMM
 		ifile.open (filenamelist);
 		if (ifile.is_open())
 		{
-		    while (getline(ifile, iline)) nqupd++;
+		    while (getline(ifile, iline)) ncupd++;
 			ifile.close();
 		}
 		else hcout << "Unable to open" << filenamelist << " to read it" << std::endl;
 
 		// Create list of quadid
-		char **quad_id = new char *[nqupd];
-		for (int q=0; q<nqupd; ++q) quad_id[q] = new char[1024];
+		char **cell_id = new char *[ncupd];
+		for (int c=0; c<ncupd; ++c) cell_id[c] = new char[1024];
 
 		ifile.open (filenamelist);
 		int nline = 0;
-		while (nline<nqupd && ifile.getline(quad_id[nline], sizeof(quad_id[nline]))) nline++;
+		while (nline<ncupd && ifile.getline(cell_id[nline], sizeof(cell_id[nline]))) nline++;
 		ifile.close();
 
 		// It might be worth doing the splitting of in batches of lammps processors here according to
 		// the number of quadrature points to update, because if the number of points is smaller than
 		// the number of batches predefined initially part of the lammps allocated processors remain idle...
 		hcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
-		for (int q=0; q<nqupd; ++q)
+		for (int c=0; c<ncupd; ++c)
 		{
-			if (lammps_pcolor == (q%n_lammps_batch))
+			if (lammps_pcolor == (c%n_lammps_batch))
 			{
 				SymmetricTensor<2,dim> loc_strain;
 				SymmetricTensor<2,dim> init_stress, loc_stress;
@@ -2168,7 +2181,7 @@ namespace HMM
 
 				char filename[1024];
 
-				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, quad_id[q]);
+				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
 				read_tensor<dim>(filename, loc_strain);
 
 				sprintf(filename, "%s/init.stress", macrostatelocout);
@@ -2178,16 +2191,16 @@ namespace HMM
 				int me;
 				MPI_Comm_rank(lammps_batch_communicator, &me);
 				std::cout << "            "
-						<< "nqptbu: " << q
-						<< " - cell - qp : " << quad_id[q]
+						<< "nctbu: " << c
+						<< " - cell: " << cell_id[c]
 						<< " - proc_world_rank: " << this_lammps_process
-						<< " - lammps batch computed: " << (q%n_lammps_batch)
+						<< " - lammps batch computed: " << (c%n_lammps_batch)
 						<< " - lammps batch color: " << lammps_pcolor
 						<< " - proc_batch_rank: " << me
 						<< std::endl;
 
 				// For debug...
-				sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id[q]);
+				sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 				ifile.open (filename);
 				if (ifile.is_open()) ifile.close();
 				else sprintf(filename, "%s/last.stiff", macrostatelocout);
@@ -2197,9 +2210,10 @@ namespace HMM
 				// For debug...
 				if(this_lammps_batch_process == 0)
 				{
-					std::cout << "        " << "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
-													<< " " << loc_stiffness[1][1][1][1]
-													<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;
+					std::cout << "               "
+							  << "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
+							  << " " << loc_stiffness[1][1][1][1]
+							  << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
 				}
 
 				// Then the lammps function instanciates lammps, starting from an initial
@@ -2210,7 +2224,7 @@ namespace HMM
 						init_stress,
 						loc_stress,
 						loc_stiffness,
-						quad_id[q],
+						cell_id[c],
 						time_id,
 						lammps_batch_communicator,
 						nanostatelocout,
@@ -2221,26 +2235,27 @@ namespace HMM
 				if(this_lammps_batch_process == 0)
 				{
 					// For debug...
-					std::cout << "        " << "Stiffnesses: "<< loc_stiffness[0][0][0][0]
-												<< " " << loc_stiffness[1][1][1][1]
-												<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;
+					std::cout << "               "
+							  << "Stiffnesses: "<< loc_stiffness[0][0][0][0]
+							  << " " << loc_stiffness[1][1][1][1]
+							  << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
 
-					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id[q]);
+					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 					write_tensor<dim>(filename, loc_stiffness);
 
 //					// Save stiffness history for later checking...
-//					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, quad_id[q]);
+//					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 //				    std::ifstream  macroin(filename, std::ios::binary);
-//					sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, time_id, quad_id[q]);
+//					sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, time_id, cell_id[c]);
 //				    std::ofstream  macroout(filename,   std::ios::binary);
 //				    macroout << macroin.rdbuf();
 //				    macroin.close();
 //				    macroout.close();
 //
 //				    // Save box state history for later checking...
-//					sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, quad_id[q]);
+//					sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, cell_id[c]);
 //				    std::ifstream  nanoin(filename, std::ios::binary);
-//				    sprintf(filename, "%s/%s.%s.PE.bin", nanostatelocout, time_id, quad_id[q]);
+//				    sprintf(filename, "%s/%s.%s.PE.bin", nanostatelocout, time_id, cell_id[c]);
 //				    std::ofstream  nanoout(filename,   std::ios::binary);
 //				    nanoout << nanoin.rdbuf();
 //				    nanoin.close();
@@ -2282,7 +2297,7 @@ namespace HMM
 				MPI_Barrier(world_communicator);
 
 				if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history
-						(fe_problem.newton_update);
+						(fe_problem.newton_update, timestep_no, newtonstep_no);
 
 				hcout << "    Re-assembling FE system..." << std::flush;
 				if(dealii_pcolor==0) previous_res = fe_problem.assemble_system ();
@@ -2334,7 +2349,7 @@ namespace HMM
 		/*if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
 		//MPI_Barrier(world_communicator);*/
 
-		if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement);
+		if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
 
 		solve_timestep (fe_problem);
 
@@ -2474,7 +2489,7 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 20;
+		n_dealii_processes = 10;
 
 		dealii_pcolor = MPI_UNDEFINED;
 

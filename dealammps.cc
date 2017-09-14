@@ -812,6 +812,7 @@ namespace HMM
 		void restart_output (char* nanostatelocout, char* nanostatelocres, unsigned int nrepl) const;
 
 		double compute_residual () const;
+		double compute_internal_forces () const;
 
 		Vector<double> 		     			newton_update;
 		Vector<double> 		     			incremental_displacement;
@@ -843,6 +844,14 @@ namespace HMM
 		IndexSet 							locally_owned_dofs;
 		IndexSet 							locally_relevant_dofs;
 		unsigned int 						n_local_cells;
+
+		double 								velocity;
+		std::vector<bool> 					loaded_boundary_dofs;
+
+		double 								ll;
+		double 								fl;
+		double 								bb;
+		double 								hh;
 
 		char*                               macrostatelocin;
 		char*                               macrostatelocout;
@@ -1203,38 +1212,138 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values
 	(const double present_time, const double present_timestep)
 	{
+		velocity = -0.0002;
+
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);
 		FEValuesExtractors::Scalar z_component (dim-1);
 		std::map<types::global_dof_index,double> boundary_values;
 
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				11,
-				ZeroFunction<dim>(dim),
-				boundary_values,
-				fe.component_mask(x_component));
+//		std::vector<bool> loaded_boundary_dofs (dof_handler.n_dofs());
+		loaded_boundary_dofs.resize(dof_handler.n_dofs());
+		std::vector<bool> lsupport_boundary_dofs (dof_handler.n_dofs());
+		std::vector<bool> rsupport_boundary_dofs (dof_handler.n_dofs());
+		std::vector<bool> xzsupport_boundary_dofs (dof_handler.n_dofs());
 
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				21,
-				ZeroFunction<dim>(dim),
-				boundary_values,
-				fe.component_mask(y_component));
+		typename DoFHandler<dim>::active_cell_iterator
+		cell = dof_handler.begin_active(),
+		endc = dof_handler.end();
 
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				31,
-				ZeroFunction<dim>(dim),
-				boundary_values,
-				fe.component_mask(z_component));
+		for ( ; cell != endc; ++cell) {
+			double eps = (cell->minimum_vertex_distance());
+			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
 
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				12,
-				IncrementalBoundaryValues<dim>(present_time, present_timestep),
-				boundary_values,
-				fe.component_mask(x_component));
+				unsigned int component;
+				double value;
+
+				for (unsigned int c = 0; c < dim; ++c) {
+					loaded_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
+					lsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
+					rsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
+					xzsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
+				}
+
+				value = 0.;
+				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
+						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.
+						&& fabs(cell->vertex(v)(2) - 0.0) < eps/3.)
+				{
+					xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					component = 0;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+					component = 2;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+//					dcout << "XZ support type"
+//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
+//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
+				}
+
+				component = 1;
+				if (fabs(cell->vertex(v)(0) - -ll/2.) < eps/3.
+						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
+				{
+					lsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+//					dcout << "left Y support type"
+//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
+//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
+				}
+
+				if (fabs(cell->vertex(v)(0) - +ll/2.) < eps/3.
+						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
+				{
+					rsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+//					dcout << "right Y support type"
+//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
+//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
+				}
+
+				value = present_timestep*velocity;
+				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
+						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
+				{
+					loaded_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+//					dcout << "Y load type"
+//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
+//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
+				}
+			}
+		}
+
+//		cell = dof_handler.begin_active(),
+//		endc = dof_handler.end();
+//
+//		for ( ; cell != endc; ++cell) {
+//			double eps = (cell->minimum_vertex_distance());
+//			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
+//				unsigned int component;
+//				double value;
+//
+//				component = 1;
+//				value = present_timestep*velocity*2.0;
+//				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
+//						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
+//				{
+//					(boundary_values.find(cell->vertex_dof_index (v, component)))->second = value;
+//				}
+//			}
+//		}
+
+		dcout << "hello Y Force ------ " << std::endl;
+		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+			if (loaded_boundary_dofs[i] == true)
+			{
+				dcout << "dof: " << i << std::endl;
+			}
+
+		dcout << "hello Y left support ------ " << std::endl;
+		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+			if (lsupport_boundary_dofs[i] == true)
+			{
+				dcout << "dof: " << i << std::endl;
+			}
+
+		dcout << "hello Y right support ------ " << std::endl;
+		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+			if (rsupport_boundary_dofs[i] == true)
+			{
+				dcout << "dof: " << i << std::endl;
+			}
+
+		dcout << "hello XZ support ------ " << std::endl;
+		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+			if (xzsupport_boundary_dofs[i] == true)
+			{
+				dcout << "dof: " << i << std::endl;
+			}
+
 
 		for (std::map<types::global_dof_index, double>::const_iterator
 				p = boundary_values.begin();
@@ -1341,33 +1450,47 @@ namespace HMM
 		FEValuesExtractors::Scalar z_component (dim-1);
 		std::map<types::global_dof_index,double> boundary_values;
 
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				11,
-				ZeroFunction<dim>(dim),
-				boundary_values,
-				fe.component_mask(x_component));
+		cell = dof_handler.begin_active(),
+		endc = dof_handler.end();
 
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				21,
-				ZeroFunction<dim>(dim),
-				boundary_values,
-				fe.component_mask(y_component));
-
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				31,
-				ZeroFunction<dim>(dim),
-				boundary_values,
-				fe.component_mask(z_component));
-
-		VectorTools::
-		interpolate_boundary_values (dof_handler,
-				12,
-				ZeroFunction<dim>(dim),
-				boundary_values,
-				fe.component_mask(x_component));
+		for ( ; cell != endc; ++cell) {
+			double eps = (cell->minimum_vertex_distance());
+			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
+				unsigned int component;
+				double value;
+				value = 0.;
+				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
+						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.
+						&& fabs(cell->vertex(v)(2) - 0.0) < eps/3.)
+					{
+						component = 0;
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+								(cell->vertex_dof_index (v, component), value));
+						component = 2;
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+								(cell->vertex_dof_index (v, component), value));
+					}
+				component = 1;
+				if (fabs(cell->vertex(v)(0) - -ll/2.) < eps/3.
+						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+								(cell->vertex_dof_index (v, component), value));
+					}
+				if (fabs(cell->vertex(v)(0) - +ll/2.) < eps/3.
+						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+								(cell->vertex_dof_index (v, component), value));
+					}
+				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
+						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+								(cell->vertex_dof_index (v, component), value));
+					}
+			}
+		}
 
 		PETScWrappers::MPI::Vector tmp (locally_owned_dofs,FE_communicator);
 		MatrixTools::apply_boundary_values (boundary_values,
@@ -1574,9 +1697,85 @@ namespace HMM
 				boundary_dofs);
 		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
 			if (boundary_dofs[i] == true)
+				// This is wrong, because 'residual' is distributed, and therefore
+				// this action must be parallelized, because all the components of
+				// residual are not accessible to all processors
 				residual(i) = 0;
 
 		return residual.l2_norm();
+	}
+
+
+
+	template <int dim>
+	double FEProblem<dim>::compute_internal_forces () const
+	{
+		PETScWrappers::MPI::Vector residual
+		(locally_owned_dofs, FE_communicator);
+
+		residual = 0;
+
+		FEValues<dim> fe_values (fe, quadrature_formula,
+				update_values   | update_gradients |
+				update_quadrature_points | update_JxW_values);
+
+		const unsigned int   dofs_per_cell = fe.dofs_per_cell;
+		const unsigned int   n_q_points    = quadrature_formula.size();
+
+		Vector<double>               cell_residual (dofs_per_cell);
+
+		std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
+
+		typename DoFHandler<dim>::active_cell_iterator
+		cell = dof_handler.begin_active(),
+		endc = dof_handler.end();
+		for (; cell!=endc; ++cell)
+			if (cell->is_locally_owned())
+			{
+				cell_residual = 0;
+				fe_values.reinit (cell);
+
+				const PointHistory<dim> *local_quadrature_points_data
+				= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
+
+				for (unsigned int i=0; i<dofs_per_cell; ++i)
+				{
+					for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
+					{
+						const SymmetricTensor<2,dim> &old_stress
+						= local_quadrature_points_data[q_point].new_stress;
+
+						cell_residual(i) +=
+								(old_stress *
+								get_strain (fe_values,i,q_point))
+								*
+								fe_values.JxW (q_point);
+					}
+				}
+
+				cell->get_dof_indices (local_dof_indices);
+				hanging_node_constraints.distribute_local_to_global
+				(cell_residual, local_dof_indices, residual);
+			}
+
+		residual.compress(VectorOperation::add);
+
+		double applied_force = 0.;
+
+		Vector<double> local_residual (dof_handler.n_dofs());
+		local_residual = residual;
+
+		dcout << "hello Y force ------ " << std::endl;
+		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+			if (loaded_boundary_dofs[i] == true)
+			{
+				dcout << "force: " << local_residual[i] << std::endl;
+				applied_force += local_residual[i];
+			}
+
+		dcout << "Total force : " << applied_force << std::endl;
+
+		return applied_force;
 	}
 
 
@@ -1656,6 +1855,36 @@ namespace HMM
 	{
 		DataOut<dim> data_out;
 		data_out.attach_dof_handler (dof_handler);
+
+		// Compute applied force
+		double aforce = compute_internal_forces();
+		double idisp = velocity*timestep_no;
+		dcout << "Timestep: " << timestep_no << " - Time: " << present_time << " - Imp. Disp.: " << idisp << " - App. Force: " << aforce << std::endl;
+
+		if (this_FE_process==0)
+		{
+			std::ofstream ofile;
+			char fname[1024]; sprintf(fname, "%s/load_deflection.csv", macrologloc);
+
+			if (timestep_no == 1){
+				ofile.open (fname);
+				if (ofile.is_open())
+				{
+					ofile << "# timestep, time, imposed displacement, applied force" << std::endl;
+					ofile.close();
+				}
+				else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
+
+			}
+
+			ofile.open (fname, std::ios::app);
+			if (ofile.is_open())
+			{
+				ofile << timestep_no << ", " << present_time << ", " << std::setprecision(16) << idisp << ", " << aforce << std::endl;
+				ofile.close();
+			}
+			else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
+		}
 
 		// Output of displacement as a vector
 		std::vector<std::string>  solution_names (dim, "displacement");
@@ -1740,6 +1969,50 @@ namespace HMM
 				else norm_of_stress(cell->active_cell_index()) = -1e+20;
 		}
 		data_out.add_data_vector (norm_of_stress, "norm_of_stress");
+
+		// Output of the cell XX-component of the averaged stress tensor over quadrature
+		// points as a scalar
+		Vector<double> xx_stress (triangulation.n_active_cells());
+		{
+			typename Triangulation<dim>::active_cell_iterator
+			cell = triangulation.begin_active(),
+			endc = triangulation.end();
+			for (; cell!=endc; ++cell)
+				if (cell->is_locally_owned())
+				{
+					SymmetricTensor<2,dim> accumulated_stress;
+					for (unsigned int q=0;q<quadrature_formula.size();++q)
+						accumulated_stress += reinterpret_cast<PointHistory<dim>*>
+					(cell->user_pointer())[q].new_stress;
+
+					xx_stress(cell->active_cell_index())
+					= (accumulated_stress[0][0] / quadrature_formula.size());
+				}
+				else xx_stress(cell->active_cell_index()) = -1e+20;
+		}
+		data_out.add_data_vector (xx_stress, "xx_stress");
+
+		// Output of the cell YY-component of the averaged stress tensor over quadrature
+		// points as a scalar
+		Vector<double> yy_stress (triangulation.n_active_cells());
+		{
+			typename Triangulation<dim>::active_cell_iterator
+			cell = triangulation.begin_active(),
+			endc = triangulation.end();
+			for (; cell!=endc; ++cell)
+				if (cell->is_locally_owned())
+				{
+					SymmetricTensor<2,dim> accumulated_stress;
+					for (unsigned int q=0;q<quadrature_formula.size();++q)
+						accumulated_stress += reinterpret_cast<PointHistory<dim>*>
+					(cell->user_pointer())[q].new_stress;
+
+					yy_stress(cell->active_cell_index())
+					= (accumulated_stress[1][1] / quadrature_formula.size());
+				}
+				else yy_stress(cell->active_cell_index()) = -1e+20;
+		}
+		data_out.add_data_vector (yy_stress, "yy_stress");
 
 		// Output of the partitioning of the mesh on processors
 		std::vector<types::subdomain_id> partition_int (triangulation.n_active_cells());
@@ -1867,33 +2140,18 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::make_grid ()
 	{
-		std::vector< unsigned int > sizes (GeometryInfo<dim>::faces_per_cell);
-		sizes[0] = 0; sizes[1] = 0;
-		sizes[2] = 0; sizes[3] = 0;
-		sizes[4] = 0; sizes[5] = 0;
-		GridGenerator::hyper_cross(triangulation, sizes);
-		for (typename Triangulation<dim>::active_cell_iterator cell = triangulation.begin_active();
-				cell != triangulation.end();
-				++cell){
-			for (unsigned int f=0; f<GeometryInfo<dim>::faces_per_cell; ++f)
-				if (cell->face(f)->at_boundary())
-				{
-					if (cell->face(f)->center()[0] == -0.5)
-						cell->face(f)->set_boundary_id (11);
-					if (cell->face(f)->center()[0] == 0.5)
-						cell->face(f)->set_boundary_id (12);
-					if (cell->face(f)->center()[1] == -0.5)
-						cell->face(f)->set_boundary_id (21);
-					if (cell->face(f)->center()[1] == 0.5)
-						cell->face(f)->set_boundary_id (22);
-					if (cell->face(f)->center()[2] == -0.5)
-						cell->face(f)->set_boundary_id (31);
-					if (cell->face(f)->center()[2] == 0.5)
-						cell->face(f)->set_boundary_id (32);
-				}
-		}
+		ll=0.080;
+		fl=1.20*0.080;
+		bb=0.013;
+		hh=0.004;
 
-		triangulation.refine_global (1);
+		Point<dim> pp1 (-fl/2.,-hh/2.,-bb/2.);
+		Point<dim> pp2 (fl/2.,hh/2.,bb/2.);
+		std::vector< unsigned int > reps (dim);
+		reps[0] = (int) std::round(fl/hh); reps[1] = 1; reps[2] =  (int) std::round(bb/hh);
+		GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
+
+		triangulation.refine_global (2);
 
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
@@ -2590,7 +2848,7 @@ namespace HMM
 	void HMMProblem<dim>::run ()
 	{
 		// Number of replicas in MD-ensemble
-		nrepl=3;
+		nrepl=7;
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();
@@ -2627,7 +2885,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 5;
+		end_time = 10;
 		timestep_no = 0;
 
 		hcout << " Initiation of the Mesh...       " << std::endl;

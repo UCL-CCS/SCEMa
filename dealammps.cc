@@ -304,9 +304,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 100"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 100"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 100"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 5000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 5000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 5000"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -386,7 +386,7 @@ namespace HMM
 		// Timestep length in fs
 		double dts = 2.0;
 		// Number of timesteps factor
-		int nsinit = 100;
+		int nsinit = 100000;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -505,7 +505,7 @@ namespace HMM
 		// is nts > 1000 * strain so that v_load < v_sound...
 		// Declaration of run parameters
 		double dts = 2.0; // timestep length in fs
-		int nts = 100; // number of timesteps
+		int nts = 5000; // number of timesteps
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -712,76 +712,6 @@ namespace HMM
 
 
 
-
-	template <int dim>
-	class IncrementalBoundaryValues :  public Function<dim>
-	{
-	public:
-		IncrementalBoundaryValues (const double present_time,
-				const double present_timestep);
-
-		virtual
-		void
-		vector_value (const Point<dim> &p,
-				Vector<double>   &values) const;
-
-		virtual
-		void
-		vector_value_list (const std::vector<Point<dim> > &points,
-				std::vector<Vector<double> >   &value_list) const;
-
-	private:
-		const double velocity;
-		const double present_time;
-		const double present_timestep;
-	};
-
-
-	template <int dim>
-	IncrementalBoundaryValues<dim>::
-	IncrementalBoundaryValues (const double present_time,
-			const double present_timestep)
-			:
-			Function<dim> (dim),
-			velocity (-0.001),
-			present_time (present_time),
-			present_timestep (present_timestep)
-	{}
-
-
-	template <int dim>
-	void
-	IncrementalBoundaryValues<dim>::
-	vector_value (const Point<dim> &/*p*/,
-			Vector<double>   &values) const
-	{
-		Assert (values.size() == dim,
-				ExcDimensionMismatch (values.size(), dim));
-
-		// All parts of the vector values are initiated to the given scalar.
-		values = present_timestep * velocity;
-	}
-
-
-
-	template <int dim>
-	void
-	IncrementalBoundaryValues<dim>::
-	vector_value_list (const std::vector<Point<dim> > &points,
-			std::vector<Vector<double> >   &value_list) const
-	{
-		const unsigned int n_points = points.size();
-
-		Assert (value_list.size() == n_points,
-				ExcDimensionMismatch (value_list.size(), n_points));
-
-		for (unsigned int p=0; p<n_points; ++p)
-			IncrementalBoundaryValues<dim>::vector_value (points[p],
-					value_list[p]);
-	}
-
-
-
 	template <int dim>
 	class FEProblem
 	{
@@ -792,7 +722,7 @@ namespace HMM
 		void make_grid ();
 		void setup_system ();
 		void restart_system (char* nanostatelocin, char* nanostatelocout);
-		void set_boundary_values (const double present_time, const double present_timestep);
+		void set_boundary_values (const double present_timestep);
 		double assemble_system ();
 		void solve_linear_problem_CG ();
 		void solve_linear_problem_BiCGStab ();
@@ -1210,7 +1140,7 @@ namespace HMM
 	// assemble_system() function
 	template <int dim>
 	void FEProblem<dim>::set_boundary_values
-	(const double present_time, const double present_timestep)
+	(const double present_timestep)
 	{
 		velocity = -0.0002;
 
@@ -2151,7 +2081,7 @@ namespace HMM
 		reps[0] = (int) std::round(fl/hh); reps[1] = 1; reps[2] =  (int) std::round(bb/hh);
 		GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
 
-		triangulation.refine_global (2);
+		triangulation.refine_global (3);
 
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
@@ -2630,7 +2560,7 @@ namespace HMM
 
 		if(dealii_pcolor==0) fe_problem.incremental_displacement = 0;
 
-		if(dealii_pcolor==0) fe_problem.set_boundary_values (present_time, present_timestep);
+		if(dealii_pcolor==0) fe_problem.set_boundary_values (present_timestep);
 
 		if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
 		MPI_Barrier(world_communicator);
@@ -2810,7 +2740,7 @@ namespace HMM
 	void HMMProblem<dim>::set_dealii_procs ()
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 10;
+		n_dealii_processes = 80;
 
 		dealii_pcolor = MPI_UNDEFINED;
 

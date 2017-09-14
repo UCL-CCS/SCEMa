@@ -162,12 +162,12 @@ unfix           3
 variable tmpx_2 equal "f_latticeparam_x"
 variable tmpy_2 equal "f_latticeparam_y"
 variable tmpz_2 equal "f_latticeparam_z"
-#change_box all x final 0 ${tmpx_2} y final 0 ${tmpy_2} z final 0 ${tmpz_2} remap units lattice
+change_box all x final 0 ${tmpx_2} y final 0 ${tmpy_2} z final 0 ${tmpz_2} remap units lattice
 
 #  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is brought from 100K
 #  to 500K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with a relaxation time of
 #  1000fs
-variable nsi equal 2*${nsinit}
+variable nsi equal 20*${nsinit}
 fix             3 all nvt temp ${tempt} ${tempt} 100.0
 
 #  Running a molecular dynamics simulation for 100000 timesteps
@@ -197,7 +197,7 @@ unfix           3
 variable tmpx_2 equal "f_latticeparam_x"
 variable tmpy_2 equal "f_latticeparam_y"
 variable tmpz_2 equal "f_latticeparam_z"
-#change_box all x final 0 ${tmpx_2} y final 0 ${tmpy_2} z final 0 ${tmpz_2} remap units lattice
+change_box all x final 0 ${tmpx_2} y final 0 ${tmpy_2} z final 0 ${tmpz_2} remap units lattice
 
 #  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is brought from 100K
 #  to 500K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with a relaxation time of

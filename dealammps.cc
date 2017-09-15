@@ -2680,6 +2680,8 @@ namespace HMM
 			}
 		}
 
+		MPI_Barrier(world_communicator);
+
 		if(this_lammps_batch_process == 0){
 			SymmetricTensor<4,dim> 				initial_ensemble_stiffness_tensor;
 			initial_ensemble_stiffness_tensor = 0.;

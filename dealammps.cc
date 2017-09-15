@@ -2285,8 +2285,8 @@ namespace HMM
 
 	private:
 		void set_repositories ();
-		void set_dealii_procs ();
-		void set_lammps_procs ();
+		void set_dealii_procs (int npd);
+		void set_lammps_procs (int npb);
 		void initial_stiffness_with_molecular_dynamics ();
 		void do_timestep (FEProblem<dim> &fe_problem);
 		void solve_timestep (FEProblem<dim> &fe_problem);
@@ -2605,73 +2605,77 @@ namespace HMM
 	{
 		for(unsigned int repl=1;repl<nrepl+1;repl++)
 		{
-			SymmetricTensor<2,dim> 				initial_stress_tensor;
-			SymmetricTensor<4,dim> 				initial_stiffness_tensor;
+			int irepl = repl;
+			if (lammps_pcolor == (irepl%n_lammps_batch))
+			{
+				SymmetricTensor<2,dim> 				initial_stress_tensor;
+				SymmetricTensor<4,dim> 				initial_stiffness_tensor;
 
-			char macrofilenamein[1024];
-			sprintf(macrofilenamein, "%s/init.PE_%d.stiff", macrostatelocin, repl);
-			char macrofilenameout[1024];
-			sprintf(macrofilenameout, "%s/init.PE_%d.stiff", macrostatelocout, repl);
-			bool macrostate_exists = file_exists(macrofilenamein);
+				char macrofilenamein[1024];
+				sprintf(macrofilenamein, "%s/init.PE_%d.stiff", macrostatelocin, repl);
+				char macrofilenameout[1024];
+				sprintf(macrofilenameout, "%s/init.PE_%d.stiff", macrostatelocout, repl);
+				bool macrostate_exists = file_exists(macrofilenamein);
 
-			char macrofilenameinstress[1024];
-			sprintf(macrofilenameinstress, "%s/init.PE_%d.stress", macrostatelocin, repl);
-			char macrofilenameoutstress[1024];
-			sprintf(macrofilenameoutstress, "%s/init.PE_%d.stress", macrostatelocout, repl);
-			bool macrostatestress_exists = file_exists(macrofilenameinstress);
+				char macrofilenameinstress[1024];
+				sprintf(macrofilenameinstress, "%s/init.PE_%d.stress", macrostatelocin, repl);
+				char macrofilenameoutstress[1024];
+				sprintf(macrofilenameoutstress, "%s/init.PE_%d.stress", macrostatelocout, repl);
+				bool macrostatestress_exists = file_exists(macrofilenameinstress);
 
-			char nanofilenamein[1024];
-			sprintf(nanofilenamein, "%s/init.PE_%d.bin", nanostatelocin, repl);
-			char nanofilenameout[1024];
-			sprintf(nanofilenameout, "%s/init.PE_%d.bin", nanostatelocout, repl);
-			bool nanostate_exists = file_exists(nanofilenamein);
+				char nanofilenamein[1024];
+				sprintf(nanofilenamein, "%s/init.PE_%d.bin", nanostatelocin, repl);
+				char nanofilenameout[1024];
+				sprintf(nanofilenameout, "%s/init.PE_%d.bin", nanostatelocout, repl);
+				bool nanostate_exists = file_exists(nanofilenamein);
 
-			if(!(macrostate_exists && macrostatestress_exists) || !nanostate_exists){
-				hcout << " ...from a molecular dynamics simulation       " << std::endl;
-				if(lammps_pcolor>=0) lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, lammps_global_communicator,
-						nanostatelocin, nanostatelocout, nanologloc, repl);
+				if(!(macrostate_exists && macrostatestress_exists) || !nanostate_exists){
+					hcout << " ...from a molecular dynamics simulation       " << std::endl;
+					/*if(lammps_pcolor>=0)*/ lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, lammps_batch_communicator,
+							nanostatelocin, nanostatelocout, nanologloc, repl);
 
-				// For debug...
-				// if(this_lammps_process == 0){
-				// 	double young = 3.0e9, poisson = 0.45;
-				// 	double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
-				// 	for (unsigned int i=0; i<dim; ++i)
-				// 		for (unsigned int j=0; j<dim; ++j)
-				// 			for (unsigned int k=0; k<dim; ++k)
-				// 				for (unsigned int l=0; l<dim; ++l)
-				// 					initial_stiffness_tensor[i][j][k][l]
-				// 														  = (((i==k) && (j==l) ? mu : 0.0) +
-				// 																  ((i==l) && (j==k) ? mu : 0.0) +
-				// 																  ((i==j) && (k==l) ? lambda : 0.0));
-				// 	for (unsigned int i=0; i<dim; ++i)
-				// 		for (unsigned int j=0; j<dim; ++j)
-				// 			initial_stress_tensor[i][j] = 0.0;
-				// }
-				// MPI_Barrier(world_communicator);
+					// For debug...
+					// if(this_lammps_process == 0){
+					// 	double young = 3.0e9, poisson = 0.45;
+					// 	double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
+					// 	for (unsigned int i=0; i<dim; ++i)
+					// 		for (unsigned int j=0; j<dim; ++j)
+					// 			for (unsigned int k=0; k<dim; ++k)
+					// 				for (unsigned int l=0; l<dim; ++l)
+					// 					initial_stiffness_tensor[i][j][k][l]
+					// 														  = (((i==k) && (j==l) ? mu : 0.0) +
+					// 																  ((i==l) && (j==k) ? mu : 0.0) +
+					// 																  ((i==j) && (k==l) ? lambda : 0.0));
+					// 	for (unsigned int i=0; i<dim; ++i)
+					// 		for (unsigned int j=0; j<dim; ++j)
+					// 			initial_stress_tensor[i][j] = 0.0;
+					// }
+					// MPI_Barrier(world_communicator);
 
-				if(this_lammps_process == 0) write_tensor<dim>(macrofilenameout, initial_stiffness_tensor);
-				if(this_lammps_process == 0) write_tensor<dim>(macrofilenameoutstress, initial_stress_tensor);
-			}
-			else{
-				hcout << " ...from an existing stiffness tensor       " << std::endl;
-				if(this_lammps_process == 0){
-					std::ifstream  macroin(macrofilenamein, std::ios::binary);
-					std::ofstream  macroout(macrofilenameout,   std::ios::binary);
-					macroout << macroin.rdbuf();
-					macroin.close();
-					macroout.close();
+					if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameout, initial_stiffness_tensor);
+					if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameoutstress, initial_stress_tensor);
+				}
+				else{
+					hcout << " ...from an existing stiffness tensor       " << std::endl;
+					if(this_lammps_batch_process == 0){
+						std::ifstream  macroin(macrofilenamein, std::ios::binary);
+						std::ofstream  macroout(macrofilenameout,   std::ios::binary);
+						macroout << macroin.rdbuf();
+						macroin.close();
+						macroout.close();
 
-					std::ifstream  macrostressin(macrofilenameinstress, std::ios::binary);
-					std::ofstream  macrostressout(macrofilenameoutstress,   std::ios::binary);
-					macrostressout << macrostressin.rdbuf();
-					macrostressin.close();
-					macrostressout.close();
+						std::ifstream  macrostressin(macrofilenameinstress, std::ios::binary);
+						std::ofstream  macrostressout(macrofilenameoutstress,   std::ios::binary);
+						macrostressout << macrostressin.rdbuf();
+						macrostressin.close();
+						macrostressout.close();
 
-					std::ifstream  nanoin(nanofilenamein, std::ios::binary);
-					std::ofstream  nanoout(nanofilenameout,   std::ios::binary);
-					nanoout << nanoin.rdbuf();
-					nanoin.close();
-					nanoout.close();
+						std::ifstream  nanoin(nanofilenamein, std::ios::binary);
+						std::ofstream  nanoout(nanofilenameout,   std::ios::binary);
+						nanoout << nanoin.rdbuf();
+						nanoin.close();
+						nanoout.close();
+					}
 				}
 			}
 		}
@@ -2708,7 +2712,7 @@ namespace HMM
 	// [as close as possible to n_lammps_processes], and (iv) n_lammps_processes_per_batch the number of processes provided to one lammps
 	// testing [NT divided by n_lammps_batch the number of concurrent testing boxes].
 	template <int dim>
-	void HMMProblem<dim>::set_lammps_procs ()
+	void HMMProblem<dim>::set_lammps_procs (int npb)
 	{
 		// Create a communicator for all processes allocated to lammps
 		MPI_Comm_dup(MPI_COMM_WORLD, &lammps_global_communicator);
@@ -2717,7 +2721,7 @@ namespace HMM
 		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
 
 		// Arbitrary setting of NB and NT
-		n_lammps_processes_per_batch = 80;
+		n_lammps_processes_per_batch = npb;
 
 		n_lammps_batch = int(n_lammps_processes/n_lammps_processes_per_batch);
 		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_processes_per_batch=n_lammps_processes;}
@@ -2744,10 +2748,10 @@ namespace HMM
 
 
 	template <int dim>
-	void HMMProblem<dim>::set_dealii_procs ()
+	void HMMProblem<dim>::set_dealii_procs (int npd)
 	{
 		root_dealii_process = 0;
-		n_dealii_processes = 80;
+		n_dealii_processes = npd;
 
 		dealii_pcolor = MPI_UNDEFINED;
 
@@ -2795,11 +2799,13 @@ namespace HMM
 		// Set the dealii communicator using a limited amount of available processors
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
-		set_dealii_procs();
+		set_dealii_procs(80);
 
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		set_lammps_procs();
+		int ntot_procs;
+		MPI_Comm_size(MPI_COMM_WORLD,&ntot_procs);
+		set_lammps_procs(std::max(1,int(ntot_procs/nrepl)));
 
 		// Recapitulating allocation of each process to deal and lammps
 		std::cout << "proc world rank: " << this_world_process
@@ -2818,6 +2824,10 @@ namespace HMM
 		hcout << " Initialization of stiffness and initiation of the Molecular Dynamics sample...       " << std::endl;
 		initial_stiffness_with_molecular_dynamics();
 		MPI_Barrier(world_communicator);
+
+		// Dispatch of the available processes on to different groups for parallel
+		// update of quadrature points
+		set_lammps_procs(80);
 
 		// Initialization of time variables
 		present_time = 0;

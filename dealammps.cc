@@ -2680,27 +2680,29 @@ namespace HMM
 			}
 		}
 
-		SymmetricTensor<4,dim> 				initial_ensemble_stiffness_tensor;
-		initial_ensemble_stiffness_tensor = 0.;
+		if(this_lammps_batch_process == 0){
+			SymmetricTensor<4,dim> 				initial_ensemble_stiffness_tensor;
+			initial_ensemble_stiffness_tensor = 0.;
 
-		for(unsigned int repl=1;repl<nrepl+1;repl++)
-		{
-			char macrofilenamein[1024];
-			sprintf(macrofilenamein, "%s/init.PE_%d.stiff", macrostatelocout, repl);
+			for(unsigned int repl=1;repl<nrepl+1;repl++)
+			{
+				char macrofilenamein[1024];
+				sprintf(macrofilenamein, "%s/init.PE_%d.stiff", macrostatelocout, repl);
 
-			SymmetricTensor<4,dim> 				initial_stiffness_tensor;
-			read_tensor<dim>(macrofilenamein, initial_stiffness_tensor);
+				SymmetricTensor<4,dim> 				initial_stiffness_tensor;
+				read_tensor<dim>(macrofilenamein, initial_stiffness_tensor);
 
-			initial_ensemble_stiffness_tensor += initial_stiffness_tensor;
+				initial_ensemble_stiffness_tensor += initial_stiffness_tensor;
 
+			}
+
+			initial_ensemble_stiffness_tensor /= nrepl;
+
+			char macrofilenameout[1024];
+			sprintf(macrofilenameout, "%s/init.stiff", macrostatelocout);
+
+			write_tensor<dim>(macrofilenameout, initial_ensemble_stiffness_tensor);
 		}
-
-		initial_ensemble_stiffness_tensor /= nrepl;
-
-		char macrofilenameout[1024];
-		sprintf(macrofilenameout, "%s/init.stiff", macrostatelocout);
-
-		write_tensor<dim>(macrofilenameout, initial_ensemble_stiffness_tensor);
 	}
 
 
@@ -2805,7 +2807,7 @@ namespace HMM
 		// update of quadrature points
 		int ntot_procs;
 		MPI_Comm_size(MPI_COMM_WORLD,&ntot_procs);
-		set_lammps_procs(std::max(1,int(ntot_procs/nrepl)));
+		set_lammps_procs(std::max(1,int(ntot_procs/(nrepl+1))));
 
 		// Recapitulating allocation of each process to deal and lammps
 		std::cout << "proc world rank: " << this_world_process

@@ -387,6 +387,8 @@ namespace HMM
 		double dts = 2.0;
 		// Number of timesteps factor
 		int nsinit = 100000;
+		// Temperature
+		double tempt = 200.0;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -443,8 +445,8 @@ namespace HMM
 		sprintf(cfile, "%s/%s", location, "in.set.lammps"); lammps_file(lmp,cfile);
 
 		// Setting testing temperature
-		sprintf(cline, "variable tempt equal 0.001"); lammps_command(lmp,cline);
-		sprintf(cline, "variable sseed equal 1111"); lammps_command(lmp,cline);
+		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
+		sprintf(cline, "variable sseed equal 1234"); lammps_command(lmp,cline);
 
 		// Check if 'init.PE.bin' has been computed already
 		sprintf(sfile, "%s/%s", statelocin, initdata);
@@ -506,6 +508,8 @@ namespace HMM
 		// Declaration of run parameters
 		double dts = 2.0; // timestep length in fs
 		int nts = 5000; // number of timesteps
+		// Temperature
+		double tempt = 200.0;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -558,7 +562,7 @@ namespace HMM
 		sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
 
 		// Setting testing temperature
-		sprintf(cline, "variable tempt equal 0.001"); lammps_command(lmp,cline);
+		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
@@ -721,7 +725,7 @@ namespace HMM
 
 		void make_grid ();
 		void setup_system ();
-		void restart_system (char* nanostatelocin, char* nanostatelocout);
+		void restart_system (char* nanostatelocin, char* nanostatelocout, unsigned int nrepl);
 		void set_boundary_values (const double present_timestep);
 		double assemble_system ();
 		void solve_linear_problem_CG ();
@@ -1246,33 +1250,33 @@ namespace HMM
 //			}
 //		}
 
-		dcout << "hello Y Force ------ " << std::endl;
-		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-			if (loaded_boundary_dofs[i] == true)
-			{
-				dcout << "dof: " << i << std::endl;
-			}
-
-		dcout << "hello Y left support ------ " << std::endl;
-		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-			if (lsupport_boundary_dofs[i] == true)
-			{
-				dcout << "dof: " << i << std::endl;
-			}
-
-		dcout << "hello Y right support ------ " << std::endl;
-		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-			if (rsupport_boundary_dofs[i] == true)
-			{
-				dcout << "dof: " << i << std::endl;
-			}
-
-		dcout << "hello XZ support ------ " << std::endl;
-		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-			if (xzsupport_boundary_dofs[i] == true)
-			{
-				dcout << "dof: " << i << std::endl;
-			}
+//		dcout << "hello Y Force ------ " << std::endl;
+//		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+//			if (loaded_boundary_dofs[i] == true)
+//			{
+//				dcout << "dof: " << i << std::endl;
+//			}
+//
+//		dcout << "hello Y left support ------ " << std::endl;
+//		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+//			if (lsupport_boundary_dofs[i] == true)
+//			{
+//				dcout << "dof: " << i << std::endl;
+//			}
+//
+//		dcout << "hello Y right support ------ " << std::endl;
+//		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+//			if (rsupport_boundary_dofs[i] == true)
+//			{
+//				dcout << "dof: " << i << std::endl;
+//			}
+//
+//		dcout << "hello XZ support ------ " << std::endl;
+//		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+//			if (xzsupport_boundary_dofs[i] == true)
+//			{
+//				dcout << "dof: " << i << std::endl;
+//			}
 
 
 		for (std::map<types::global_dof_index, double>::const_iterator
@@ -1800,7 +1804,7 @@ namespace HMM
 				ofile.open (fname);
 				if (ofile.is_open())
 				{
-					ofile << "# timestep, time, imposed displacement, applied force" << std::endl;
+					ofile << "timestep,time,imposed_displacement,applied_force" << std::endl;
 					ofile.close();
 				}
 				else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
@@ -2143,7 +2147,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::restart_system (char* nanostatelocin, char* nanostatelocout)
+	void FEProblem<dim>::restart_system (char* nanostatelocin, char* nanostatelocout, unsigned int nrepl)
 	{
 		char filename[1024];
 
@@ -2251,14 +2255,17 @@ namespace HMM
 					}
 
 					// Restore box state history
-					sprintf(filename, "%s/restart/lcts.%s.PE.bin", nanostatelocin, cell_id);
-					std::ifstream  nanoin(filename, std::ios::binary);
-					if (nanoin.good()){
-						sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, cell_id);
-						std::ofstream  nanoout(filename,   std::ios::binary);
-						nanoout << nanoin.rdbuf();
-						nanoin.close();
-						nanoout.close();
+					for(unsigned int repl=1;repl<nrepl+1;repl++)
+					{
+						sprintf(filename, "%s/restart/lcts.%s.PE.bin", nanostatelocin, cell_id);
+						std::ifstream  nanoin(filename, std::ios::binary);
+						if (nanoin.good()){
+							sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, cell_id);
+							std::ofstream  nanoout(filename,   std::ios::binary);
+							nanoout << nanoin.rdbuf();
+							nanoin.close();
+							nanoout.close();
+						}
 					}
 				}
 			}
@@ -2815,7 +2822,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 10;
+		end_time = 40;
 		timestep_no = 0;
 
 		hcout << " Initiation of the Mesh...       " << std::endl;
@@ -2828,7 +2835,7 @@ namespace HMM
 		if(dealii_pcolor==0) fe_problem.setup_quadrature_point_history ();
 
 		hcout << " Loading previous simulation data...       " << std::endl;
-		if(dealii_pcolor==0) fe_problem.restart_system (nanostatelocin, nanostatelocout);
+		if(dealii_pcolor==0) fe_problem.restart_system (nanostatelocin, nanostatelocout, nrepl);
 
 		hcout << "Beginning of incremental solution algorithm:       " << std::endl;
 		while (present_time < end_time)

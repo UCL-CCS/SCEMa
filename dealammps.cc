@@ -2833,6 +2833,11 @@ namespace HMM
 		// update of quadrature points
 		set_lammps_procs(80);
 
+		// Recapitulating allocation of each process to deal and lammps
+		std::cout << "proc world rank: " << this_world_process
+				<< " - deal color: " << dealii_pcolor
+				<< " - lammps color: " << lammps_pcolor << std::endl;
+
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;

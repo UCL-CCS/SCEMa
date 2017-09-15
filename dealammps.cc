@@ -2374,7 +2374,7 @@ namespace HMM
 		ifile.open (filenamelist);
 		if (ifile.is_open())
 		{
-		    while (getline(ifile, iline)) ncupd++;
+			while (getline(ifile, iline)) ncupd++;
 			ifile.close();
 		}
 		else hcout << "Unable to open" << filenamelist << " to read it" << std::endl;
@@ -2388,56 +2388,68 @@ namespace HMM
 		while (nline<ncupd && ifile.getline(cell_id[nline], sizeof(cell_id[nline]))) nline++;
 		ifile.close();
 
+		// set_lammps_procs here...
+		double nmdruns = ncupd*nrepl;
+		double fair_nproc_mdrun = n_world_processes/nmdruns;
+
+		set_lammps_procs(std::max(50,int(fair_nproc_mdrun)));
+
+		// Recapitulating allocation of each process to deal and lammps
+		std::cout << "proc world rank: " << this_world_process
+				<< " - deal color: " << dealii_pcolor
+				<< " - lammps color: " << lammps_pcolor << std::endl;
+
 		// It might be worth doing the splitting of in batches of lammps processors here according to
 		// the number of quadrature points to update, because if the number of points is smaller than
 		// the number of batches predefined initially part of the lammps allocated processors remain idle...
 		hcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
 		for (int c=0; c<ncupd; ++c)
 		{
-			if (lammps_pcolor == (c%n_lammps_batch))
+			for(unsigned int repl=1;repl<nrepl+1;repl++)
 			{
-				SymmetricTensor<2,dim> loc_strain;
-				SymmetricTensor<2,dim> loc_stress;
-				SymmetricTensor<4,dim> loc_stiffness;
+				int imdrun=c*nrepl + nrepl;
 
-				char filename[1024];
-
-				// For debug...
-				int me;
-				MPI_Comm_rank(lammps_batch_communicator, &me);
-				std::cout << "            "
-						<< "nctbu: " << c
-						<< " - cell: " << cell_id[c]
-						<< " - proc_world_rank: " << this_lammps_process
-						<< " - lammps batch computed: " << (c%n_lammps_batch)
-						<< " - lammps batch color: " << lammps_pcolor
-						<< " - proc_batch_rank: " << me
-						<< std::endl;
-
-				// For debug...
-				sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
-				ifile.open (filename);
-				if (ifile.is_open()) ifile.close();
-				else sprintf(filename, "%s/last.stiff", macrostatelocout);
-
-				read_tensor<dim>(filename, loc_stiffness);
-
-				// For debug...
-				if(this_lammps_batch_process == 0)
+				if (lammps_pcolor == (imdrun%n_lammps_batch))
 				{
-					std::cout << "               "
-							  << "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
-							  << " " << loc_stiffness[1][1][1][1]
-							  << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
-				}
+					SymmetricTensor<2,dim> loc_strain;
+					SymmetricTensor<2,dim> loc_stress;
+					SymmetricTensor<4,dim> loc_stiffness;
 
-				// Argument of the MD simulation
-				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
-				read_tensor<dim>(filename, loc_strain);
+					char filename[1024];
 
-				loc_stiffness = 0.;
-				for(unsigned int repl=1;repl<nrepl+1;repl++)
-				{
+					// For debug...
+					int me;
+					MPI_Comm_rank(lammps_batch_communicator, &me);
+					std::cout << "            "
+							<< "nctbu: " << c
+							<< " - cell: " << cell_id[c]
+													  << " - proc_world_rank: " << this_lammps_process
+													  << " - lammps batch computed: " << (imdrun%n_lammps_batch)
+													  << " - lammps batch color: " << lammps_pcolor
+													  << " - proc_batch_rank: " << me
+													  << std::endl;
+
+					// For debug...
+					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
+					ifile.open (filename);
+					if (ifile.is_open()) ifile.close();
+					else sprintf(filename, "%s/last.stiff", macrostatelocout);
+
+					read_tensor<dim>(filename, loc_stiffness);
+
+					// For debug...
+					if(this_lammps_batch_process == 0)
+					{
+						std::cout << "               "
+								<< "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
+								<< " " << loc_stiffness[1][1][1][1]
+								<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;
+					}
+
+					// Argument of the MD simulation
+					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
+					read_tensor<dim>(filename, loc_strain);
+
 					SymmetricTensor<4,dim> loc_rep_stiffness;
 					SymmetricTensor<2,dim> init_rep_stress;
 
@@ -2459,40 +2471,65 @@ namespace HMM
 							nanostatelocout,
 							nanologloc,
 							repl);
-					loc_stiffness += loc_rep_stiffness;
+					if(this_lammps_batch_process == 0)
+					{
+						sprintf(filename, "%s/last.%s.PE_%d.stiff", macrostatelocout, cell_id[c], repl);
+						write_tensor<dim>(filename, loc_rep_stiffness);
+					}
 				}
-				loc_stiffness /= nrepl;
+			}
+		}
 
+		MPI_Barrier(world_communicator);
+
+		for (int c=0; c<ncupd; ++c)
+		{
+			if (lammps_pcolor == (c%n_lammps_batch))
+			{
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
 				if(this_lammps_batch_process == 0)
 				{
+					SymmetricTensor<4,dim> loc_stiffness;
+					char filename[1024];
+
+					for(unsigned int repl=1;repl<nrepl+1;repl++)
+					{
+						SymmetricTensor<4,dim> loc_rep_stiffness;
+						sprintf(filename, "%s/last.%s.PE_%d.stiff", macrostatelocout, cell_id[c], repl);
+						read_tensor<dim>(filename, loc_rep_stiffness);
+
+						loc_stiffness += loc_rep_stiffness;
+					}
+
+					loc_stiffness /= nrepl;
+
 					// For debug...
 					std::cout << "               "
-							  << "Stiffnesses: "<< loc_stiffness[0][0][0][0]
-							  << " " << loc_stiffness[1][1][1][1]
-							  << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
+							<< "Stiffnesses: "<< loc_stiffness[0][0][0][0]
+							<< " " << loc_stiffness[1][1][1][1]
+							<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;
 
 					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 					write_tensor<dim>(filename, loc_stiffness);
 
-//					// Save stiffness history for later checking...
-//					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
-//				    std::ifstream  macroin(filename, std::ios::binary);
-//					sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, time_id, cell_id[c]);
-//				    std::ofstream  macroout(filename,   std::ios::binary);
-//				    macroout << macroin.rdbuf();
-//				    macroin.close();
-//				    macroout.close();
-//
-//				    // Save box state history for later checking...
-//					sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, cell_id[c]);
-//				    std::ifstream  nanoin(filename, std::ios::binary);
-//				    sprintf(filename, "%s/%s.%s.PE.bin", nanostatelocout, time_id, cell_id[c]);
-//				    std::ofstream  nanoout(filename,   std::ios::binary);
-//				    nanoout << nanoin.rdbuf();
-//				    nanoin.close();
-//				    nanoout.close();
+					//					// Save stiffness history for later checking...
+					//					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
+					//				    std::ifstream  macroin(filename, std::ios::binary);
+					//					sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, time_id, cell_id[c]);
+					//				    std::ofstream  macroout(filename,   std::ios::binary);
+					//				    macroout << macroin.rdbuf();
+					//				    macroin.close();
+					//				    macroout.close();
+					//
+					//				    // Save box state history for later checking...
+					//					sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, cell_id[c]);
+					//				    std::ifstream  nanoin(filename, std::ios::binary);
+					//				    sprintf(filename, "%s/%s.%s.PE.bin", nanostatelocout, time_id, cell_id[c]);
+					//				    std::ofstream  nanoout(filename,   std::ios::binary);
+					//				    nanoout << nanoin.rdbuf();
+					//				    nanoin.close();
+					//				    nanoout.close();
 				}
 			}
 		}
@@ -2741,8 +2778,6 @@ namespace HMM
 		else
 			lammps_pcolor = int((n_lammps_processes_per_batch*n_lammps_batch-1)/n_lammps_processes_per_batch);
 
-
-
 		// Definition of the communicators
 		MPI_Comm_split(lammps_global_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);
 		MPI_Comm_rank(lammps_batch_communicator,&this_lammps_batch_process);
@@ -2807,9 +2842,7 @@ namespace HMM
 
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int ntot_procs;
-		MPI_Comm_size(MPI_COMM_WORLD,&ntot_procs);
-		set_lammps_procs(std::max(1,int(ntot_procs/(nrepl+1))));
+		set_lammps_procs(std::max(50,int(n_world_processes/(nrepl+1))));
 
 		// Recapitulating allocation of each process to deal and lammps
 		std::cout << "proc world rank: " << this_world_process
@@ -2831,12 +2864,7 @@ namespace HMM
 
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		set_lammps_procs(80);
-
-		// Recapitulating allocation of each process to deal and lammps
-		std::cout << "proc world rank: " << this_world_process
-				<< " - deal color: " << dealii_pcolor
-				<< " - lammps color: " << lammps_pcolor << std::endl;
+//		set_lammps_procs(80);
 
 		// Initialization of time variables
 		present_time = 0;

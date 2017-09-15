@@ -1146,7 +1146,7 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values
 	(const double present_timestep)
 	{
-		velocity = -0.0002;
+		velocity = -0.00015;
 
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);
@@ -2518,7 +2518,7 @@ namespace HMM
 				++newtonstep_no;
 
 				hcout << "    Solving FE system..." << std::flush;
-				if(dealii_pcolor==0) fe_problem.solve_linear_problem_direct();
+				if(dealii_pcolor==0) fe_problem.solve_linear_problem_CG();
 
 				hcout << "    Updating quadrature point data..." << std::endl;
 

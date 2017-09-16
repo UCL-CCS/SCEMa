@@ -2396,9 +2396,9 @@ namespace HMM
 		set_lammps_procs(std::max(50,int(fair_nproc_mdrun)));
 
 		// Recapitulating allocation of each process to deal and lammps
-		std::cout << "proc world rank: " << this_world_process
+		/*std::cout << "proc world rank: " << this_world_process
 				<< " - deal color: " << dealii_pcolor
-				<< " - lammps color: " << lammps_pcolor << std::endl;
+				<< " - lammps color: " << lammps_pcolor << std::endl;*/
 
 		// It might be worth doing the splitting of in batches of lammps processors here according to
 		// the number of quadrature points to update, because if the number of points is smaller than

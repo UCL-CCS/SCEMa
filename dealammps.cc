@@ -2392,6 +2392,7 @@ namespace HMM
 		double nmdruns = ncupd*nrepl;
 		double fair_nproc_mdrun = n_world_processes/nmdruns;
 
+		hcout << "        " << "...number of processes per batches: " << std::max(50,int(fair_nproc_mdrun)) << std::endl;
 		set_lammps_procs(std::max(50,int(fair_nproc_mdrun)));
 
 		// Recapitulating allocation of each process to deal and lammps
@@ -2407,7 +2408,7 @@ namespace HMM
 		{
 			for(unsigned int repl=1;repl<nrepl+1;repl++)
 			{
-				int imdrun=c*nrepl + nrepl;
+				int imdrun=c*nrepl + (repl-1);
 
 				if (lammps_pcolor == (imdrun%n_lammps_batch))
 				{
@@ -2418,7 +2419,7 @@ namespace HMM
 					char filename[1024];
 
 					// For debug...
-					int me;
+					/*int me;
 					MPI_Comm_rank(lammps_batch_communicator, &me);
 					std::cout << "            "
 							<< "nctbu: " << c
@@ -2427,7 +2428,7 @@ namespace HMM
 													  << " - lammps batch computed: " << (imdrun%n_lammps_batch)
 													  << " - lammps batch color: " << lammps_pcolor
 													  << " - proc_batch_rank: " << me
-													  << std::endl;
+													  << std::endl;*/
 
 					// For debug...
 					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
@@ -2550,7 +2551,7 @@ namespace HMM
 					<< previous_res
 					<< std::endl;
 
-			for (unsigned int inner_iteration=0; inner_iteration<5; ++inner_iteration)
+			for (unsigned int inner_iteration=0; inner_iteration<3; ++inner_iteration)
 			{
 				++newtonstep_no;
 
@@ -2640,9 +2641,19 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::initial_stiffness_with_molecular_dynamics ()
 	{
+		// Dispatch of the available processes on to different groups for parallel
+		// update of quadrature points
+		hcout << "        " << "...number of processes per batches: " << std::max(50,int(n_world_processes/(nrepl))) << std::endl;
+		set_lammps_procs(std::max(50,int(n_world_processes/(nrepl))));
+
+		// Recapitulating allocation of each process to deal and lammps
+		std::cout << "proc world rank: " << this_world_process
+				<< " - deal color: " << dealii_pcolor
+				<< " - lammps color: " << lammps_pcolor << std::endl;
+
 		for(unsigned int repl=1;repl<nrepl+1;repl++)
 		{
-			int irepl = repl;
+			int irepl = repl-1;
 			if (lammps_pcolor == (irepl%n_lammps_batch))
 			{
 				SymmetricTensor<2,dim> 				initial_stress_tensor;
@@ -2667,7 +2678,7 @@ namespace HMM
 				bool nanostate_exists = file_exists(nanofilenamein);
 
 				if(!(macrostate_exists && macrostatestress_exists) || !nanostate_exists){
-					hcout << " ...from a molecular dynamics simulation       " << std::endl;
+					if(this_lammps_batch_process == 0) std::cout << " (repl "<< repl << ") ...from a molecular dynamics simulation       " << std::endl;
 					/*if(lammps_pcolor>=0)*/ lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, lammps_batch_communicator,
 							nanostatelocin, nanostatelocout, nanologloc, repl);
 
@@ -2693,8 +2704,8 @@ namespace HMM
 					if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameoutstress, initial_stress_tensor);
 				}
 				else{
-					hcout << " ...from an existing stiffness tensor       " << std::endl;
 					if(this_lammps_batch_process == 0){
+						std::cout << " (repl "<< repl << ")  ...from an existing stiffness tensor       " << std::endl;
 						std::ifstream  macroin(macrofilenamein, std::ios::binary);
 						std::ofstream  macroout(macrofilenameout,   std::ios::binary);
 						macroout << macroin.rdbuf();
@@ -2839,15 +2850,6 @@ namespace HMM
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
 		set_dealii_procs(80);
-
-		// Dispatch of the available processes on to different groups for parallel
-		// update of quadrature points
-		set_lammps_procs(std::max(50,int(n_world_processes/(nrepl+1))));
-
-		// Recapitulating allocation of each process to deal and lammps
-		std::cout << "proc world rank: " << this_world_process
-				<< " - deal color: " << dealii_pcolor
-				<< " - lammps color: " << lammps_pcolor << std::endl;
 
 		// Construct FE class
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;

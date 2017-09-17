@@ -2388,12 +2388,16 @@ namespace HMM
 		while (nline<ncupd && ifile.getline(cell_id[nline], sizeof(cell_id[nline]))) nline++;
 		ifile.close();
 
-		// set_lammps_procs here...
+		// Number of MD simulations at this iteration...
 		double nmdruns = ncupd*nrepl;
-		double fair_nproc_mdrun = n_world_processes/nmdruns;
 
-		hcout << "        " << "...number of processes per batches: " << std::max(50,int(fair_nproc_mdrun)) << std::endl;
-		set_lammps_procs(std::max(50,int(fair_nproc_mdrun)));
+		// Dispatch of the available processes on to different groups for parallel
+		// update of quadrature points
+		int mult = 16;
+		int fair_npbtch = int(n_world_processes/(nmdruns));
+		int npbtch = fair_npbtch + (mult - fair_npbtch%mult);
+		hcout << "        " << "...number of processes per batches: " << npbtch << std::endl;
+		set_lammps_procs(npbtch);
 
 		// Recapitulating allocation of each process to deal and lammps
 		/*std::cout << "proc world rank: " << this_world_process
@@ -2643,8 +2647,11 @@ namespace HMM
 	{
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		hcout << "        " << "...number of processes per batches: " << std::max(50,int(n_world_processes/(nrepl))) << std::endl;
-		set_lammps_procs(std::max(50,int(n_world_processes/(nrepl))));
+		int mult = 16;
+		int fair_npbtch = int(n_world_processes/(nrepl));
+		int npbtch = fair_npbtch + (mult - fair_npbtch%mult);
+		hcout << "        " << "...number of processes per batches: " << npbtch << std::endl;
+		set_lammps_procs(npbtch);
 
 		// Recapitulating allocation of each process to deal and lammps
 		std::cout << "proc world rank: " << this_world_process
@@ -2786,8 +2793,11 @@ namespace HMM
 			lammps_pcolor = int(this_lammps_process/n_lammps_processes_per_batch);
 		// Initially we used MPI_UNDEFINED, but why waste processes... The processes over
 		// 'n_lammps_processes_per_batch*n_lammps_batch' are assigned to the last batch...
-		else
+		// finally it is better to waste them than failing the simulation with an odd number
+		// of processes for the last batch
+		/*else
 			lammps_pcolor = int((n_lammps_processes_per_batch*n_lammps_batch-1)/n_lammps_processes_per_batch);
+		*/
 
 		// Definition of the communicators
 		MPI_Comm_split(lammps_global_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);

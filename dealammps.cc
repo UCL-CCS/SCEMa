@@ -2286,6 +2286,7 @@ namespace HMM
 	private:
 		void set_repositories ();
 		void set_dealii_procs (int npd);
+		void init_lammps_procs ();
 		void set_lammps_procs (int npb);
 		void initial_stiffness_with_molecular_dynamics ();
 		void do_timestep (FEProblem<dim> &fe_problem);
@@ -2773,12 +2774,6 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::set_lammps_procs (int npb)
 	{
-		// Create a communicator for all processes allocated to lammps
-		MPI_Comm_dup(MPI_COMM_WORLD, &lammps_global_communicator);
-
-		MPI_Comm_rank(lammps_global_communicator,&this_lammps_process);
-		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
-
 		// Arbitrary setting of NB and NT
 		n_lammps_processes_per_batch = npb;
 
@@ -2802,6 +2797,18 @@ namespace HMM
 		// Definition of the communicators
 		MPI_Comm_split(lammps_global_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);
 		MPI_Comm_rank(lammps_batch_communicator,&this_lammps_batch_process);
+	}
+
+
+
+	template <int dim>
+	void HMMProblem<dim>::init_lammps_procs ()
+	{
+		// Create a communicator for all processes allocated to lammps
+		MPI_Comm_dup(MPI_COMM_WORLD, &lammps_global_communicator);
+
+		MPI_Comm_rank(lammps_global_communicator,&this_lammps_process);
+		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
 	}
 
 
@@ -2860,6 +2867,9 @@ namespace HMM
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
 		set_dealii_procs(80);
+
+		// Initialize global lammps communicator
+		init_lammps_procs();
 
 		// Construct FE class
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;

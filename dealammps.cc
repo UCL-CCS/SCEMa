@@ -2569,7 +2569,7 @@ namespace HMM
 						(fe_problem.newton_update, timestep_no, newtonstep_no);
 				MPI_Barrier(world_communicator);
 
-				if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
+				update_stiffness_with_molecular_dynamics();
 				MPI_Barrier(world_communicator);
 
 				if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history
@@ -2622,7 +2622,7 @@ namespace HMM
 		// When the loading increments will be reduced, the condition during the strain update can be removed
 		// although it might never really be useful to update the stress at that time, because new_strains at
 		// (newtonstep_no == 0) will always be quite far from the converged values..
-		/*if(lammps_pcolor>=0) update_stiffness_with_molecular_dynamics();
+		/*update_stiffness_with_molecular_dynamics();
 		//MPI_Barrier(world_communicator);*/
 
 		if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
@@ -2687,7 +2687,7 @@ namespace HMM
 
 				if(!(macrostate_exists && macrostatestress_exists) || !nanostate_exists){
 					if(this_lammps_batch_process == 0) std::cout << " (repl "<< repl << ") ...from a molecular dynamics simulation       " << std::endl;
-					/*if(lammps_pcolor>=0)*/ lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, lammps_batch_communicator,
+					lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, lammps_batch_communicator,
 							nanostatelocin, nanostatelocout, nanologloc, repl);
 
 					// For debug...

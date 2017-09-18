@@ -2784,8 +2784,8 @@ namespace HMM
 
 		// LAMMPS processes color: regroup processes by batches of size NB, except
 		// the last ones (me >= NB*NC) to create batches of only NB processes, nor smaller.
-		if(this_lammps_process < n_lammps_processes_per_batch*n_lammps_batch)
-			lammps_pcolor = int(this_lammps_process/n_lammps_processes_per_batch);
+		if(this_world_process < n_lammps_processes_per_batch*n_lammps_batch)
+			lammps_pcolor = int(this_world_process/n_lammps_processes_per_batch);
 		// Initially we used MPI_UNDEFINED, but why waste processes... The processes over
 		// 'n_lammps_processes_per_batch*n_lammps_batch' are assigned to the last batch...
 		// finally it is better to waste them than failing the simulation with an odd number
@@ -2795,7 +2795,7 @@ namespace HMM
 		*/
 
 		// Definition of the communicators
-		MPI_Comm_split(world_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);
+		MPI_Comm_split(world_communicator, lammps_pcolor, this_world_process, &lammps_batch_communicator);
 		MPI_Comm_rank(lammps_batch_communicator,&this_lammps_batch_process);
 	}
 

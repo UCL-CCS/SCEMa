@@ -2286,7 +2286,7 @@ namespace HMM
 	private:
 		void set_repositories ();
 		void set_dealii_procs (int npd);
-		void init_lammps_procs ();
+		// void init_lammps_procs ();
 		void set_lammps_procs (int npb);
 		void initial_stiffness_with_molecular_dynamics ();
 		void do_timestep (FEProblem<dim> &fe_problem);
@@ -2305,9 +2305,9 @@ namespace HMM
 		int 								this_dealii_process;
 		int 								dealii_pcolor;
 
-		MPI_Comm 							lammps_global_communicator;
+		// MPI_Comm 							lammps_global_communicator;
 		MPI_Comm 							lammps_batch_communicator;
-		int 								n_lammps_processes;
+		// int 								n_lammps_processes;
 		int 								n_lammps_processes_per_batch;
 		int 								n_lammps_batch;
 		int 								this_lammps_process;
@@ -2769,7 +2769,7 @@ namespace HMM
 	// There are several number of processes encountered: (i) n_lammps_processes the highest provided
 	// as an argument to aprun, (ii) ND the number of processes provided to deal.ii
 	// [arbitrary], (iii) NI the number of processes provided to the lammps initiation
-	// [as close as possible to n_lammps_processes], and (iv) n_lammps_processes_per_batch the number of processes provided to one lammps
+	// [as close as possible to n_world_processes], and (iv) n_lammps_processes_per_batch the number of processes provided to one lammps
 	// testing [NT divided by n_lammps_batch the number of concurrent testing boxes].
 	template <int dim>
 	void HMMProblem<dim>::set_lammps_procs (int npb)
@@ -2777,8 +2777,8 @@ namespace HMM
 		// Arbitrary setting of NB and NT
 		n_lammps_processes_per_batch = npb;
 
-		n_lammps_batch = int(n_lammps_processes/n_lammps_processes_per_batch);
-		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_processes_per_batch=n_lammps_processes;}
+		n_lammps_batch = int(n_world_processes/n_lammps_processes_per_batch);
+		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_processes_per_batch=n_world_processes;}
 
 		lammps_pcolor = MPI_UNDEFINED;
 
@@ -2795,21 +2795,21 @@ namespace HMM
 		*/
 
 		// Definition of the communicators
-		MPI_Comm_split(lammps_global_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);
+		MPI_Comm_split(world_communicator, lammps_pcolor, this_lammps_process, &lammps_batch_communicator);
 		MPI_Comm_rank(lammps_batch_communicator,&this_lammps_batch_process);
 	}
 
 
 
-	template <int dim>
+	/*template <int dim>
 	void HMMProblem<dim>::init_lammps_procs ()
 	{
 		// Create a communicator for all processes allocated to lammps
-		MPI_Comm_dup(MPI_COMM_WORLD, &lammps_global_communicator);
+		MPI_Comm_dup(world_communicator, &lammps_global_communicator);
 
 		MPI_Comm_rank(lammps_global_communicator,&this_lammps_process);
 		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
-	}
+	}*/
 
 
 
@@ -2827,7 +2827,7 @@ namespace HMM
 				this_world_process < root_dealii_process + n_dealii_processes) dealii_pcolor = 0;
 		else dealii_pcolor = 1;
 
-		MPI_Comm_split(MPI_COMM_WORLD, dealii_pcolor, this_world_process, &dealii_communicator);
+		MPI_Comm_split(world_communicator, dealii_pcolor, this_world_process, &dealii_communicator);
 		MPI_Comm_rank(dealii_communicator, &this_dealii_process);
 	}
 
@@ -2869,7 +2869,7 @@ namespace HMM
 		set_dealii_procs(80);
 
 		// Initialize global lammps communicator
-		init_lammps_procs();
+		// init_lammps_procs();
 
 		// Construct FE class
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;
@@ -2886,7 +2886,7 @@ namespace HMM
 
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-//		set_lammps_procs(80);
+		// set_lammps_procs(80);
 
 		// Initialization of time variables
 		present_time = 0;

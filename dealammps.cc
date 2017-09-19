@@ -596,10 +596,14 @@ namespace HMM
 			if (ifile.good()){
 				if (me == 0) std::cout << "  specifically computed." << std::endl;
 				ifile.close();
+
+				sprintf(cline, "print 'specifically computed'"); lammps_command(lmp,cline);
 			}
 			else{
 				if (me == 0) std::cout << "  initially computed." << std::endl;
 				sprintf(mfile, "%s/%s", statelocout, initdata);
+
+				sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
 			}
 		}
 		std::ifstream ifile(mfile);
@@ -2397,7 +2401,7 @@ namespace HMM
 		int mult = 16;
 		int fair_npbtch = int(n_world_processes/(nmdruns));
 		int npbtch = fair_npbtch + (mult - fair_npbtch%mult);
-		hcout << "        " << "...number of processes per batches: " << npbtch << std::endl;
+
 		set_lammps_procs(npbtch);
 
 		// Recapitulating allocation of each process to deal and lammps
@@ -2651,7 +2655,7 @@ namespace HMM
 		int mult = 16;
 		int fair_npbtch = int(n_world_processes/(nrepl));
 		int npbtch = fair_npbtch + (mult - fair_npbtch%mult);
-		hcout << "        " << "...number of processes per batches: " << npbtch << std::endl;
+
 		set_lammps_procs(npbtch);
 
 		// Recapitulating allocation of each process to deal and lammps
@@ -2779,6 +2783,9 @@ namespace HMM
 
 		n_lammps_batch = int(n_world_processes/n_lammps_processes_per_batch);
 		if(n_lammps_batch == 0) {n_lammps_batch=1; n_lammps_processes_per_batch=n_world_processes;}
+
+		hcout << "        " << "...number of processes per batches: " << n_lammps_processes_per_batch
+							<< "   ...number of batches: " << n_lammps_batch << std::endl;
 
 		lammps_pcolor = MPI_UNDEFINED;
 

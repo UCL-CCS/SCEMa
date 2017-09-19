@@ -2257,10 +2257,10 @@ namespace HMM
 					// Restore box state history
 					for(unsigned int repl=1;repl<nrepl+1;repl++)
 					{
-						sprintf(filename, "%s/restart/lcts.%s.PE.bin", nanostatelocin, cell_id);
+						sprintf(filename, "%s/restart/lcts.%s.PE_%d.bin", nanostatelocin, cell_id, repl);
 						std::ifstream  nanoin(filename, std::ios::binary);
 						if (nanoin.good()){
-							sprintf(filename, "%s/last.%s.PE.bin", nanostatelocout, cell_id);
+							sprintf(filename, "%s/last.%s.PE_%d.bin", nanostatelocout, cell_id, repl);
 							std::ofstream  nanoout(filename,   std::ios::binary);
 							nanoout << nanoin.rdbuf();
 							nanoin.close();

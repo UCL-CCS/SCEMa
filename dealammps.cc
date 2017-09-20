@@ -2161,7 +2161,7 @@ namespace HMM
 		std::ifstream ifile(filename);
 		if (ifile.is_open())
 		{
-			dcout << "    ...recovery of the position vector. " << std::flush;
+			dcout << "    ...recovery of the position vector... " << std::flush;
 			solution.block_read(ifile);
 			dcout << "    solution norm: " << solution.l2_norm() << std::endl;
 			ifile.close();
@@ -2874,7 +2874,7 @@ namespace HMM
 		// Set the dealii communicator using a limited amount of available processors
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
-		set_dealii_procs(500);
+		set_dealii_procs(80);
 
 		// Initialize global lammps communicator
 		// init_lammps_procs();

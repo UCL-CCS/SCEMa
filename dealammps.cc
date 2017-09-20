@@ -2015,22 +2015,17 @@ namespace HMM
 		// Copy of the solution vector at the end of the presently converged time-step.
 		if (this_FE_process==0)
 		{
-			// Write solution vector to binary for simulation restart
 			std::string smacrostatelocres(macrostatelocres);
-			const std::string solution_filename = (smacrostatelocres + "/" + "lcts.solution.bin");
-			std::ofstream ofile(solution_filename);
-			solution.block_write(ofile);
-			ofile.close();
 
 			// Write solution vector as a text file
 			const std::string solution_filename_dat = (smacrostatelocres + "/" + "lcts.solution.dat");
-			std::ofstream oofile(solution_filename_dat);
-			if (oofile.is_open())
+			std::ofstream ofile(solution_filename_dat);
+			if (ofile.is_open())
 			{
 				for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
 					//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
-					oofile << std::setprecision(16) << solution[i] << std::endl;
-				oofile.close();
+					ofile << std::setprecision(16) << solution[i] << std::endl;
+				ofile.close();
 			}
 			else std::cout << "Unable to open" << solution_filename_dat << " to write in it" << std::endl;
 		}
@@ -2167,92 +2162,18 @@ namespace HMM
 	{
 		char filename[1024];
 
-		// Recovery of the solution vector containing total displacements in the
-		// previous simulation and computing the total strain from it.
-		sprintf(filename, "%s/restart/lcts.solution.bin", macrostatelocin);
-		std::ifstream ifile(filename);
-		if (ifile.is_open())
-		{
-			dcout << "    ...recovery of the position vector. " << std::flush;
-			solution.block_read(ifile);
-			dcout << "    solution norm: " << solution.l2_norm() << std::endl;
-			ifile.close();
-
-			dcout << "    ...computation of total strains from the recovered position vector. " << std::endl;
-			FEValues<dim> fe_values (fe, quadrature_formula,
-					update_values | update_gradients);
-			std::vector<std::vector<Tensor<1,dim> > >
-			solution_grads (quadrature_formula.size(),
-					std::vector<Tensor<1,dim> >(dim));
-
-			for (typename DoFHandler<dim>::active_cell_iterator
-					cell = dof_handler.begin_active();
-					cell != dof_handler.end(); ++cell)
-				if (cell->is_locally_owned())
-				{
-					PointHistory<dim> *local_quadrature_points_history
-					= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
-					Assert (local_quadrature_points_history >=
-							&quadrature_point_history.front(),
-							ExcInternalError());
-					Assert (local_quadrature_points_history <
-							&quadrature_point_history.back(),
-							ExcInternalError());
-					fe_values.reinit (cell);
-					fe_values.get_function_gradients (solution,
-							solution_grads);
-
-					for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-					{
-						// Strain tensor update
-						local_quadrature_points_history[q].new_strain =
-								get_strain (solution_grads[q]);
-
-						// Only needed if the mesh is modified after every timestep...
-						/*const Tensor<2,dim> rotation
-										= get_rotation_matrix (solution_grads[q]);
-
-										const SymmetricTensor<2,dim> rotated_new_strain
-										= symmetrize(transpose(rotation) *
-												static_cast<Tensor<2,dim> >
-										(local_quadrature_points_history[q].new_strain) *
-										rotation);
-
-										local_quadrature_points_history[q].new_strain
-										= rotated_new_strain;*/
-					}
-				}
-		}
-
-
-		// Copy of the solution vector at the end of the presently converged time-step.
-		if (this_FE_process==0)
-		{
-			sprintf(filename, "%s/restart/lcts.solution.dat", macrostatelocin);
-			std::ofstream ofile(filename);
-			if (ofile.is_open())
-			{
-				for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-					//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
-					ofile << std::setprecision(16) << solution[i] << std::endl;
-				ofile.close();
-			}
-			else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
-		}
-
-
 		// Write solution vector as a text file
 		sprintf(filename, "%s/restart/lcts.solution.dat", macrostatelocin);
-		std::ifstream iifile(filename);
-		if (iifile.is_open()){
+		std::ifstream ifile(filename);
+		if (ifile.is_open()){
 			dcout << "    ...recovery of the position vector... " << std::flush;
 			for (unsigned int i=0; i<dof_handler.n_dofs(); ++i){
 				char line[1024];
-				if(iifile.getline(line, sizeof(line)))
+				if(ifile.getline(line, sizeof(line)))
 					solution[i]= std::strtod(line, NULL);
 			}
 			dcout << "    solution norm: " << solution.l2_norm() << std::endl;
-			iifile.close();
+			ifile.close();
 
 			dcout << "    ...computation of total strains from the recovered position vector. " << std::endl;
 			FEValues<dim> fe_values (fe, quadrature_formula,

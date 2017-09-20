@@ -2023,7 +2023,6 @@ namespace HMM
 			if (ofile.is_open())
 			{
 				for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-					//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
 					ofile << std::setprecision(16) << solution[i] << std::endl;
 				ofile.close();
 			}
@@ -2923,9 +2922,9 @@ namespace HMM
 		hcout << " Loading previous simulation data...       " << std::endl;
 		if(dealii_pcolor==0) fe_problem.restart_system (nanostatelocin, nanostatelocout, nrepl);
 
-//		hcout << "Beginning of incremental solution algorithm:       " << std::endl;
-//		while (present_time < end_time)
-//			do_timestep (fe_problem);
+		hcout << "Beginning of incremental solution algorithm:       " << std::endl;
+		while (present_time < end_time)
+			do_timestep (fe_problem);
 
 	}
 }

@@ -2021,56 +2021,68 @@ namespace HMM
 			std::ofstream ofile(solution_filename);
 			solution.block_write(ofile);
 			ofile.close();
+
+			// Write solution vector as a text file
+			const std::string solution_filename_dat = (smacrostatelocres + "/" + "lcts.solution.dat");
+			std::ofstream oofile(solution_filename_dat);
+			if (oofile.is_open())
+			{
+				for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+					//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
+					oofile << std::setprecision(16) << solution[i] << std::endl;
+				oofile.close();
+			}
+			else std::cout << "Unable to open" << solution_filename_dat << " to write in it" << std::endl;
 		}
 
 		// The strain tensor since last update (upd_strain) should be saved for every quadrature point
 		// The stiffness tensor and the box state should also be saved for every quadrature point if it has
 		// been updated since init.
 		for (typename DoFHandler<dim>::active_cell_iterator
-					cell = dof_handler.begin_active();
-					cell != dof_handler.end(); ++cell)
-				if (cell->is_locally_owned())
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
-					for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+					char filename[1024];
+
+					// Save strain since last update history
+					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
+					std::ifstream  macroinstrain(filename, std::ios::binary);
+					sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocres, cell_id);
+					std::ofstream  macrooutstrain(filename,   std::ios::binary);
+					macrooutstrain << macroinstrain.rdbuf();
+					macroinstrain.close();
+					macrooutstrain.close();
+
+					// Save stiffness history
+					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
+					std::ifstream  macroin(filename, std::ios::binary);
+					if (macroin.good()){
+						sprintf(filename, "%s/lcts.%s.stiff", macrostatelocres, cell_id);
+						std::ofstream  macroout(filename,   std::ios::binary);
+						macroout << macroin.rdbuf();
+						macroin.close();
+						macroout.close();
+					}
+
+					// Save box state history
+					for(unsigned int repl=1;repl<nrepl+1;repl++)
 					{
-						char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-						char filename[1024];
-
-						// Save strain since last update history
-						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
-						std::ifstream  macroinstrain(filename, std::ios::binary);
-						sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocres, cell_id);
-						std::ofstream  macrooutstrain(filename,   std::ios::binary);
-						macrooutstrain << macroinstrain.rdbuf();
-						macroinstrain.close();
-						macrooutstrain.close();
-
-						// Save stiffness history
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
-					    std::ifstream  macroin(filename, std::ios::binary);
-					    if (macroin.good()){
-					    	sprintf(filename, "%s/lcts.%s.stiff", macrostatelocres, cell_id);
-					    	std::ofstream  macroout(filename,   std::ios::binary);
-					    	macroout << macroin.rdbuf();
-					    	macroin.close();
-					    	macroout.close();
-						}
-
-					    // Save box state history
-						for(unsigned int repl=1;repl<nrepl+1;repl++)
-						{
-							sprintf(filename, "%s/last.%s.PE_%d.bin", nanostatelocout, cell_id, repl);
-							std::ifstream  nanoin(filename, std::ios::binary);
-							if (nanoin.good()){
-								sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocres, cell_id, repl);
-								std::ofstream  nanoout(filename,   std::ios::binary);
-								nanoout << nanoin.rdbuf();
-								nanoin.close();
-								nanoout.close();
-							}
+						sprintf(filename, "%s/last.%s.PE_%d.bin", nanostatelocout, cell_id, repl);
+						std::ifstream  nanoin(filename, std::ios::binary);
+						if (nanoin.good()){
+							sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocres, cell_id, repl);
+							std::ofstream  nanoout(filename,   std::ios::binary);
+							nanoout << nanoin.rdbuf();
+							nanoin.close();
+							nanoout.close();
 						}
 					}
 				}
+			}
 	}
 
 
@@ -2161,8 +2173,9 @@ namespace HMM
 		std::ifstream ifile(filename);
 		if (ifile.is_open())
 		{
-			dcout << "    ...recovery of the position vector. " << std::endl;
+			dcout << "    ...recovery of the position vector. " << std::flush;
 			solution.block_read(ifile);
+			dcout << "    solution norm: " << solution.l2_norm() << std::endl;
 			ifile.close();
 
 			dcout << "    ...computation of total strains from the recovered position vector. " << std::endl;
@@ -2197,16 +2210,92 @@ namespace HMM
 
 						// Only needed if the mesh is modified after every timestep...
 						/*const Tensor<2,dim> rotation
-						= get_rotation_matrix (solution_grads[q]);
+										= get_rotation_matrix (solution_grads[q]);
 
-						const SymmetricTensor<2,dim> rotated_new_strain
-						= symmetrize(transpose(rotation) *
-								static_cast<Tensor<2,dim> >
-						(local_quadrature_points_history[q].new_strain) *
-						rotation);
+										const SymmetricTensor<2,dim> rotated_new_strain
+										= symmetrize(transpose(rotation) *
+												static_cast<Tensor<2,dim> >
+										(local_quadrature_points_history[q].new_strain) *
+										rotation);
 
-						local_quadrature_points_history[q].new_strain
-						= rotated_new_strain;*/
+										local_quadrature_points_history[q].new_strain
+										= rotated_new_strain;*/
+					}
+				}
+		}
+
+
+		// Copy of the solution vector at the end of the presently converged time-step.
+		if (this_FE_process==0)
+		{
+			sprintf(filename, "%s/restart/lcts.solution.dat", macrostatelocin);
+			std::ofstream ofile(filename);
+			if (ofile.is_open())
+			{
+				for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+					//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
+					ofile << std::setprecision(16) << solution[i] << std::endl;
+				ofile.close();
+			}
+			else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
+		}
+
+
+		// Write solution vector as a text file
+		sprintf(filename, "%s/restart/lcts.solution.dat", macrostatelocin);
+		std::ifstream iifile(filename);
+		if (iifile.is_open()){
+			dcout << "    ...recovery of the position vector... " << std::flush;
+			for (unsigned int i=0; i<dof_handler.n_dofs(); ++i){
+				char line[1024];
+				if(iifile.getline(line, sizeof(line)))
+					solution[i]= std::strtod(line, NULL);
+			}
+			dcout << "    solution norm: " << solution.l2_norm() << std::endl;
+			iifile.close();
+
+			dcout << "    ...computation of total strains from the recovered position vector. " << std::endl;
+			FEValues<dim> fe_values (fe, quadrature_formula,
+					update_values | update_gradients);
+			std::vector<std::vector<Tensor<1,dim> > >
+			solution_grads (quadrature_formula.size(),
+					std::vector<Tensor<1,dim> >(dim));
+
+			for (typename DoFHandler<dim>::active_cell_iterator
+					cell = dof_handler.begin_active();
+					cell != dof_handler.end(); ++cell)
+				if (cell->is_locally_owned())
+				{
+					PointHistory<dim> *local_quadrature_points_history
+					= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+					Assert (local_quadrature_points_history >=
+							&quadrature_point_history.front(),
+							ExcInternalError());
+					Assert (local_quadrature_points_history <
+							&quadrature_point_history.back(),
+							ExcInternalError());
+					fe_values.reinit (cell);
+					fe_values.get_function_gradients (solution,
+							solution_grads);
+
+					for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+					{
+						// Strain tensor update
+						local_quadrature_points_history[q].new_strain =
+								get_strain (solution_grads[q]);
+
+						// Only needed if the mesh is modified after every timestep...
+						/*const Tensor<2,dim> rotation
+							= get_rotation_matrix (solution_grads[q]);
+
+							const SymmetricTensor<2,dim> rotated_new_strain
+							= symmetrize(transpose(rotation) *
+									static_cast<Tensor<2,dim> >
+							(local_quadrature_points_history[q].new_strain) *
+							rotation);
+
+							local_quadrature_points_history[q].new_strain
+							= rotated_new_strain;*/
 					}
 				}
 		}
@@ -2913,9 +3002,9 @@ namespace HMM
 		hcout << " Loading previous simulation data...       " << std::endl;
 		if(dealii_pcolor==0) fe_problem.restart_system (nanostatelocin, nanostatelocout, nrepl);
 
-		hcout << "Beginning of incremental solution algorithm:       " << std::endl;
-		while (present_time < end_time)
-			do_timestep (fe_problem);
+//		hcout << "Beginning of incremental solution algorithm:       " << std::endl;
+//		while (present_time < end_time)
+//			do_timestep (fe_problem);
 
 	}
 }

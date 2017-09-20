@@ -2161,8 +2161,9 @@ namespace HMM
 		std::ifstream ifile(filename);
 		if (ifile.is_open())
 		{
-			dcout << "    ...recovery of the position vector. " << std::endl;
+			dcout << "    ...recovery of the position vector. " << std::flush;
 			solution.block_read(ifile);
+			dcout << "    solution norm: " << solution.l2_norm() << std::endl;
 			ifile.close();
 
 			dcout << "    ...computation of total strains from the recovered position vector. " << std::endl;

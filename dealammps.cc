@@ -31,6 +31,9 @@
 #include "library.h"
 #include "atom.h"
 
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/text_iarchive.hpp>
+
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
 // which are later redefined in petsc headers
@@ -2084,13 +2087,31 @@ namespace HMM
 		bb=0.013;
 		hh=0.004;
 
-		Point<dim> pp1 (-fl/2.,-hh/2.,-bb/2.);
-		Point<dim> pp2 (fl/2.,hh/2.,bb/2.);
-		std::vector< unsigned int > reps (dim);
-		reps[0] = (int) std::round(fl/hh); reps[1] = 1; reps[2] =  (int) std::round(bb/hh);
-		GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
+		char filename[1024];
+		sprintf(filename, "%s/mesh.tria", macrostatelocin);
 
-		triangulation.refine_global (3);
+		std::ifstream iss(filename);
+		if (iss.is_open()){
+			dcout << "    Reuse of existing triangulation... "
+				  << "(requires the exact SAME COMMUNICATOR!!)" << std::endl;
+			boost::archive::text_iarchive ia(iss, boost::archive::no_header);
+			triangulation.load(ia, 0);
+		}
+		else{
+			dcout << "    Creation of triangulation..." << std::endl;
+			Point<dim> pp1 (-fl/2.,-hh/2.,-bb/2.);
+			Point<dim> pp2 (fl/2.,hh/2.,bb/2.);
+			std::vector< unsigned int > reps (dim);
+			reps[0] = (int) std::round(fl/hh); reps[1] = 1; reps[2] =  (int) std::round(bb/hh);
+			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
+
+			triangulation.refine_global (3);
+
+			sprintf(filename, "%s/mesh.tria", macrostatelocout);
+			std::ofstream oss(filename);
+			boost::archive::text_oarchive oa(oss, boost::archive::no_header);
+			triangulation.save(oa, 0);
+		}
 
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()

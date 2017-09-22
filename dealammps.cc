@@ -307,9 +307,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 200"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 200"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 200"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 1000"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -389,7 +389,7 @@ namespace HMM
 		// Timestep length in fs
 		double dts = 2.0;
 		// Number of timesteps factor
-		int nsinit = 10000;
+		int nsinit = 20000;
 		// Temperature
 		double tempt = 200.0;
 
@@ -511,7 +511,7 @@ namespace HMM
 		// is nts > 1000 * strain so that v_load < v_sound...
 		// Declaration of run parameters
 		double dts = 2.0; // timestep length in fs
-		int nts = 200; // number of timesteps
+		int nts = 1000; // number of timesteps
 		// Temperature
 		double tempt = 200.0;
 
@@ -751,7 +751,7 @@ namespace HMM
 		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no);
 
 		void output_results (const double present_time, const int timestep_no) const;
-		void restart_output (char* nanostatelocout, char* nanostatelocres, unsigned int nrepl) const;
+		void restart_output (char* nanologloc, char* nanostatelocout, char* nanostatelocres, unsigned int nrepl) const;
 
 		double compute_residual () const;
 		double compute_internal_forces () const;
@@ -983,7 +983,7 @@ namespace HMM
 					local_quadrature_points_history[q].upd_strain +=
 							get_strain (displacement_update_grads[q]);
 
-					//if ((cell->active_cell_index() == 6) && q<2) // For debug...
+					//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
 					//if (false) // For debug...
 					if (newtonstep_no > 0)
 						for(unsigned int k=0;k<dim;k++){
@@ -1035,6 +1035,14 @@ namespace HMM
 				while (getline(infile, iline)) outfile << iline << std::endl;
 				infile.close();
 			}
+			outfile.close();
+
+			char alltime_update_filename[1024];
+			sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
+			outfile.open (alltime_update_filename, std::ofstream::app);
+			infile.open (update_filename);
+			while (getline(infile, iline)) outfile << timestep_no << "," << newtonstep_no << "," << iline << std::endl;
+			infile.close();
 			outfile.close();
 
 			// Save quadrature point updates history for later checking...
@@ -2014,7 +2022,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::restart_output (char* nanostatelocout, char* nanostatelocres, unsigned int nrepl) const
+	void FEProblem<dim>::restart_output (char* nanologloc, char* nanostatelocout, char* nanostatelocres, unsigned int nrepl) const
 	{
 		// Copy of the solution vector at the end of the presently converged time-step.
 		if (this_FE_process==0)
@@ -2075,6 +2083,14 @@ namespace HMM
 						}
 					}
 				}
+
+		// Clean "nanoscale_logs" of the finished timestep
+		for(unsigned int repl=1;repl<nrepl+1;repl++)
+		{
+			char command[1024];
+			sprintf(command, "rm -rf %s/R%d/*", nanologloc, repl);
+			system(command);
+		}
 	}
 
 
@@ -2662,7 +2678,7 @@ namespace HMM
 
 		if(dealii_pcolor==0) fe_problem.output_results (present_time, timestep_no);
 
-		if(dealii_pcolor==0) fe_problem.restart_output (nanostatelocout, nanostatelocres, nrepl);
+		if(dealii_pcolor==0) fe_problem.restart_output (nanologloc, nanostatelocout, nanostatelocres, nrepl);
 
 		hcout << std::endl;
 	}
@@ -2873,6 +2889,13 @@ namespace HMM
 		sprintf(macrostatelocres, "%s/restart", macrostateloc); mkdir(macrostatelocres, ACCESSPERMS);
 		sprintf(macrologloc, "./macroscale_log"); mkdir(macrologloc, ACCESSPERMS);
 
+		std::ofstream outfile;
+		char alltime_update_filename[1024];
+		sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
+		outfile.open (alltime_update_filename);
+		outfile << "timestep_no,newtonstep_no,cell" << std::endl;
+		outfile.close();
+
 		sprintf(nanostateloc, "./nanoscale_state"); mkdir(nanostateloc, ACCESSPERMS);
 		sprintf(nanostatelocin, "%s/in", nanostateloc); mkdir(nanostatelocin, ACCESSPERMS);
 		sprintf(nanostatelocout, "%s/out", nanostateloc); mkdir(nanostatelocout, ACCESSPERMS);
@@ -2886,7 +2909,7 @@ namespace HMM
 	void HMMProblem<dim>::run ()
 	{
 		// Number of replicas in MD-ensemble
-		nrepl=5;
+		nrepl=7;
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();

@@ -2437,7 +2437,7 @@ namespace HMM
 
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int mult = 16;
+		int mult = 24;
 		int fair_npbtch = int(n_world_processes/(nmdruns));
 		int npbtch = fair_npbtch + (mult - fair_npbtch%mult);
 
@@ -2691,7 +2691,7 @@ namespace HMM
 	{
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int mult = 16;
+		int mult = 24;
 		int fair_npbtch = int(n_world_processes/(nrepl));
 		int npbtch = fair_npbtch + (mult - fair_npbtch%mult);
 

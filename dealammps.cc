@@ -307,9 +307,9 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 1000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 1000"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsstrain  equal 1000"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal 200"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal 200"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal 200"); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
@@ -389,7 +389,7 @@ namespace HMM
 		// Timestep length in fs
 		double dts = 2.0;
 		// Number of timesteps factor
-		int nsinit = 20000;
+		int nsinit = 10000;
 		// Temperature
 		double tempt = 200.0;
 
@@ -511,7 +511,7 @@ namespace HMM
 		// is nts > 1000 * strain so that v_load < v_sound...
 		// Declaration of run parameters
 		double dts = 2.0; // timestep length in fs
-		int nts = 1000; // number of timesteps
+		int nts = 200; // number of timesteps
 		// Temperature
 		double tempt = 200.0;
 
@@ -939,7 +939,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		double strain_perturbation = 0.005;
+		double strain_perturbation = 0.010;
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
@@ -2909,7 +2909,7 @@ namespace HMM
 	void HMMProblem<dim>::run ()
 	{
 		// Number of replicas in MD-ensemble
-		nrepl=7;
+		nrepl=5;
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();
@@ -2919,7 +2919,7 @@ namespace HMM
 		// Set the dealii communicator using a limited amount of available processors
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
-		set_dealii_procs(80);
+		set_dealii_procs(240);
 
 		// Initialize global lammps communicator
 		// init_lammps_procs();

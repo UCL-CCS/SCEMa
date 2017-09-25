@@ -2356,6 +2356,7 @@ namespace HMM
 		int 								this_lammps_process;
 		int 								this_lammps_batch_process;
 		int 								lammps_pcolor;
+		int									machine_ppn;
 
 		ConditionalOStream 					hcout;
 
@@ -2437,9 +2438,8 @@ namespace HMM
 
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int mult = 24;
 		int fair_npbtch = int(n_world_processes/(nmdruns));
-		int npbtch = fair_npbtch + (mult - fair_npbtch%mult);
+		int npbtch = fair_npbtch + (machine_ppn - fair_npbtch%machine_ppn);
 
 		set_lammps_procs(npbtch);
 
@@ -2691,9 +2691,8 @@ namespace HMM
 	{
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int mult = 24;
 		int fair_npbtch = int(n_world_processes/(nrepl));
-		int npbtch = fair_npbtch + (mult - fair_npbtch%mult);
+		int npbtch = fair_npbtch + (machine_ppn - fair_npbtch%machine_ppn);
 
 		set_lammps_procs(npbtch);
 
@@ -2908,6 +2907,9 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::run ()
 	{
+		// Current machine number of processes per node
+		machine_ppn=16;
+
 		// Number of replicas in MD-ensemble
 		nrepl=5;
 
@@ -2919,7 +2921,7 @@ namespace HMM
 		// Set the dealii communicator using a limited amount of available processors
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
-		set_dealii_procs(240);
+		set_dealii_procs(machine_ppn*10);
 
 		// Initialize global lammps communicator
 		// init_lammps_procs();

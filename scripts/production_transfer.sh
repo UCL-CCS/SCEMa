@@ -7,12 +7,6 @@ store_dir=$2
 
 mkdir $save_folder
 
-cp log.dealammps $save_folder"/"
-cp -r macroscale_log $save_folder"/"
-
-cp -r macroscale_state/restart macroscale_state/in/restart
-cp -r nanoscale_state/restart nanoscale_state/in/restart
-
 cp -r $save_folder $store_dir
 cp -r macroscale_state/in/restart $store_dir$save_folder/macro_restart
 cp -r nanoscale_state/in/restart $store_dir$save_folder/nano_restart

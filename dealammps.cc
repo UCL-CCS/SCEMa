@@ -2439,7 +2439,7 @@ namespace HMM
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
 		int fair_npbtch = int(n_world_processes/(nmdruns));
-		int npbtch = fair_npbtch + (machine_ppn - fair_npbtch%machine_ppn);
+		int npbtch = std::max(machine_ppn, fair_npbtch - fair_npbtch%machine_ppn);
 
 		set_lammps_procs(npbtch);
 
@@ -2692,7 +2692,7 @@ namespace HMM
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
 		int fair_npbtch = int(n_world_processes/(nrepl));
-		int npbtch = fair_npbtch + (machine_ppn - fair_npbtch%machine_ppn);
+		int npbtch = std::max(machine_ppn, fair_npbtch - fair_npbtch%machine_ppn);
 
 		set_lammps_procs(npbtch);
 

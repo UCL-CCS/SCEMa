@@ -939,7 +939,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		double strain_perturbation = 0.010;
+		double strain_perturbation = 0.050;
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 

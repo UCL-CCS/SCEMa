@@ -2052,60 +2052,116 @@ namespace HMM
 		// The stiffness tensor and the box state should also be saved for every quadrature point if it has
 		// been updated since init.
 		for (typename DoFHandler<dim>::active_cell_iterator
-					cell = dof_handler.begin_active();
-					cell != dof_handler.end(); ++cell)
-				if (cell->is_locally_owned())
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+				char filename[1024];
+
+				// Save strain since last update history
+				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
+				std::ifstream  macroinstrain(filename, std::ios::binary);
+				sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocrestmp, cell_id);
+				std::ofstream  macrooutstrain(filename,   std::ios::binary);
+				macrooutstrain << macroinstrain.rdbuf();
+				macroinstrain.close();
+				macrooutstrain.close();
+
+				// Save stiffness history
+				sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
+				std::ifstream  macroin(filename, std::ios::binary);
+				if (macroin.good()){
+					sprintf(filename, "%s/lcts.%s.stiff", macrostatelocrestmp, cell_id);
+					std::ofstream  macroout(filename,   std::ios::binary);
+					macroout << macroin.rdbuf();
+					macroin.close();
+					macroout.close();
+				}
+
+				// Save box state history
+				for(unsigned int repl=1;repl<nrepl+1;repl++)
 				{
-					for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-					{
-						char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-						char filename[1024];
-
-						// Save strain since last update history
-						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
-						std::ifstream  macroinstrain(filename, std::ios::binary);
-						sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocrestmp, cell_id);
-						std::ofstream  macrooutstrain(filename,   std::ios::binary);
-						macrooutstrain << macroinstrain.rdbuf();
-						macroinstrain.close();
-						macrooutstrain.close();
-
-						// Save stiffness history
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
-					    std::ifstream  macroin(filename, std::ios::binary);
-					    if (macroin.good()){
-					    	sprintf(filename, "%s/lcts.%s.stiff", macrostatelocrestmp, cell_id);
-					    	std::ofstream  macroout(filename,   std::ios::binary);
-					    	macroout << macroin.rdbuf();
-					    	macroin.close();
-					    	macroout.close();
-						}
-
-					    // Save box state history
-						for(unsigned int repl=1;repl<nrepl+1;repl++)
-						{
-							sprintf(filename, "%s/last.%s.PE_%d.bin", nanostatelocout, cell_id, repl);
-							std::ifstream  nanoin(filename, std::ios::binary);
-							if (nanoin.good()){
-								sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocrestmp, cell_id, repl);
-								std::ofstream  nanoout(filename,   std::ios::binary);
-								nanoout << nanoin.rdbuf();
-								nanoin.close();
-								nanoout.close();
-							}
-						}
+					sprintf(filename, "%s/last.%s.PE_%d.bin", nanostatelocout, cell_id, repl);
+					std::ifstream  nanoin(filename, std::ios::binary);
+					if (nanoin.good()){
+						sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocrestmp, cell_id, repl);
+						std::ofstream  nanoout(filename,   std::ios::binary);
+						nanoout << nanoin.rdbuf();
+						nanoin.close();
+						nanoout.close();
 					}
 				}
+			}
+		MPI_Barrier(FE_communicator);
 
 		if (this_FE_process==0)
 		{
 			sprintf(command, "rm -f %s/lcts.*", macrostatelocres); system(command);
-			sprintf(command, "cp -r %s/lcts.* %s/", macrostatelocrestmp, macrostatelocres); system(command);
-			sprintf(command, "rm -rf %s", macrostatelocrestmp); system(command);
-
-
 			sprintf(command, "rm -f %s/lcts.*", nanostatelocres); system(command);
-			sprintf(command, "cp -r %s/lcts.* %s/", nanostatelocrestmp, nanostatelocres); system(command);
+		}
+		MPI_Barrier(FE_communicator);
+
+		if (this_FE_process==0)
+		{
+			char filename[1024];
+			// Save strain since last update history
+			sprintf(filename, "%s/lcts.solution.bin", macrostatelocrestmp);
+			std::ifstream  macroinstrain(filename, std::ios::binary);
+			sprintf(filename, "%s/lcts.solution.bin", macrostatelocres);
+			std::ofstream  macrooutstrain(filename,   std::ios::binary);
+			macrooutstrain << macroinstrain.rdbuf();
+			macroinstrain.close();
+			macrooutstrain.close();
+		}
+
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+				char filename[1024];
+
+				// Save strain since last update history
+				sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocrestmp, cell_id);
+				std::ifstream  macroinstrain(filename, std::ios::binary);
+				sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocres, cell_id);
+				std::ofstream  macrooutstrain(filename,   std::ios::binary);
+				macrooutstrain << macroinstrain.rdbuf();
+				macroinstrain.close();
+				macrooutstrain.close();
+
+				// Save stiffness history
+				sprintf(filename, "%s/lcts.%s.stiff", macrostatelocrestmp, cell_id);
+				std::ifstream  macroin(filename, std::ios::binary);
+				if (macroin.good()){
+					sprintf(filename, "%s/lcts.%s.stiff", macrostatelocres, cell_id);
+					std::ofstream  macroout(filename,   std::ios::binary);
+					macroout << macroin.rdbuf();
+					macroin.close();
+					macroout.close();
+				}
+
+				// Save box state history
+				for(unsigned int repl=1;repl<nrepl+1;repl++)
+				{
+					sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocrestmp, cell_id, repl);
+					std::ifstream  nanoin(filename, std::ios::binary);
+					if (nanoin.good()){
+						sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocres, cell_id, repl);
+						std::ofstream  nanoout(filename,   std::ios::binary);
+						nanoout << nanoin.rdbuf();
+						nanoin.close();
+						nanoout.close();
+					}
+				}
+			}
+		MPI_Barrier(FE_communicator);
+
+		if (this_FE_process==0)
+		{
+			sprintf(command, "rm -rf %s", macrostatelocrestmp); system(command);
 			sprintf(command, "rm -rf %s", nanostatelocrestmp); system(command);
 
 			// Clean "nanoscale_logs" of the finished timestep

@@ -984,8 +984,8 @@ namespace HMM
 							get_strain (displacement_update_grads[q]);
 
 					//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
-					//if (false) // For debug...
-					if (newtonstep_no > 0)
+					if (false) // For debug...
+					//if (newtonstep_no > 0)
 						for(unsigned int k=0;k<dim;k++){
 							for(unsigned int l=k;l<dim;l++){
 								if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
@@ -2024,12 +2024,25 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::restart_output (char* nanologloc, char* nanostatelocout, char* nanostatelocres, unsigned int nrepl) const
 	{
+		char command[1024];
+		char macrostatelocrestmp[1024];
+		char nanostatelocrestmp[1024];
+
+		if (this_FE_process==0)
+		{
+			sprintf(macrostatelocrestmp, "%s/tmp", macrostatelocres); mkdir(macrostatelocrestmp, ACCESSPERMS);
+			//sprintf(command, "rm -f %s/*", macrostatelocrestmp); system(command);
+
+			sprintf(nanostatelocrestmp, "%s/tmp", nanostatelocres); mkdir(nanostatelocrestmp, ACCESSPERMS);
+			//sprintf(command, "rm -f %s/*", nanostatelocrestmp); system(command);
+		}
+
 		// Copy of the solution vector at the end of the presently converged time-step.
 		if (this_FE_process==0)
 		{
 			// Write solution vector to binary for simulation restart
-			std::string smacrostatelocres(macrostatelocres);
-			const std::string solution_filename = (smacrostatelocres + "/" + "lcts.solution.bin");
+			std::string smacrostatelocrestmp(macrostatelocrestmp);
+			const std::string solution_filename = (smacrostatelocrestmp + "/" + "lcts.solution.bin");
 			std::ofstream ofile(solution_filename);
 			solution.block_write(ofile);
 			ofile.close();
@@ -2051,7 +2064,7 @@ namespace HMM
 						// Save strain since last update history
 						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
 						std::ifstream  macroinstrain(filename, std::ios::binary);
-						sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocres, cell_id);
+						sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocrestmp, cell_id);
 						std::ofstream  macrooutstrain(filename,   std::ios::binary);
 						macrooutstrain << macroinstrain.rdbuf();
 						macroinstrain.close();
@@ -2061,7 +2074,7 @@ namespace HMM
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 					    std::ifstream  macroin(filename, std::ios::binary);
 					    if (macroin.good()){
-					    	sprintf(filename, "%s/lcts.%s.stiff", macrostatelocres, cell_id);
+					    	sprintf(filename, "%s/lcts.%s.stiff", macrostatelocrestmp, cell_id);
 					    	std::ofstream  macroout(filename,   std::ios::binary);
 					    	macroout << macroin.rdbuf();
 					    	macroin.close();
@@ -2074,7 +2087,7 @@ namespace HMM
 							sprintf(filename, "%s/last.%s.PE_%d.bin", nanostatelocout, cell_id, repl);
 							std::ifstream  nanoin(filename, std::ios::binary);
 							if (nanoin.good()){
-								sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocres, cell_id, repl);
+								sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocrestmp, cell_id, repl);
 								std::ofstream  nanoout(filename,   std::ios::binary);
 								nanoout << nanoin.rdbuf();
 								nanoin.close();
@@ -2084,12 +2097,23 @@ namespace HMM
 					}
 				}
 
-		// Clean "nanoscale_logs" of the finished timestep
-		for(unsigned int repl=1;repl<nrepl+1;repl++)
+		if (this_FE_process==0)
 		{
-			char command[1024];
-			sprintf(command, "rm -rf %s/R%d/*", nanologloc, repl);
-			system(command);
+			sprintf(command, "rm -f %s/lcts.*", macrostatelocres); system(command);
+			sprintf(command, "cp -r %s/lcts.* %s/", macrostatelocrestmp, macrostatelocres); system(command);
+			sprintf(command, "rm -rf %s", macrostatelocrestmp); system(command);
+
+
+			sprintf(command, "rm -f %s/lcts.*", nanostatelocres); system(command);
+			sprintf(command, "cp -r %s/lcts.* %s/", nanostatelocrestmp, nanostatelocres); system(command);
+			sprintf(command, "rm -rf %s", nanostatelocrestmp); system(command);
+
+			// Clean "nanoscale_logs" of the finished timestep
+			for(unsigned int repl=1;repl<nrepl+1;repl++)
+			{
+				sprintf(command, "rm -rf %s/R%d/*", nanologloc, repl);
+				system(command);
+			}
 		}
 	}
 
@@ -2946,7 +2970,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 40;
+		end_time = 30;
 		timestep_no = 0;
 
 		hcout << " Initiation of the Mesh...       " << std::endl;

@@ -13,8 +13,8 @@ cp -r macroscale_log $save_folder"/"
 cp -r macroscale_state/restart macroscale_state/in/
 cp -r nanoscale_state/restart nanoscale_state/in/
 
-tar -czvf macroscale_state/restart/* $save_folder"/"macro_restart.tar.gz
-tar -czvf nanoscale_state/restart/* $save_folder"/"nano_restart.tar.gz
+tar -czvf $save_folder"/"macro_restart.tar.gz macroscale_state/restart/*
+tar -czvf $save_folder"/"nano_restart.tar.gz nanoscale_state/restart/*
 
 # cp -r $save_folder $store_dir
 # cp -r macroscale_state/in/restart $store_dir$save_folder/macro_restart

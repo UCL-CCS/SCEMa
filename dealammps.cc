@@ -984,8 +984,8 @@ namespace HMM
 							get_strain (displacement_update_grads[q]);
 
 					//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
-					if (false) // For debug...
-					//if (newtonstep_no > 0)
+					//if (false) // For debug...
+					if (newtonstep_no > 0)
 						for(unsigned int k=0;k<dim;k++){
 							for(unsigned int l=k;l<dim;l++){
 								if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation

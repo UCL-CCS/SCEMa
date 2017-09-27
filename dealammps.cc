@@ -750,6 +750,7 @@ namespace HMM
 		void update_stress_quadrature_point_history
 		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no);
 
+		void output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
 		void output_results (const double present_time, const int timestep_no) const;
 		void restart_output (char* nanologloc, char* nanostatelocout, char* nanostatelocres, unsigned int nrepl) const;
 
@@ -799,6 +800,8 @@ namespace HMM
 		char*                               macrostatelocout;
 		char*                               macrostatelocres;
 		char*                               macrologloc;
+
+		std::vector<unsigned int> 			lcis;
 	};
 
 
@@ -1002,16 +1005,27 @@ namespace HMM
 						}
 				}
 
-				// Write update_strain tensor in case the cell need to be updated. Arbitrary use the data from the
-				// qp 0.
-				// Might be worth using data from the qp that exceeds most the threshold (norm?).
+				// Write update_strain tensor in case the cell need to be updated.
+				// Using the average strain over the quadrature points
 				if (local_quadrature_points_history[0].to_be_updated){
 					// Write strains since last update in a file named ./macrostate_storage/last.cellid-qid.strain
 					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
 					char filename[1024];
 
+					SymmetricTensor<2,dim> avg_upd_strain_tensor;
+
+					for(unsigned int k=0;k<dim;k++){
+						for(unsigned int l=k;l<dim;l++){
+							double average_qp = 0.;
+							for (unsigned int q=0;q<quadrature_formula.size();++q)
+								average_qp += local_quadrature_points_history[q].upd_strain[k][l];
+							average_qp /= quadrature_formula.size();
+							avg_upd_strain_tensor[k][l] = average_qp;
+						}
+					}
+
 					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
-					write_tensor<dim>(filename, local_quadrature_points_history[0].upd_strain);
+					write_tensor<dim>(filename, avg_upd_strain_tensor);
 
 					ofile << cell_id << std::endl;
 				}
@@ -1040,6 +1054,7 @@ namespace HMM
 			char alltime_update_filename[1024];
 			sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
 			outfile.open (alltime_update_filename, std::ofstream::app);
+			if(timestep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
 			infile.open (update_filename);
 			while (getline(infile, iline)) outfile << timestep_no << "," << newtonstep_no << "," << iline << std::endl;
 			infile.close();
@@ -1171,6 +1186,7 @@ namespace HMM
 
 //		std::vector<bool> loaded_boundary_dofs (dof_handler.n_dofs());
 		loaded_boundary_dofs.resize(dof_handler.n_dofs());
+
 		std::vector<bool> lsupport_boundary_dofs (dof_handler.n_dofs());
 		std::vector<bool> rsupport_boundary_dofs (dof_handler.n_dofs());
 		std::vector<bool> xzsupport_boundary_dofs (dof_handler.n_dofs());
@@ -1801,11 +1817,8 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::output_results (const double present_time, const int timestep_no) const
+	void FEProblem<dim>::output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi)
 	{
-		DataOut<dim> data_out;
-		data_out.attach_dof_handler (dof_handler);
-
 		// Compute applied force
 		double aforce = compute_internal_forces();
 		double idisp = velocity*timestep_no;
@@ -1824,7 +1837,6 @@ namespace HMM
 					ofile.close();
 				}
 				else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
-
 			}
 
 			ofile.open (fname, std::ios::app);
@@ -1835,6 +1847,159 @@ namespace HMM
 			}
 			else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
 		}
+
+		// Build vector of ids of cells of special interest 'lcis'
+		if(timestep_no==1){
+			std::vector<Point<dim>> llis;
+			// fill the list of locations of interest
+			llis.push_back(Point<dim>(0.,+hh/2.,0.));
+			llis.push_back(Point<dim>(0.,-hh/2.,0.));
+			llis.push_back(Point<dim>(0.,0.,0.));
+			llis.push_back(Point<dim>(-ll/2.,0.,0.));
+			llis.push_back(Point<dim>(+ll/2.,0.,0.));
+
+			std::vector<unsigned int> tmp;
+
+			for (unsigned int i=0; i<llis.size(); i++)
+				for (typename DoFHandler<dim>::active_cell_iterator
+						cell = dof_handler.begin_active();
+						cell != dof_handler.end(); ++cell)
+				{
+//					int min_dist = 1000*ll;
+//					bool cell_is_closest = true;
+//					double cell_dist;
+//					Point<dim> loi = llis(i);
+//					// compute cell distance to location of interest
+//
+//					if (cell_dist>min_dist) cell_is_closest = false;
+//					else min_dist = cell_dist;
+//					if (cell_is_closest) lcis.push_back(cell->active_cell_index());
+
+					if (cell->point_inside(llis[i])){
+						lcis.push_back(cell->active_cell_index());
+						dcout << "hello   " << llis[i][0] << " cells " << cell->active_cell_index() << std::endl;
+						//break;
+					}
+				}
+		}
+
+		// Cells of special interest (nanostate: cell_replica; metadata: time,
+		// strain, stress, stiff, time_upd)
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+		{
+			bool cell_is_of_special_interest = false;
+			for (unsigned int i=0; i<lcis.size(); i++)
+				if(cell->active_cell_index() == lcis[i]) cell_is_of_special_interest = true;
+
+			if (cell_is_of_special_interest)
+				if (cell->is_locally_owned())
+				{
+					PointHistory<dim> *local_quadrature_points_history
+							= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+
+					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+					char filename[1024];
+					std::ofstream outfile;
+
+					sprintf(filename, "%s/meta.%s.dat", nanostatelocoutsi,cell_id);
+					outfile.open (filename, std::ofstream::app);
+
+					// writing header
+					if(timestep_no==1) outfile << "timest_no,"
+											   << "cell,replica,"
+										       << "loc_x,loc_y,loc_z,"
+											   << "strain_xx,strain_yy,strain_zz,"
+											   << "strain_xy,strain_xz,strain_yz,"
+											   << "stress_xx,stress_yy,stress_zz,"
+											   << "stress_xy,stress_xz,stress_yz,"
+											   << "stif_xxxx,stif_yyyy,stif_zzzz,"
+											   << std::endl;
+					// writing timestep
+					outfile << timestep_no;
+
+					// writing cell number
+					outfile << "," << cell->active_cell_index();
+
+					// writing position
+					for(unsigned int k=0;k<dim;k++){
+						outfile << "," << cell->barycenter()[k];
+					}
+					// writing strains
+					for(unsigned int k=0;k<dim;k++){
+						double average_qp = 0.;
+						for (unsigned int q=0;q<quadrature_formula.size();++q)
+							average_qp += local_quadrature_points_history[q].new_strain[k][k];
+						average_qp /= quadrature_formula.size();
+						outfile << "," << average_qp;
+					}
+					for(unsigned int k=0;k<dim;k++){
+						for(unsigned int l=k;l<dim;l++){
+							double average_qp = 0.;
+							for (unsigned int q=0;q<quadrature_formula.size();++q)
+								average_qp += local_quadrature_points_history[q].new_strain[k][l];
+							average_qp /= quadrature_formula.size();
+							outfile << "," << average_qp;
+						}
+					}
+
+					// writing stresses
+					for(unsigned int k=0;k<dim;k++){
+						double average_qp = 0.;
+						for (unsigned int q=0;q<quadrature_formula.size();++q)
+							average_qp += local_quadrature_points_history[q].new_stress[k][k];
+						average_qp /= quadrature_formula.size();
+						outfile << "," << average_qp;
+					}
+					for(unsigned int k=0;k<dim;k++){
+						for(unsigned int l=k;l<dim;l++){
+							double average_qp = 0.;
+							for (unsigned int q=0;q<quadrature_formula.size();++q)
+								average_qp += local_quadrature_points_history[q].new_stress[k][l];
+							average_qp /= quadrature_formula.size();
+							outfile << "," << average_qp;
+						}
+					}
+
+					// writing striffnesses
+					for(unsigned int k=0;k<dim;k++){
+						double average_qp = 0.;
+						for (unsigned int q=0;q<quadrature_formula.size();++q)
+							average_qp += local_quadrature_points_history[q].new_stiff[k][k][k][k];
+						average_qp /= quadrature_formula.size();
+						outfile << "," << average_qp;
+					}
+
+					// ending line
+					outfile << std::endl;
+					outfile.close();
+
+					// Save box state at all timesteps
+					for(unsigned int repl=1;repl<nrepl+1;repl++)
+					{
+						sprintf(filename, "%s/last.%s.PE_%d.bin", nanostatelocout, cell_id, repl);
+						std::ifstream  nanoin(filename, std::ios::binary);
+						// Also check if file has changed since last timestep
+						if (nanoin.good()){
+							sprintf(filename, "%s/%d.%s.PE_%d.bin", nanostatelocoutsi, timestep_no, cell_id, repl);
+							std::ofstream  nanoout(filename,   std::ios::binary);
+							nanoout << nanoin.rdbuf();
+							nanoin.close();
+							nanoout.close();
+						}
+					}
+				}
+		}
+	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::output_results (const double present_time, const int timestep_no) const
+	{
+		DataOut<dim> data_out;
+		data_out.attach_dof_handler (dof_handler);
 
 		// Output of displacement as a vector
 		std::vector<std::string>  solution_names (dim, "displacement");
@@ -2459,6 +2624,7 @@ namespace HMM
 		char                                nanostatelocout[1024];
 		char                                nanostatelocres[1024];
 		char                                nanologloc[1024];
+		char                                nanostatelocoutsi[1024];
 
 	};
 
@@ -2758,6 +2924,8 @@ namespace HMM
 
 		if(dealii_pcolor==0) fe_problem.output_results (present_time, timestep_no);
 
+		if(dealii_pcolor==0) fe_problem.output_specific (present_time, timestep_no, nrepl, nanostatelocout, nanostatelocoutsi);
+
 		if(dealii_pcolor==0) fe_problem.restart_output (nanologloc, nanostatelocout, nanostatelocres, nrepl);
 
 		hcout << std::endl;
@@ -2968,18 +3136,12 @@ namespace HMM
 		sprintf(macrostatelocres, "%s/restart", macrostateloc); mkdir(macrostatelocres, ACCESSPERMS);
 		sprintf(macrologloc, "./macroscale_log"); mkdir(macrologloc, ACCESSPERMS);
 
-		std::ofstream outfile;
-		char alltime_update_filename[1024];
-		sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
-		outfile.open (alltime_update_filename);
-		outfile << "timestep_no,newtonstep_no,cell" << std::endl;
-		outfile.close();
-
 		sprintf(nanostateloc, "./nanoscale_state"); mkdir(nanostateloc, ACCESSPERMS);
 		sprintf(nanostatelocin, "%s/in", nanostateloc); mkdir(nanostatelocin, ACCESSPERMS);
 		sprintf(nanostatelocout, "%s/out", nanostateloc); mkdir(nanostatelocout, ACCESSPERMS);
 		sprintf(nanostatelocres, "%s/restart", nanostateloc); mkdir(nanostatelocres, ACCESSPERMS);
 		sprintf(nanologloc, "./nanoscale_log"); mkdir(nanologloc, ACCESSPERMS);
+		sprintf(nanostatelocoutsi, "%s/spec", nanostatelocout); mkdir(nanostatelocoutsi, ACCESSPERMS);
 	}
 
 

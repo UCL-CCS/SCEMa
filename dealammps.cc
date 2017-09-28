@@ -987,8 +987,8 @@ namespace HMM
 							get_strain (displacement_update_grads[q]);
 
 					//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
-					if (false) // For debug...
-					//if (newtonstep_no > 0)
+					//if (false) // For debug...
+					if (newtonstep_no > 0)
 						for(unsigned int k=0;k<dim;k++){
 							for(unsigned int l=k;l<dim;l++){
 								if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
@@ -2359,7 +2359,7 @@ namespace HMM
 			reps[0] = (int) std::round(fl/hh); reps[1] = 1; reps[2] =  (int) std::round(bb/hh);
 			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
 
-			triangulation.refine_global (1);
+			triangulation.refine_global (3);
 
 			sprintf(filename, "%s/mesh.tria", macrostatelocout);
 			std::ofstream oss(filename);
@@ -3146,7 +3146,7 @@ namespace HMM
 		machine_ppn=16;
 
 		// Number of replicas in MD-ensemble
-		nrepl=2;
+		nrepl=5;
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();

@@ -987,8 +987,8 @@ namespace HMM
 							get_strain (displacement_update_grads[q]);
 
 					//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
-					//if (false) // For debug...
-					if (newtonstep_no > 0)
+					if (false) // For debug...
+					//if (newtonstep_no > 0)
 						for(unsigned int k=0;k<dim;k++){
 							for(unsigned int l=k;l<dim;l++){
 								if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
@@ -1054,7 +1054,7 @@ namespace HMM
 			char alltime_update_filename[1024];
 			sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
 			outfile.open (alltime_update_filename, std::ofstream::app);
-			if(timestep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
+			if(timestep_no==1 && newtonstep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
 			infile.open (update_filename);
 			while (getline(infile, iline)) outfile << timestep_no << "," << newtonstep_no << "," << iline << std::endl;
 			infile.close();
@@ -2262,13 +2262,6 @@ namespace HMM
 
 		if (this_FE_process==0)
 		{
-			sprintf(command, "rm -f %s/lcts.*", macrostatelocres); system(command);
-			sprintf(command, "rm -f %s/lcts.*", nanostatelocres); system(command);
-		}
-		MPI_Barrier(FE_communicator);
-
-		if (this_FE_process==0)
-		{
 			char filename[1024];
 			// Save strain since last update history
 			sprintf(filename, "%s/lcts.solution.bin", macrostatelocrestmp);
@@ -2326,8 +2319,8 @@ namespace HMM
 
 		if (this_FE_process==0)
 		{
-			sprintf(command, "rm -rf %s", macrostatelocrestmp); system(command);
-			sprintf(command, "rm -rf %s", nanostatelocrestmp); system(command);
+			//sprintf(command, "rm -rf %s", macrostatelocrestmp); system(command);
+			//sprintf(command, "rm -rf %s", nanostatelocrestmp); system(command);
 
 			// Clean "nanoscale_logs" of the finished timestep
 			for(unsigned int repl=1;repl<nrepl+1;repl++)
@@ -2366,7 +2359,7 @@ namespace HMM
 			reps[0] = (int) std::round(fl/hh); reps[1] = 1; reps[2] =  (int) std::round(bb/hh);
 			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
 
-			triangulation.refine_global (3);
+			triangulation.refine_global (1);
 
 			sprintf(filename, "%s/mesh.tria", macrostatelocout);
 			std::ofstream oss(filename);
@@ -3153,7 +3146,7 @@ namespace HMM
 		machine_ppn=16;
 
 		// Number of replicas in MD-ensemble
-		nrepl=5;
+		nrepl=2;
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();

@@ -2201,6 +2201,7 @@ namespace HMM
 			sprintf(nanostatelocrestmp, "%s/tmp", nanostatelocres); mkdir(nanostatelocrestmp, ACCESSPERMS);
 			//sprintf(command, "rm -f %s/*", nanostatelocrestmp); system(command);
 		}
+		MPI_Barrier(FE_communicator);
 
 		// Copy of the solution vector at the end of the presently converged time-step.
 		if (this_FE_process==0)

@@ -1908,13 +1908,13 @@ namespace HMM
 
 					// writing header
 					if(timestep_no==1) outfile << "timest_no,"
-											   << "cell,replica,"
+											   << "cell,"
 										       << "loc_x,loc_y,loc_z,"
 											   << "strain_xx,strain_yy,strain_zz,"
 											   << "strain_xy,strain_xz,strain_yz,"
 											   << "stress_xx,stress_yy,stress_zz,"
 											   << "stress_xy,stress_xz,stress_yz,"
-											   << "stif_xxxx,stif_yyyy,stif_zzzz,"
+											   << "stif_xxxx,stif_yyyy,stif_zzzz"
 											   << std::endl;
 					// writing timestep
 					outfile << timestep_no;
@@ -1935,7 +1935,7 @@ namespace HMM
 						outfile << "," << average_qp;
 					}
 					for(unsigned int k=0;k<dim;k++){
-						for(unsigned int l=k;l<dim;l++){
+						for(unsigned int l=k+1;l<dim;l++){
 							double average_qp = 0.;
 							for (unsigned int q=0;q<quadrature_formula.size();++q)
 								average_qp += local_quadrature_points_history[q].new_strain[k][l];
@@ -1953,7 +1953,7 @@ namespace HMM
 						outfile << "," << average_qp;
 					}
 					for(unsigned int k=0;k<dim;k++){
-						for(unsigned int l=k;l<dim;l++){
+						for(unsigned int l=k+1;l<dim;l++){
 							double average_qp = 0.;
 							for (unsigned int q=0;q<quadrature_formula.size();++q)
 								average_qp += local_quadrature_points_history[q].new_stress[k][l];

@@ -2702,13 +2702,10 @@ namespace HMM
 			read_tensor<dim>(filename, loc_stiffness);
 
 			// For debug...
-			if(this_lammps_batch_process == 0)
-			{
-				std::cout << "               "
-						<< "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
-						<< " " << loc_stiffness[1][1][1][1]
-						<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;
-			}
+			hcout << "               "
+				  << "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
+				  << " " << loc_stiffness[1][1][1][1]
+				  << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
 		}
 		MPI_Barrier(world_communicator);
 
@@ -2793,10 +2790,10 @@ namespace HMM
 									for(unsigned int n=m;n<dim;n++)
 										if(loc_upd_rep_stiffness[k][l][m][n] < stol*loc_ini_rep_stiffness[k][l][m][n])
 										{
-											std::cout << "               "
-													  << "Cell: " << cell_id[c] << " Replica: " << repl
-													  << " required stiffness correction !!"
-													  << std::endl;
+											//std::cout << "               "
+											//		  << "Cell: " << cell_id[c] << " Replica: " << repl
+											//		  << " required stiffness correction !!"
+											//		  << std::endl;
 											loc_upd_rep_stiffness[k][l][m][n] = stol*loc_ini_rep_stiffness[k][l][m][n];
 										}
 

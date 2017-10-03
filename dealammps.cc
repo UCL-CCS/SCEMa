@@ -2688,6 +2688,30 @@ namespace HMM
 				<< " - deal color: " << dealii_pcolor
 				<< " - lammps color: " << lammps_pcolor << std::endl;*/
 
+		// For debug...
+		for (int c=0; c<ncupd; ++c)
+		{
+			char filename[1024];
+			SymmetricTensor<4,dim> loc_stiffness;
+
+			sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
+			ifile.open (filename);
+			if (ifile.is_open()) ifile.close();
+			else sprintf(filename, "%s/last.stiff", macrostatelocout);
+
+			read_tensor<dim>(filename, loc_stiffness);
+
+			// For debug...
+			if(this_lammps_batch_process == 0)
+			{
+				std::cout << "               "
+						<< "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
+						<< " " << loc_stiffness[1][1][1][1]
+						<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;
+			}
+		}
+		MPI_Barrier(world_communicator);
+
 		// It might be worth doing the splitting of in batches of lammps processors here according to
 		// the number of quadrature points to update, because if the number of points is smaller than
 		// the number of batches predefined initially part of the lammps allocated processors remain idle...
@@ -2702,38 +2726,8 @@ namespace HMM
 				{
 					SymmetricTensor<2,dim> loc_strain;
 					SymmetricTensor<2,dim> loc_stress;
-					SymmetricTensor<4,dim> loc_stiffness;
 
 					char filename[1024];
-
-					// For debug...
-					/*int me;
-					MPI_Comm_rank(lammps_batch_communicator, &me);
-					std::cout << "            "
-							<< "nctbu: " << c
-							<< " - cell: " << cell_id[c]
-													  << " - proc_world_rank: " << this_lammps_process
-													  << " - lammps batch computed: " << (imdrun%n_lammps_batch)
-													  << " - lammps batch color: " << lammps_pcolor
-													  << " - proc_batch_rank: " << me
-													  << std::endl;*/
-
-					// For debug...
-					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
-					ifile.open (filename);
-					if (ifile.is_open()) ifile.close();
-					else sprintf(filename, "%s/last.stiff", macrostatelocout);
-
-					read_tensor<dim>(filename, loc_stiffness);
-
-					// For debug...
-					if(this_lammps_batch_process == 0)
-					{
-						std::cout << "               "
-								<< "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
-								<< " " << loc_stiffness[1][1][1][1]
-								<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;
-					}
 
 					// Argument of the MD simulation
 					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
@@ -2771,6 +2765,50 @@ namespace HMM
 
 		MPI_Barrier(world_communicator);
 
+		// Verify the integrity of the stiffness tensor (constraint C_upd>stol*C_ini)
+		double stol = 0.001;
+
+		for (int c=0; c<ncupd; ++c)
+		{
+			if (lammps_pcolor == (c%n_lammps_batch))
+			{
+				if(this_lammps_batch_process == 0)
+				{
+					SymmetricTensor<4,dim> loc_stiffness;
+					char filename[1024];
+
+					for(unsigned int repl=1;repl<nrepl+1;repl++)
+					{
+						SymmetricTensor<4,dim> loc_upd_rep_stiffness;
+						sprintf(filename, "%s/last.%s.PE_%d.stiff", macrostatelocout, cell_id[c], repl);
+						read_tensor<dim>(filename, loc_upd_rep_stiffness);
+
+						SymmetricTensor<4,dim> loc_ini_rep_stiffness;
+						sprintf(filename, "%s/init.PE_%d.stiff", macrostatelocout, repl);
+						read_tensor<dim>(filename, loc_ini_rep_stiffness);
+
+						for(unsigned int k=0;k<dim;k++)
+							for(unsigned int l=k;l<dim;l++)
+								for(unsigned int m=0;m<dim;m++)
+									for(unsigned int n=m;n<dim;n++)
+										if(loc_upd_rep_stiffness[k][l][m][n] < stol*loc_ini_rep_stiffness[k][l][m][n])
+										{
+											std::cout << "               "
+													  << "Cell: " << cell_id[c] << " Replica: " << repl
+													  << " required stiffness correction !!"
+													  << std::endl;
+											loc_upd_rep_stiffness[k][l][m][n] = stol*loc_ini_rep_stiffness[k][l][m][n];
+										}
+
+						sprintf(filename, "%s/last.%s.PE_%d.stiff", macrostatelocout, cell_id[c], repl);
+						write_tensor<dim>(filename, loc_upd_rep_stiffness);
+					}
+				}
+			}
+		}
+
+		MPI_Barrier(world_communicator);
+
 		for (int c=0; c<ncupd; ++c)
 		{
 			if (lammps_pcolor == (c%n_lammps_batch))
@@ -2795,7 +2833,8 @@ namespace HMM
 
 					// For debug...
 					std::cout << "               "
-							<< "Stiffnesses: "<< loc_stiffness[0][0][0][0]
+							<< "Cell: " << cell_id[c]
+							<< " " << "Stiffnesses: " << loc_stiffness[0][0][0][0]
 							<< " " << loc_stiffness[1][1][1][1]
 							<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;
 

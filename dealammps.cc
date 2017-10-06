@@ -861,7 +861,7 @@ namespace HMM
 		}
 
 		// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
-		for(unsigned int k=0;k<dim;k++)
+		/*for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
 				for(unsigned int m=0;m<dim;m++)
 					for(unsigned int n=m;n<dim;n++)
@@ -878,7 +878,7 @@ namespace HMM
 			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
 			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
 			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
-		}
+		}*/
 
 		sprintf(filename, "%s/last.stiff", macrostatelocout);
 			write_tensor<dim>(filename, stiffness_tensor);
@@ -953,6 +953,8 @@ namespace HMM
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
 			{
+				SymmetricTensor<2,dim> avg_upd_strain_tensor;
+
 				PointHistory<dim> *local_quadrature_points_history
 				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
 				Assert (local_quadrature_points_history >=
@@ -967,6 +969,8 @@ namespace HMM
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 					local_quadrature_points_history[q].to_be_updated = false;
+
+				avg_upd_strain_tensor = 0.;
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
@@ -986,49 +990,39 @@ namespace HMM
 					local_quadrature_points_history[q].upd_strain +=
 							get_strain (displacement_update_grads[q]);
 
-					//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
-					//if (false) // For debug...
-					if (newtonstep_no > 0)
-						for(unsigned int k=0;k<dim;k++){
-							for(unsigned int l=k;l<dim;l++){
-								if (fabs(local_quadrature_points_history[q].upd_strain[k][l]) > strain_perturbation
-										&& local_quadrature_points_history[q].to_be_updated == false){
-									std::cout << "           "
-											<< " cell "<< cell->active_cell_index() << " QP " << q
-											<< " strain component " << k << l
-											<< " value " << local_quadrature_points_history[q].upd_strain[k][l] << std::endl;
+					for(unsigned int k=0;k<dim;k++)
+						for(unsigned int l=k;l<dim;l++)
+							avg_upd_strain_tensor[k][l] += local_quadrature_points_history[q].upd_strain[k][l];
+				}
 
-									for (unsigned int qc=0; qc<quadrature_formula.size(); ++qc)
-										local_quadrature_points_history[qc].to_be_updated = true;
-								}
+				for(unsigned int k=0;k<dim;k++)
+					for(unsigned int l=k;l<dim;l++)
+						avg_upd_strain_tensor[k][l] /= quadrature_formula.size();
+
+
+				//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
+				//if (false) // For debug...
+				if (newtonstep_no > 0)
+					for(unsigned int k=0;k<dim;k++)
+						for(unsigned int l=k;l<dim;l++)
+							if (fabs(avg_upd_strain_tensor[k][l]) > strain_perturbation){
+								std::cout << "           "
+										<< " cell "<< cell->active_cell_index()
+										<< " strain component " << k << l
+										<< " value " << avg_upd_strain_tensor[k][l] << std::endl;
+
+								for (unsigned int qc=0; qc<quadrature_formula.size(); ++qc)
+									local_quadrature_points_history[qc].to_be_updated = true;
+
+								// Write strains since last update in a file named ./macrostate_storage/last.cellid-qid.strain
+								char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+								char filename[1024];
+
+								sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
+								write_tensor<dim>(filename, avg_upd_strain_tensor);
+
+								ofile << cell_id << std::endl;
 							}
-						}
-				}
-
-				// Write update_strain tensor in case the cell need to be updated.
-				// Using the average strain over the quadrature points
-				if (local_quadrature_points_history[0].to_be_updated){
-					// Write strains since last update in a file named ./macrostate_storage/last.cellid-qid.strain
-					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-					char filename[1024];
-
-					SymmetricTensor<2,dim> avg_upd_strain_tensor;
-
-					for(unsigned int k=0;k<dim;k++){
-						for(unsigned int l=k;l<dim;l++){
-							double average_qp = 0.;
-							for (unsigned int q=0;q<quadrature_formula.size();++q)
-								average_qp += local_quadrature_points_history[q].upd_strain[k][l];
-							average_qp /= quadrature_formula.size();
-							avg_upd_strain_tensor[k][l] = average_qp;
-						}
-					}
-
-					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
-					write_tensor<dim>(filename, avg_upd_strain_tensor);
-
-					ofile << cell_id << std::endl;
-				}
 			}
 		ofile.close();
 		MPI_Barrier(FE_communicator);

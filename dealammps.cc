@@ -1493,7 +1493,7 @@ namespace HMM
 		// Therefore, extra precision is required in the solver proportionnaly
 		// to the norm of the system matrix, to reduce sufficiently our residual
 		SolverControl       solver_control (dof_handler.n_dofs(),
-				1e-12/system_matrix.l1_norm());
+				1e-06/system_matrix.l1_norm());
 
 		PETScWrappers::SolverCG cg (solver_control,
 				FE_communicator);

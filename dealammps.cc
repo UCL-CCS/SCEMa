@@ -755,7 +755,7 @@ namespace HMM
 		void setup_quadrature_point_history ();
 
 		void update_strain_quadrature_point_history
-		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no);
+		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no, const bool updated_stiffnesses);
 		void update_stress_quadrature_point_history
 		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no);
 
@@ -936,7 +936,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::update_strain_quadrature_point_history
-	(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no)
+	(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no, const bool updated_stiffnesses)
 	{
 		// Create file with qptid to update at timeid
 		std::ofstream ofile;
@@ -1012,7 +1012,7 @@ namespace HMM
 				bool cell_to_be_updated = false;
 				//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
 				//if (false) // For debug...
-				if (newtonstep_no > 0)
+				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
 							if (fabs(avg_upd_strain_tensor[k][l]) > strain_perturbation
@@ -2920,7 +2920,7 @@ namespace HMM
 				hcout << "    Updating quadrature point data..." << std::endl;
 
 				if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history
-						(fe_problem.newton_update, timestep_no, newtonstep_no);
+						(fe_problem.newton_update, timestep_no, newtonstep_no, updated_stiffnesses);
 				MPI_Barrier(world_communicator);
 
 				hcout << "    Have some stiffnesses been updated in this group of iterations? " << updated_stiffnesses << std::endl;
@@ -2963,12 +2963,13 @@ namespace HMM
 		}
 
 		newtonstep_no = 0;
+		updated_stiffnesses = false;
 
 		if(dealii_pcolor==0) fe_problem.incremental_displacement = 0;
 
 		if(dealii_pcolor==0) fe_problem.set_boundary_values (present_timestep);
 
-		if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
+		if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no, updated_stiffnesses);
 		MPI_Barrier(world_communicator);
 
 		// At the moment, the stiffness is never updated here, due to checking condition

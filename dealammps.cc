@@ -953,27 +953,6 @@ namespace HMM
 			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
 		}
 
-		// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
-		/*for(unsigned int k=0;k<dim;k++)
-			for(unsigned int l=k;l<dim;l++)
-				for(unsigned int m=0;m<dim;m++)
-					for(unsigned int n=m;n<dim;n++)
-						if(!((k==l && m==n) || (k==m && l==n))){
-							//std::cout << "       ... removal of shear coupling terms" << std::endl;
-							stiffness_tensor[k][l][m][n] *= 1.0;
-						}
-						else if(stiffness_tensor[k][l][m][n]<0.0) stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
-
-		if(this_FE_process==0){
-			std::cout << "    Corrected initial stiffness..." << std::endl;
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
-		}*/
-
 		sprintf(filename, "%s/last.stiff", macrostatelocout);
 			write_tensor<dim>(filename, stiffness_tensor);
 
@@ -3253,6 +3232,17 @@ namespace HMM
 			}
 
 			initial_ensemble_stiffness_tensor /= nrepl;
+
+			// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
+			for(unsigned int k=0;k<dim;k++)
+				for(unsigned int l=k;l<dim;l++)
+					for(unsigned int m=0;m<dim;m++)
+						for(unsigned int n=m;n<dim;n++)
+							if(!((k==l && m==n) || (k==m && l==n))){
+								//std::cout << "       ... removal of shear coupling terms" << std::endl;
+								initial_ensemble_stiffness_tensor[k][l][m][n] *= 1.0;
+							}
+							else if(initial_ensemble_stiffness_tensor[k][l][m][n]<0.0) initial_ensemble_stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
 
 			char macrofilenameout[1024];
 			sprintf(macrofilenameout, "%s/init.stiff", macrostatelocout);

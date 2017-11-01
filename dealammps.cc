@@ -1445,8 +1445,8 @@ namespace HMM
 
 		std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 
-		BodyForce<dim>      body_force;
-		std::vector<Vector<double> > body_force_values (n_q_points,
+		BodyForce<dim>      body_force_inc;
+		std::vector<Vector<double> > body_force_inc_values (n_q_points,
 				Vector<double>(dim));
 
 		typename DoFHandler<dim>::active_cell_iterator
@@ -1482,22 +1482,24 @@ namespace HMM
 									fe_values.JxW (q_point));
 						}
 
-				body_force.vector_value_list (fe_values.get_quadrature_points(),
-						body_force_values);
+				body_force_inc.vector_value_list (fe_values.get_quadrature_points(),
+						body_force_inc_values);
 
 				for (unsigned int i=0; i<dofs_per_cell; ++i)
 				{
-					//const unsigned int
-					//component_i = fe.system_to_component_index(i).first;
+					const unsigned int
+					component_i = fe.system_to_component_index(i).first;
 
 					for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 					{
 						const SymmetricTensor<2,dim> &new_stress
 						= local_quadrature_points_data[q_point].inc_stress;
 
-						// Using tangent stiffness, dont know how to handle body_forces...
-						cell_rhs(i) += (/*body_force_values[q_point](component_i) *
-								fe_values.shape_value (i,q_point)*/
+						// how to handle body forces?
+						// apply increment of body force since last step...
+						cell_rhs(i) += (0.0 *
+								body_force_inc_values[q_point](component_i) *
+								fe_values.shape_value (i,q_point)
 								-
 								new_stress *
 								get_strain (fe_values,i,q_point))

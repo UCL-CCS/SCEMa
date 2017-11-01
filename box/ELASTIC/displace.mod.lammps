@@ -12,11 +12,11 @@ if "${dir} == 3" then &
 if "${dir} == 4" then &
    "variable len0 equal ${ly0}"
 if "${dir} == 5" then &
-   "variable len0 equal ${lz0}"
+   "variable len0 equal ${lx0}"
 if "${dir} == 6" then &
-   "variable len0 equal ${lz0}"
+   "variable len0 equal ${lx0}"
 
-variable ori string "neg"
+# variable ori string "neg"
 # Reset box and simulation parameters
 
 clear
@@ -26,21 +26,27 @@ include ${locbe}/potential.mod.lammps
 
 # Negative deformation
 
-variable delta equal -${up}*${len0}
+variable delta equal (v_sign)*${up}*${len0}
 
 fix   shak all shake 0.001 20 1000 m 1.0
 fix   partvol all nvt temp ${tempt} ${tempt} 100.0
 if "${dir} == 1" then &
+   "variable sign equal ${seeps_00}" &
    "fix infstrain all deform 1 x delta 0 ${delta} remap x"
 if "${dir} == 2" then &
+   "variable sign equal ${seeps_11}" &
    "fix infstrain all deform 1 y delta 0 ${delta} remap x"
 if "${dir} == 3" then &
+   "variable sign equal ${seeps_22}" &
    "fix infstrain all deform 1 z delta 0 ${delta} remap x"
 if "${dir} == 4" then &
+   "variable sign equal ${seeps_12}" &
    "fix infstrain all deform 1 yz delta ${delta} remap x"
 if "${dir} == 5" then &
+   "variable sign equal ${seeps_02}" &
    "fix infstrain all deform 1 xz delta ${delta} remap x"
 if "${dir} == 6" then &
+   "variable sign equal ${seeps_01}" &
    "fix infstrain all deform 1 xy delta ${delta} remap x"
 
 # Apply infinitesimal strain
@@ -61,8 +67,6 @@ include ${locbe}/sample.mod.lammps
 unfix wholevol
 unfix shak
 
-# Obtain new stress tensor
-
 variable tmp equal f_stress[1]
 variable pxx1 equal ${tmp}
 variable tmp equal f_stress[2]
@@ -78,94 +82,15 @@ variable pyz1 equal ${tmp}
 
 print "${pxx1} ${pyy1} ${pzz1} ${pxy1} ${pxz1} ${pyz1} "
 
-# Compute elastic constant from pressure tensor
-
-variable C1neg equal ${d1}
-variable C2neg equal ${d2}
-variable C3neg equal ${d3}
-variable C4neg equal ${d4}
-variable C5neg equal ${d5}
-variable C6neg equal ${d6}
-
-# Reset box and simulation parameters
-variable ori string "pos"
-
-clear
-box tilt large
-read_restart ${loco}/restart.equil
-include ${locbe}/potential.mod.lammps
-
-# Positive deformation
-
-variable delta equal ${up}*${len0}
-
-fix   shak all shake 0.001 20 1000 m 1.0
-fix   partvol all nvt temp ${tempt} ${tempt} 100.0
-if "${dir} == 1" then &
-   "fix infstrain all deform 1 x delta 0 ${delta} remap x"
-if "${dir} == 2" then &
-   "fix infstrain all deform 1 y delta 0 ${delta} remap x"
-if "${dir} == 3" then &
-   "fix infstrain all deform 1 z delta 0 ${delta} remap x"
-if "${dir} == 4" then &
-   "fix infstrain all deform 1 yz delta ${delta} remap x"
-if "${dir} == 5" then &
-   "fix infstrain all deform 1 xz delta ${delta} remap x"
-if "${dir} == 6" then &
-   "fix infstrain all deform 1 xy delta ${delta} remap x"
-
-# Apply infinitesimal strain
-variable nss equal ${nsstrain}
-include ${locbe}/sample.mod.lammps
-
-unfix infstrain
-unfix partvol
-unfix shak
-
-# Sample stresses
-variable nss equal ${nssample}
-
-fix   shak all shake 0.001 20 1000 m 1.0
-fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
-include ${locbe}/sample.mod.lammps
-
-unfix wholevol
-unfix shak
-
-# Obtain new stress tensor
-
-variable tmp equal f_stress[1]
-variable pxx1 equal ${tmp}
-variable tmp equal f_stress[2]
-variable pyy1 equal ${tmp}
-variable tmp equal f_stress[3]
-variable pzz1 equal ${tmp}
-variable tmp equal f_stress[4]
-variable pxy1 equal ${tmp}
-variable tmp equal f_stress[5]
-variable pxz1 equal ${tmp}
-variable tmp equal f_stress[6]
-variable pyz1 equal ${tmp}
-
-print "${pxx1} ${pyy1} ${pzz1} ${pxy1} ${pxz1} ${pyz1} "
-
-# Compute elastic constant from pressure tensor
-
-variable C1pos equal ${d1}
-variable C2pos equal ${d2}
-variable C3pos equal ${d3}
-variable C4pos equal ${d4}
-variable C5pos equal ${d5}
-variable C6pos equal ${d6}
 
 # Combine positive and negative
 
-variable C1${dir} equal 0.5*(${C1neg}+${C1pos})
-variable C2${dir} equal 0.5*(${C2neg}+${C2pos})
-variable C3${dir} equal 0.5*(${C3neg}+${C3pos})
-variable C4${dir} equal 0.5*(${C4neg}+${C4pos})
-variable C5${dir} equal 0.5*(${C5neg}+${C5pos})
-variable C6${dir} equal 0.5*(${C6neg}+${C6pos})
+variable C1${dir} equal ${d1}
+variable C2${dir} equal ${d2}
+variable C3${dir} equal ${d3}
+variable C4${dir} equal ${d4}
+variable C5${dir} equal ${d5}
+variable C6${dir} equal ${d6}
 
 # Delete dir to make sure it is not reused
 

@@ -114,6 +114,37 @@ variable d6 equal -(v_pxy1-${pxy0})/(v_delta/v_len0)*${cfac}
 
 #displace_atoms all random ${atomjiggle} ${atomjiggle} ${atomjiggle} 87287 units box # only useful for crystals
 
+# Computing signs for orientation of Perturbation
+if "${eeps_00} == 0.0" then &
+  "variable seeps_00 equal 1.0" &
+else &
+  "variable seeps_00 equal ${eeps_00}/sqrt(${eeps_00}*${eeps_00})"
+
+if "${eeps_11} == 0.0" then &
+  "variable seeps_11 equal 1.0" &
+else &
+  "variable seeps_11 equal ${eeps_11}/sqrt(${eeps_11}*${eeps_11})"
+
+if "${eeps_22} == 0.0" then &
+  "variable seeps_22 equal 1.0" &
+else &
+  "variable seeps_22 equal ${eeps_22}/sqrt(${eeps_22}*${eeps_22})"
+
+if "${eeps_12} == 0.0" then &
+  "variable seeps_12 equal 1.0" &
+else &
+  "variable seeps_12 equal ${eeps_12}/sqrt(${eeps_12}*${eeps_12})"
+
+if "${eeps_02} == 0.0" then &
+  "variable seeps_02 equal 1.0" &
+else &
+  "variable seeps_02 equal ${eeps_02}/sqrt(${eeps_02}*${eeps_02})"
+
+if "${eeps_01} == 0.0" then &
+  "variable seeps_01 equal 1.0" &
+else &
+  "variable seeps_01 equal ${eeps_01}/sqrt(${eeps_01}*${eeps_01})"
+
 # Write restart
 write_restart ${loco}/restart.equil
 # uxx Perturbation

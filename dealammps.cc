@@ -94,17 +94,41 @@ namespace HMM
 	{
 		SymmetricTensor<2,dim> old_stress;
 		SymmetricTensor<2,dim> new_stress;
+		SymmetricTensor<2,dim> inc_stress;
 		SymmetricTensor<4,dim> old_stiff;
 		SymmetricTensor<4,dim> new_stiff;
 		SymmetricTensor<2,dim> old_strain;
 		SymmetricTensor<2,dim> new_strain;
+		SymmetricTensor<2,dim> inc_strain;
 		SymmetricTensor<2,dim> upd_strain;
+		SymmetricTensor<2,dim> newton_strain;
 		bool to_be_updated;
 	};
 
 	bool file_exists(const char* file) {
 		struct stat buf;
 		return (stat(file, &buf) == 0);
+	}
+
+	template <int dim>
+	inline
+	void
+	read_tensor (char *filename, std::vector<double> &tensor)
+	{
+		std::ifstream ifile;
+
+		ifile.open (filename);
+		if (ifile.is_open())
+		{
+			for(unsigned int k=0;k<tensor.size();k++)
+				{
+					char line[1024];
+					if(ifile.getline(line, sizeof(line)))
+						tensor[k] = std::strtod(line, NULL);
+				}
+			ifile.close();
+		}
+		else std::cout << "Unable to open" << filename << " to read it" << std::endl;
 	}
 
 	template <int dim>
@@ -151,6 +175,24 @@ namespace HMM
 			ifile.close();
 		}
 		else std::cout << "Unable to open" << filename << " to read it..." << std::endl;
+	}
+
+	template <int dim>
+	inline
+	void
+	write_tensor (char *filename, std::vector<double> &tensor)
+	{
+		std::ofstream ofile;
+
+		ofile.open (filename);
+		if (ofile.is_open())
+		{
+			for(unsigned int k=0;k<tensor.size();k++)
+					//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
+					ofile << std::setprecision(16) << tensor[k] << std::endl;
+			ofile.close();
+		}
+		else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
 	}
 
 	template <int dim>
@@ -303,17 +345,28 @@ namespace HMM
 		sprintf(cline, "variable locbe string %s/%s", location, "ELASTIC");
 		lammps_command(lmp,cline);
 
+		// Timestep length in fs
+		double dts = 2.0;
+
+		// number of timesteps for averaging
+		int nssample = 200;
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal 200"); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal 200"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal %d", nssample); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal %d", nssample); lammps_command(lmp,cline);
+
+		// number of timesteps for straining
+		double strain_rate = 1.0e-4; // in fs^(-1)
+		double strain_nrm = 0.005;
+		int nsstrain = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 		// For v_sound_PE = 2000 m/s, l_box=8nm, strain_perturbation=0.005, and dts=2.0fs
 		// the min number of straining steps is 10
-		sprintf(cline, "variable nsstrain  equal 200"); lammps_command(lmp,cline);
+		sprintf(cline, "variable nsstrain  equal %d", nsstrain); lammps_command(lmp,cline);
 
 		// Set strain perturbation amplitude
-		sprintf(cline, "variable up equal 5.0e-3"); lammps_command(lmp,cline);
+		sprintf(cline, "variable up equal %f", strain_nrm); lammps_command(lmp,cline);
 
-		// Set flag to define if stiffness is computed from initial or current stresses
+		// Set flag to define if stiffness is computed from initial (secant) or current
+		// stresses (tangent)
 		sprintf(cline, "variable flinit equal %d", flinit); lammps_command(lmp,cline);
 
 		// Using a routine based on the example ELASTIC/ to compute the stress and the
@@ -330,7 +383,7 @@ namespace HMM
 			{
 				char vcoef[1024];
 				sprintf(vcoef, "pp%d%d", k+1, l+1);
-				stresses[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.01325e+05;
+				stresses[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*(-1.0)*1.01325e+05;
 			}
 
 		// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
@@ -379,6 +432,7 @@ namespace HMM
 	void
 	lammps_initiation (SymmetricTensor<2,dim>& stress,
 					   SymmetricTensor<4,dim>& stiffness,
+					   std::vector<double>& lbox0,
 					   MPI_Comm comm_lammps,
 					   char* statelocin,
 					   char* statelocout,
@@ -473,10 +527,32 @@ namespace HMM
 			sprintf(cline, "read_restart %s/%s", statelocin, initdata); lammps_command(lmp,cline);
 		}
 
+		// Storing initial dimensions after initiation
+		char lname[1024];
+		sprintf(lname, "lxbox0");
+		sprintf(cline, "variable tmp equal 'lx'"); lammps_command(lmp,cline);
+		sprintf(cline, "variable %s equal ${tmp}", lname); lammps_command(lmp,cline);
+		lbox0[0] = *((double *) lammps_extract_variable(lmp,lname,NULL));
+		sprintf(lname, "lybox0");
+		sprintf(cline, "variable tmp equal 'ly'"); lammps_command(lmp,cline);
+		sprintf(cline, "variable %s equal ${tmp}", lname); lammps_command(lmp,cline);
+		lbox0[1] = *((double *) lammps_extract_variable(lmp,lname,NULL));
+		sprintf(lname, "lzbox0");
+		sprintf(cline, "variable tmp equal 'lz'"); lammps_command(lmp,cline);
+		sprintf(cline, "variable %s equal ${tmp}", lname); lammps_command(lmp,cline);
+		lbox0[2] = *((double *) lammps_extract_variable(lmp,lname,NULL));
+
+		// Saving nanostate at the end of initiation
 		if (me == 0) std::cout << "(MD - init - repl " << repl << ") "
 				<< "Saving state data...       " << std::endl;
 		sprintf(cline, "write_restart %s/%s", statelocout, initdata); lammps_command(lmp,cline);
 
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+			{
+				sprintf(cline, "variable eeps_%d%d equal %.6e", k, l, 0.0);
+				lammps_command(lmp,cline);
+			}
 
 		if (me == 0) std::cout << "(MD - init - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;
@@ -499,6 +575,7 @@ namespace HMM
 			SymmetricTensor<2,dim>& init_stress,
 			SymmetricTensor<2,dim>& stress,
 			SymmetricTensor<4,dim>& stiffness,
+			std::vector<double>& length,
 			char* cellid,
 			char* timeid,
 			MPI_Comm comm_lammps,
@@ -515,14 +592,9 @@ namespace HMM
 		// timestep length in fs
 		double dts = 2.0;
 		// number of timesteps
+		double strain_rate = 1.0e-5; // in fs^(-1)
 		double strain_nrm = strain.norm();
-		int min_nts = std::ceil((8.0e-9 * strain_nrm)/(dts*1.0e-15*2000));
-		int std_nts = 200;
-		int nts = std::max(std_nts,min_nts);
-
-		if (me == 0 && nts>std_nts) std::cout << "               "
-							<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
-							<< "   !! std_nts = " << std_nts <<" wasn't enough min_nts = " << min_nts << " !!       " << std::flush;
+		int nts = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 
 		// Temperature
 		double tempt = 200.0;
@@ -570,6 +642,11 @@ namespace HMM
 		// Creating LAMMPS instance
 		LAMMPS *lmp = NULL;
 		lmp = new LAMMPS(nargs,lmparg,comm_lammps);
+
+		// Passing initial dimension of the box to adjust applied strain
+		sprintf(cline, "variable lxbox0 equal %f", length[0]); lammps_command(lmp,cline);
+		sprintf(cline, "variable lybox0 equal %f", length[1]); lammps_command(lmp,cline);
+		sprintf(cline, "variable lzbox0 equal %f", length[2]); lammps_command(lmp,cline);
 
 		// Passing location for output as variable
 		sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
@@ -661,11 +738,18 @@ namespace HMM
 		for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
 			{
-				sprintf(cline, "variable isig_%d%d equal %.6e", k, l, init_stress[k][l]/1.01325e+05);
+				sprintf(cline, "variable isig_%d%d equal %.6e", k, l, (-1)*init_stress[k][l]/1.01325e+05);
 				lammps_command(lmp,cline);
 			}
 		// Compute the secant stiffness tensor at the given stress/strain state
-		lammps_homogenization<dim>(lmp, location, stress, stiffness, 1);
+		lammps_homogenization<dim>(lmp, location, stress, stiffness, 0);
+
+		// Cleaning initial offset of stresses
+		stress -= init_stress;
+
+		// Save data to specific file for this quadrature point
+		// At the end of the homogenization the state after sampling the current stress is reread to prepare this write
+		//sprintf(cline, "write_restart %s/%s", statelocout, straindata_last); lammps_command(lmp,cline);
 
 		// close down LAMMPS
 		delete lmp;
@@ -743,7 +827,7 @@ namespace HMM
 		void make_grid ();
 		void setup_system ();
 		void restart_system (char* nanostatelocin, char* nanostatelocout, unsigned int nrepl);
-		void set_boundary_values (const double present_timestep);
+		void set_boundary_values (const double present_timestep, const int timestep_no);
 		double assemble_system ();
 		void solve_linear_problem_CG ();
 		void solve_linear_problem_BiCGStab ();
@@ -875,6 +959,7 @@ namespace HMM
 				for(unsigned int m=0;m<dim;m++)
 					for(unsigned int n=m;n<dim;n++)
 						if(!((k==l && m==n) || (k==m && l==n))){
+							//std::cout << "       ... removal of shear coupling terms" << std::endl;
 							stiffness_tensor[k][l][m][n] *= 1.0;
 						}
 						else if(stiffness_tensor[k][l][m][n]<0.0) stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
@@ -951,7 +1036,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		double strain_perturbation = 0.02;
+		double strain_perturbation = 0.005;
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
@@ -962,7 +1047,7 @@ namespace HMM
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
 			{
-				SymmetricTensor<2,dim> avg_upd_strain_tensor;
+				SymmetricTensor<2,dim> newton_strain_tensor, avg_upd_strain_tensor;
 
 				PointHistory<dim> *local_quadrature_points_history
 				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
@@ -992,12 +1077,13 @@ namespace HMM
 					local_quadrature_points_history[q].old_stiff =
 							local_quadrature_points_history[q].new_stiff;
 
-					// Strain tensor update
-					local_quadrature_points_history[q].new_strain +=
-							get_strain (displacement_update_grads[q]);
+					if (newtonstep_no == 0) local_quadrature_points_history[q].inc_strain = 0.;
 
-					local_quadrature_points_history[q].upd_strain +=
-							get_strain (displacement_update_grads[q]);
+					// Strain tensor update
+					local_quadrature_points_history[q].newton_strain = get_strain (displacement_update_grads[q]);
+					local_quadrature_points_history[q].inc_strain += local_quadrature_points_history[q].newton_strain;
+					local_quadrature_points_history[q].new_strain += local_quadrature_points_history[q].newton_strain;
+					local_quadrature_points_history[q].upd_strain += local_quadrature_points_history[q].newton_strain;
 
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
@@ -1117,16 +1203,30 @@ namespace HMM
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
+
+					if (newtonstep_no == 0) local_quadrature_points_history[q].inc_stress = 0.;
+
 					if (local_quadrature_points_history[q].to_be_updated){
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);
 
+						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
+						read_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);
+
 						local_quadrature_points_history[q].upd_strain = 0;
+					}
+					else{
+						// Tangent stiffness computation of the new stress tensor and the stress increment tensor
+						local_quadrature_points_history[q].inc_stress +=
+							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
+
+						local_quadrature_points_history[q].new_stress +=
+							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 					}
 
 					// Secant stiffness computation of the new stress tensor
-					local_quadrature_points_history[q].new_stress =
-							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].new_strain;
+					//local_quadrature_points_history[q].new_stress =
+					//		local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].new_strain;
 
 					// Apply rotation of the sample to the new state tensors.
 					// Only needed if the mesh is modified...
@@ -1181,7 +1281,7 @@ namespace HMM
 	// assemble_system() function
 	template <int dim>
 	void FEProblem<dim>::set_boundary_values
-	(const double present_timestep)
+	(const double present_timestep, const int timestep_no)
 	{
 		velocity = -0.00015;
 
@@ -1387,16 +1487,17 @@ namespace HMM
 
 				for (unsigned int i=0; i<dofs_per_cell; ++i)
 				{
-					const unsigned int
-					component_i = fe.system_to_component_index(i).first;
+					//const unsigned int
+					//component_i = fe.system_to_component_index(i).first;
 
 					for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 					{
 						const SymmetricTensor<2,dim> &new_stress
-						= local_quadrature_points_data[q_point].new_stress;
+						= local_quadrature_points_data[q_point].inc_stress;
 
-						cell_rhs(i) += (body_force_values[q_point](component_i) *
-								fe_values.shape_value (i,q_point)
+						// Using tangent stiffness, dont know how to handle body_forces...
+						cell_rhs(i) += (/*body_force_values[q_point](component_i) *
+								fe_values.shape_value (i,q_point)*/
 								-
 								new_stress *
 								get_strain (fe_values,i,q_point))
@@ -1493,7 +1594,7 @@ namespace HMM
 		// Therefore, extra precision is required in the solver proportionnaly
 		// to the norm of the system matrix, to reduce sufficiently our residual
 		SolverControl       solver_control (dof_handler.n_dofs(),
-				1e-06/system_matrix.l1_norm());
+				1e-03/system_matrix.l1_norm());
 
 		PETScWrappers::SolverCG cg (solver_control,
 				FE_communicator);
@@ -2735,7 +2836,7 @@ namespace HMM
 				if (lammps_pcolor == (imdrun%n_lammps_batch))
 				{
 					SymmetricTensor<2,dim> loc_strain;
-					SymmetricTensor<2,dim> loc_stress;
+					SymmetricTensor<2,dim> loc_rep_stress;
 
 					char filename[1024];
 
@@ -2745,10 +2846,15 @@ namespace HMM
 
 					SymmetricTensor<4,dim> loc_rep_stiffness;
 					SymmetricTensor<2,dim> init_rep_stress;
+					std::vector<double> init_rep_length (dim);
 
 					// Arguments of the secant stiffness computation
 					sprintf(filename, "%s/init.PE_%d.stress", macrostatelocout, repl);
 					read_tensor<dim>(filename, init_rep_stress);
+
+					// Providing initial box dimension to adjust the strain tensor
+					sprintf(filename, "%s/init.PE_%d.length", macrostatelocout, repl);
+					read_tensor<dim>(filename, init_rep_length);
 
 					// Then the lammps function instanciates lammps, starting from an initial
 					// microstructure and applying the complete new_strain or starting from
@@ -2756,8 +2862,9 @@ namespace HMM
 					// the new_ and _old_strains, returns the new_stress state.
 					lammps_straining<dim> (loc_strain,
 							init_rep_stress,
-							loc_stress,
+							loc_rep_stress,
 							loc_rep_stiffness,
+							init_rep_length,
 							cell_id[c],
 							time_id,
 							lammps_batch_communicator,
@@ -2769,6 +2876,10 @@ namespace HMM
 						std::cout << " \t" << cell_id[c] <<"-"<< repl << " \t" << std::flush;
 						sprintf(filename, "%s/last.%s.PE_%d.stiff", macrostatelocout, cell_id[c], repl);
 						write_tensor<dim>(filename, loc_rep_stiffness);
+
+						std::cout << " \t" << cell_id[c] <<"-"<< repl << " \t" << std::flush;
+						sprintf(filename, "%s/last.%s.PE_%d.stress", macrostatelocout, cell_id[c], repl);
+						write_tensor<dim>(filename, loc_rep_stress);
 					}
 				}
 			}
@@ -2778,7 +2889,8 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		// Verify the integrity of the stiffness tensor (constraint C_upd>stol*C_ini)
-		double stol = 0.001;
+		// Works only with secant stiffness
+		/*double stol = 0.001;
 
 		for (int c=0; c<ncupd; ++c)
 		{
@@ -2819,7 +2931,7 @@ namespace HMM
 			}
 		}
 
-		MPI_Barrier(world_communicator);
+		MPI_Barrier(world_communicator);*/
 
 		for (int c=0; c<ncupd; ++c)
 		{
@@ -2830,6 +2942,7 @@ namespace HMM
 				if(this_lammps_batch_process == 0)
 				{
 					SymmetricTensor<4,dim> loc_stiffness;
+					SymmetricTensor<2,dim> loc_stress;
 					char filename[1024];
 
 					for(unsigned int repl=1;repl<nrepl+1;repl++)
@@ -2839,9 +2952,16 @@ namespace HMM
 						read_tensor<dim>(filename, loc_rep_stiffness);
 
 						loc_stiffness += loc_rep_stiffness;
+
+						SymmetricTensor<2,dim> loc_rep_stress;
+						sprintf(filename, "%s/last.%s.PE_%d.stress", macrostatelocout, cell_id[c], repl);
+						read_tensor<dim>(filename, loc_rep_stress);
+
+						loc_stress += loc_rep_stress;
 					}
 
 					loc_stiffness /= nrepl;
+					loc_stress /= nrepl;
 
 					// For debug...
 					std::cout << "               "
@@ -2864,12 +2984,16 @@ namespace HMM
 							for(unsigned int m=0;m<dim;m++)
 								for(unsigned int n=m;n<dim;n++)
 									if(!((k==l && m==n) || (k==m && l==n))){
+										//std::cout << "       ... removal of shear coupling terms" << std::endl;
 										loc_stiffness[k][l][m][n] *= 1.0; // correction -> *= 0.0
 									}
 									else if(loc_stiffness[k][l][m][n]<0.0) loc_stiffness[k][l][m][n] *= +1.0; // correction -> *= -1.0*/
 
 					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 					write_tensor<dim>(filename, loc_stiffness);
+
+					sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id[c]);
+					write_tensor<dim>(filename, loc_stress);
 
 					//					// Save stiffness history for later checking...
 					//					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
@@ -2910,7 +3034,7 @@ namespace HMM
 
 			updated_stiffnesses = false;
 
-			for (unsigned int inner_iteration=0; inner_iteration<3; ++inner_iteration)
+			for (unsigned int inner_iteration=0; inner_iteration<2; ++inner_iteration)
 			{
 				++newtonstep_no;
 				hcout << "    Beginning of timestep: " << timestep_no << " - newton step: " << newtonstep_no << std::flush;
@@ -2938,7 +3062,7 @@ namespace HMM
 				// Share the value of previous_res in between processors
 				MPI_Bcast(&previous_res, 1, MPI_DOUBLE, root_dealii_process, world_communicator);
 
-				hcout << "  Residual: "
+				hcout << "    Residual: "
 						<< previous_res
 						<< std::endl;
 			}
@@ -2967,7 +3091,7 @@ namespace HMM
 
 		if(dealii_pcolor==0) fe_problem.incremental_displacement = 0;
 
-		if(dealii_pcolor==0) fe_problem.set_boundary_values (present_timestep);
+		if(dealii_pcolor==0) fe_problem.set_boundary_values (present_timestep, timestep_no);
 
 		if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no, updated_stiffnesses);
 		MPI_Barrier(world_communicator);
@@ -3022,6 +3146,7 @@ namespace HMM
 			int irepl = repl-1;
 			if (lammps_pcolor == (irepl%n_lammps_batch))
 			{
+				std::vector<double> 				initial_length (dim);
 				SymmetricTensor<2,dim> 				initial_stress_tensor;
 				SymmetricTensor<4,dim> 				initial_stiffness_tensor;
 
@@ -3037,15 +3162,21 @@ namespace HMM
 				sprintf(macrofilenameoutstress, "%s/init.PE_%d.stress", macrostatelocout, repl);
 				bool macrostatestress_exists = file_exists(macrofilenameinstress);
 
+				char macrofilenameinlength[1024];
+				sprintf(macrofilenameinlength, "%s/init.PE_%d.length", macrostatelocin, repl);
+				char macrofilenameoutlength[1024];
+				sprintf(macrofilenameoutlength, "%s/init.PE_%d.length", macrostatelocout, repl);
+				bool macrostatelength_exists = file_exists(macrofilenameinlength);
+
 				char nanofilenamein[1024];
 				sprintf(nanofilenamein, "%s/init.PE_%d.bin", nanostatelocin, repl);
 				char nanofilenameout[1024];
 				sprintf(nanofilenameout, "%s/init.PE_%d.bin", nanostatelocout, repl);
 				bool nanostate_exists = file_exists(nanofilenamein);
 
-				if(!(macrostate_exists && macrostatestress_exists) || !nanostate_exists){
+				if(!macrostate_exists || !macrostatestress_exists || !macrostatelength_exists || !nanostate_exists){
 					if(this_lammps_batch_process == 0) std::cout << " (repl "<< repl << ") ...from a molecular dynamics simulation       " << std::endl;
-					lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, lammps_batch_communicator,
+					lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, initial_length, lammps_batch_communicator,
 							nanostatelocin, nanostatelocout, nanologloc, repl);
 
 					// For debug...
@@ -3068,6 +3199,7 @@ namespace HMM
 
 					if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameout, initial_stiffness_tensor);
 					if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameoutstress, initial_stress_tensor);
+					if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameoutlength, initial_length);
 				}
 				else{
 					if(this_lammps_batch_process == 0){
@@ -3083,6 +3215,12 @@ namespace HMM
 						macrostressout << macrostressin.rdbuf();
 						macrostressin.close();
 						macrostressout.close();
+
+						std::ifstream  macrolengthin(macrofilenameinlength, std::ios::binary);
+						std::ofstream  macrolengthout(macrofilenameoutlength,   std::ios::binary);
+						macrolengthout << macrolengthin.rdbuf();
+						macrolengthin.close();
+						macrolengthout.close();
 
 						std::ifstream  nanoin(nanofilenamein, std::ios::binary);
 						std::ofstream  nanoout(nanofilenameout,   std::ios::binary);

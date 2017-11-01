@@ -7,7 +7,7 @@ SET(TARGET_SRC
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.5 QUIET
-  HINTS /gpfs/work/pr92ge/di36yax/opt/dealii-8.5.0/
+  HINTS /u/sciteam/vassaux/opt/dealii/
   )
 IF(NOT ${deal.II_FOUND})
   MESSAGE(FATAL_ERROR "\n"
@@ -25,11 +25,11 @@ DEAL_II_INVOKE_AUTOPILOT()
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
-  /gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/
+  /u/sciteam/vassaux/source/lammps/src/
   )
 
 ## Include LAMMPS library shared (or static)
-SET(CMAKE_CXX_FLAGS "/gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/liblammps.so")
+SET(CMAKE_CXX_FLAGS "/u/sciteam/vassaux/source/lammps/src/liblammps.so")
 #SET(CMAKE_CXX_FLAGS "/gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/liblammps.a")
 
 ## Create additional targets to the standard DEAL.II targets

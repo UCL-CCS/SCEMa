@@ -1303,11 +1303,12 @@ namespace HMM
 						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.
 						&& fabs(cell->vertex(v)(2) - 0.0) < eps/3.)
 				{
-					xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					component = 0;
+					xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
 					component = 2;
+					xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
 //					dcout << "XZ support type"
@@ -1315,10 +1316,10 @@ namespace HMM
 //						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
 				}
 
-				component = 1;
 				if (fabs(cell->vertex(v)(0) - -ll/2.) < eps/3.
 						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
 				{
+					component = 1;
 					lsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
@@ -1330,6 +1331,7 @@ namespace HMM
 				if (fabs(cell->vertex(v)(0) - +ll/2.) < eps/3.
 						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
 				{
+					component = 1;
 					rsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
@@ -1338,13 +1340,14 @@ namespace HMM
 //						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
 				}
 
-				double vertex_force = iforce[cell->vertex_dof_index (v, component)];
 				value = present_timestep*velocity;
 				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
 						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.
 						/*&& value*vertex_force >= 0.0*/
 						/*&& timestep_no < 5*/)
 				{
+					component = 1;
+					double vertex_force = iforce[cell->vertex_dof_index (v, component)];
 					if(value*vertex_force >= 0.0){
 						loaded_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 						boundary_values.insert(std::pair<types::global_dof_index, double>

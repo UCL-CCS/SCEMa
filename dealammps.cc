@@ -848,7 +848,7 @@ namespace HMM
 		void restart_output (char* nanologloc, char* nanostatelocout, char* nanostatelocres, unsigned int nrepl) const;
 
 		double compute_residual () const;
-		double compute_internal_forces () const;
+		Vector<double>  compute_internal_forces () const;
 
 		Vector<double> 		     			newton_update;
 		Vector<double> 		     			incremental_displacement;
@@ -882,6 +882,9 @@ namespace HMM
 		unsigned int 						n_local_cells;
 
 		double 								velocity;
+		std::vector<bool> 					xzsupport_boundary_dofs;
+		std::vector<bool> 					lsupport_boundary_dofs;
+		std::vector<bool> 					rsupport_boundary_dofs;
 		std::vector<bool> 					loaded_boundary_dofs;
 
 		double 								ll;
@@ -1269,12 +1272,13 @@ namespace HMM
 		FEValuesExtractors::Scalar z_component (dim-1);
 		std::map<types::global_dof_index,double> boundary_values;
 
-//		std::vector<bool> loaded_boundary_dofs (dof_handler.n_dofs());
 		loaded_boundary_dofs.resize(dof_handler.n_dofs());
+		lsupport_boundary_dofs.resize(dof_handler.n_dofs());
+		rsupport_boundary_dofs.resize(dof_handler.n_dofs());
+		xzsupport_boundary_dofs.resize(dof_handler.n_dofs());
 
-		std::vector<bool> lsupport_boundary_dofs (dof_handler.n_dofs());
-		std::vector<bool> rsupport_boundary_dofs (dof_handler.n_dofs());
-		std::vector<bool> xzsupport_boundary_dofs (dof_handler.n_dofs());
+		// Computing internal forces to apply the contact BC
+		Vector<double>  iforce = compute_internal_forces();
 
 		typename DoFHandler<dim>::active_cell_iterator
 		cell = dof_handler.begin_active(),
@@ -1334,16 +1338,23 @@ namespace HMM
 //						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
 				}
 
+				double vertex_force = iforce[cell->vertex_dof_index (v, component)];
 				value = present_timestep*velocity;
 				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
-						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
+						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.
+						/*&& value*vertex_force >= 0.0*/
+						/*&& timestep_no < 5*/)
 				{
-					loaded_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-//					dcout << "Y load type"
-//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
-//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
+					if(value*vertex_force >= 0.0){
+						loaded_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->vertex_dof_index (v, component), value));
+					}
+					/*dcout << "Y load type"
+						  << " -- dof id: " << cell->vertex_dof_index (v, component)
+						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - "
+						  << " -- Y force: " << vertex_force
+						  << " -- is loaded? " << loaded_boundary_dofs[cell->vertex_dof_index (v, component)] << std::endl;*/
 				}
 			}
 		}
@@ -1508,14 +1519,12 @@ namespace HMM
 		endc = dof_handler.end();
 
 		for ( ; cell != endc; ++cell) {
-			double eps = (cell->minimum_vertex_distance());
+			//double eps = (cell->minimum_vertex_distance());
 			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
 				unsigned int component;
 				double value;
 				value = 0.;
-				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
-						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.
-						&& fabs(cell->vertex(v)(2) - 0.0) < eps/3.)
+				if (xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
 					{
 						component = 0;
 						boundary_values.insert(std::pair<types::global_dof_index, double>
@@ -1525,20 +1534,18 @@ namespace HMM
 								(cell->vertex_dof_index (v, component), value));
 					}
 				component = 1;
-				if (fabs(cell->vertex(v)(0) - -ll/2.) < eps/3.
-						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
+				if (lsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
 					{
 						boundary_values.insert(std::pair<types::global_dof_index, double>
 								(cell->vertex_dof_index (v, component), value));
 					}
-				if (fabs(cell->vertex(v)(0) - +ll/2.) < eps/3.
-						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
+				if (rsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
 					{
 						boundary_values.insert(std::pair<types::global_dof_index, double>
 								(cell->vertex_dof_index (v, component), value));
 					}
-				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
-						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
+
+				if (loaded_boundary_dofs[cell->vertex_dof_index (v, component)])
 					{
 						boundary_values.insert(std::pair<types::global_dof_index, double>
 								(cell->vertex_dof_index (v, component), value));
@@ -1762,7 +1769,7 @@ namespace HMM
 
 
 	template <int dim>
-	double FEProblem<dim>::compute_internal_forces () const
+	Vector<double> FEProblem<dim>::compute_internal_forces () const
 	{
 		PETScWrappers::MPI::Vector residual
 		(locally_owned_dofs, FE_communicator);
@@ -1814,22 +1821,10 @@ namespace HMM
 
 		residual.compress(VectorOperation::add);
 
-		double applied_force = 0.;
-
 		Vector<double> local_residual (dof_handler.n_dofs());
 		local_residual = residual;
 
-		dcout << "hello Y force ------ " << std::endl;
-		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-			if (loaded_boundary_dofs[i] == true)
-			{
-				dcout << "force: " << local_residual[i] << std::endl;
-				applied_force += local_residual[i];
-			}
-
-		dcout << "Total force : " << applied_force << std::endl;
-
-		return applied_force;
+		return local_residual;
 	}
 
 
@@ -1908,7 +1903,21 @@ namespace HMM
 	void FEProblem<dim>::output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi)
 	{
 		// Compute applied force
-		double aforce = compute_internal_forces();
+		Vector<double> local_residual (dof_handler.n_dofs());
+
+		local_residual = compute_internal_forces();
+
+		double aforce = 0.;
+		//dcout << "hello Y force ------ " << std::endl;
+		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+			if (loaded_boundary_dofs[i] == true)
+			{
+				//dcout << "force: " << local_residual[i] << std::endl;
+				aforce += local_residual[i];
+			}
+
+		//dcout << "Total force : " << aforce << std::endl;
+
 		double idisp = velocity*timestep_no;
 		dcout << "Timestep: " << timestep_no << " - Time: " << present_time << " - Imp. Disp.: " << idisp << " - App. Force: " << aforce << std::endl;
 

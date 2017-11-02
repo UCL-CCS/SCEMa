@@ -1298,15 +1298,16 @@ namespace HMM
 					xzsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
 				}
 
-				value = 0.;
 				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
 						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.
 						&& fabs(cell->vertex(v)(2) - 0.0) < eps/3.)
 				{
+					value = 0.;
 					component = 0;
 					xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
+					value = 0.;
 					component = 2;
 					xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
@@ -1319,6 +1320,7 @@ namespace HMM
 				if (fabs(cell->vertex(v)(0) - -ll/2.) < eps/3.
 						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
 				{
+					value = 0.;
 					component = 1;
 					lsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
@@ -1331,6 +1333,7 @@ namespace HMM
 				if (fabs(cell->vertex(v)(0) - +ll/2.) < eps/3.
 						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
 				{
+					value = 0.;
 					component = 1;
 					rsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
@@ -1340,12 +1343,10 @@ namespace HMM
 //						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
 				}
 
-				value = present_timestep*velocity;
 				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
-						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.
-						/*&& value*vertex_force >= 0.0*/
-						/*&& timestep_no < 5*/)
+						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
 				{
+					value = present_timestep*velocity;
 					component = 1;
 					double vertex_force = iforce[cell->vertex_dof_index (v, component)];
 					if(value*vertex_force >= 0.0){
@@ -1526,33 +1527,46 @@ namespace HMM
 			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
 				unsigned int component;
 				double value;
+
 				value = 0.;
+				component = 0;
 				if (xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-					{
-						component = 0;
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-								(cell->vertex_dof_index (v, component), value));
-						component = 2;
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-								(cell->vertex_dof_index (v, component), value));
-					}
+				{
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+				}
+
+				value = 0.;
+				component = 2;
+				if (xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
+				{
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+				}
+
+				value = 0.;
 				component = 1;
 				if (lsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-					{
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-								(cell->vertex_dof_index (v, component), value));
-					}
-				if (rsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-					{
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-								(cell->vertex_dof_index (v, component), value));
-					}
+				{
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+				}
 
+				value = 0.;
+				component = 1;
+				if (rsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
+				{
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+				}
+
+				value = 0.;
+				component = 1;
 				if (loaded_boundary_dofs[cell->vertex_dof_index (v, component)])
-					{
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-								(cell->vertex_dof_index (v, component), value));
-					}
+				{
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+				}
 			}
 		}
 

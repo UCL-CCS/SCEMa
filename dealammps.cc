@@ -355,7 +355,7 @@ namespace HMM
 		sprintf(cline, "variable nssample  equal %d", nssample); lammps_command(lmp,cline);
 
 		// number of timesteps for straining
-		double strain_rate = 1.0e-4; // in fs^(-1)
+		double strain_rate = 1.0e-5; // in fs^(-1)
 		double strain_nrm = 0.005;
 		int nsstrain = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 		// For v_sound_PE = 2000 m/s, l_box=8nm, strain_perturbation=0.005, and dts=2.0fs
@@ -795,7 +795,7 @@ namespace HMM
 		const double rho = 7700;
 
 		values = 0;
-		values(dim-1) = -rho * g * 00000.;
+		values(dim-1) = -rho * g;
 	}
 
 

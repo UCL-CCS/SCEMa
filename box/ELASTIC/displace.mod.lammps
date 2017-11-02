@@ -10,11 +10,11 @@ if "${dir} == 2" then &
 if "${dir} == 3" then &
    "variable len0 equal ${lz0}"
 if "${dir} == 4" then &
-   "variable len0 equal ${ly0}"
+   "variable len0 equal ${lz0}"
 if "${dir} == 5" then &
-   "variable len0 equal ${lx0}"
+   "variable len0 equal ${lz0}"
 if "${dir} == 6" then &
-   "variable len0 equal ${lx0}"
+   "variable len0 equal ${ly0}"
 
 # variable ori string "neg"
 # Reset box and simulation parameters
@@ -27,34 +27,37 @@ include ${locbe}/potential.mod.lammps
 # Negative deformation
 
 variable delta equal (v_sign)*${up}*${len0}
+variable deltaxy equal -1*(v_sign)*${up}*xy
+variable deltaxz equal -1*(v_sign)*${up}*xz
+variable deltayz equal -1*(v_sign)*${up}*yz
 
 fix   shak all shake 0.001 20 1000 m 1.0
-fix   partvol all nvt temp ${tempt} ${tempt} 100.0
+fix   tvol all nvt/sllod temp ${tempt} ${tempt} 100.0
 if "${dir} == 1" then &
    "variable sign equal ${seeps_00}" &
-   "fix infstrain all deform 1 x delta 0 ${delta} remap x"
+   "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap v"
 if "${dir} == 2" then &
    "variable sign equal ${seeps_11}" &
-   "fix infstrain all deform 1 y delta 0 ${delta} remap x"
+   "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap v"
 if "${dir} == 3" then &
    "variable sign equal ${seeps_22}" &
-   "fix infstrain all deform 1 z delta 0 ${delta} remap x"
+   "fix infstrain all deform 1 z delta 0 ${delta} remap v"
 if "${dir} == 4" then &
    "variable sign equal ${seeps_12}" &
-   "fix infstrain all deform 1 yz delta ${delta} remap x"
+   "fix infstrain all deform 1 yz delta ${delta} remap v"
 if "${dir} == 5" then &
    "variable sign equal ${seeps_02}" &
-   "fix infstrain all deform 1 xz delta ${delta} remap x"
+   "fix infstrain all deform 1 xz delta ${delta} remap v"
 if "${dir} == 6" then &
    "variable sign equal ${seeps_01}" &
-   "fix infstrain all deform 1 xy delta ${delta} remap x"
+   "fix infstrain all deform 1 xy delta ${delta} remap v"
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}
 include ${locbe}/sample.mod.lammps
 
 unfix infstrain
-unfix partvol
+unfix tvol
 unfix shak
 
 # Sample stresses

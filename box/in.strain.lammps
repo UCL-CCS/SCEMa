@@ -47,6 +47,9 @@ variable lz1 equal ${p8}
 variable ceeps_00 equal ${eeps_00}*${lxbox0}/${lx1}
 variable ceeps_11 equal ${eeps_11}*${lybox0}/${ly1}
 variable ceeps_22 equal ${eeps_22}*${lzbox0}/${lz1}
+variable ceeps_01 equal ${eeps_01}*${lzbox0}/${lz1}
+variable ceeps_02 equal ${eeps_02}*${lybox0}/${ly1}
+variable ceeps_12 equal ${eeps_12}*${lxbox0}/${lx1}
 
 #  Compute current stress using sampling over time and fixed NVT conditions
 fix 1e all print 1 "${pt} ${pp} ${p0} ${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8} ${p9}" file ${loco}/PE_strain_press_evol.dat screen no
@@ -80,9 +83,9 @@ fix             3 all nvt/sllod temp ${tempt} ${tempt} 100.0
 fix             1 all deform 1  x erate ${ceeps_00} &
                                 y erate ${ceeps_11} &
                                 z erate ${ceeps_22} &
-                               xy erate ${eeps_01} &
-                               xz erate ${eeps_02} &
-                               yz erate ${eeps_12} &
+                               xy erate ${ceeps_01} &
+                               xz erate ${ceeps_02} &
+                               yz erate ${ceeps_12} &
                                remap v
 
 #  Setting 2fs timesteps

@@ -1931,12 +1931,12 @@ namespace HMM
 			std::string smacrostatelocouttimetmp(macrostatelocouttime);
 
 			// Write internal forces and displacement vector to regenerate output if needed
-			const std::string force_filename = (smacrostatelocouttimetmp + std::to_string(timestep_no) + ".solution.bin");
+			const std::string force_filename = (smacrostatelocouttimetmp + "/" + std::to_string(timestep_no) + ".solution.bin");
 			std::ofstream offile(force_filename);
 			local_residual.block_write(offile);
 			offile.close();
 
-			const std::string solution_filename = (smacrostatelocouttimetmp + std::to_string(timestep_no) + ".internal_forces.bin");
+			const std::string solution_filename = (smacrostatelocouttimetmp + "/" + std::to_string(timestep_no) + ".internal_forces.bin");
 			std::ofstream osfile(solution_filename);
 			solution.block_write(osfile);
 			osfile.close();
@@ -2943,10 +2943,10 @@ namespace HMM
 									for(unsigned int n=m;n<dim;n++)
 										if(fabs(loc_upd_rep_stiffness[k][l][m][n]) < stol*loc_ini_rep_stiffness[k][l][m][n])
 										{
-											//std::cout << "               "
-											//		  << "Cell: " << cell_id[c] << " Replica: " << repl
-											//		  << " required stiffness correction !!"
-											//		  << std::endl;
+											std::cout << "               "
+													  << "Cell: " << cell_id[c] << " Replica: " << repl
+													  << " required stiffness correction !!"
+													  << std::endl;
 											loc_upd_rep_stiffness[k][l][m][n] *= stol*
 													loc_ini_rep_stiffness[k][l][m][n]/fabs(loc_upd_rep_stiffness[k][l][m][n]);
 										}
@@ -3006,15 +3006,15 @@ namespace HMM
 
 					// For debug...
 					// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
-					/*for(unsigned int k=0;k<dim;k++)
+					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
 							for(unsigned int m=0;m<dim;m++)
 								for(unsigned int n=m;n<dim;n++)
 									if(!((k==l && m==n) || (k==m && l==n))){
 										//std::cout << "       ... removal of shear coupling terms" << std::endl;
-										loc_stiffness[k][l][m][n] *= 1.0; // correction -> *= 0.0
+										loc_stiffness[k][l][m][n] *= 0.0; // correction -> *= 0.0
 									}
-									else if(loc_stiffness[k][l][m][n]<0.0) loc_stiffness[k][l][m][n] *= +1.0; // correction -> *= -1.0*/
+									else if(loc_stiffness[k][l][m][n]<0.0) loc_stiffness[k][l][m][n] *= +1.0; // correction -> *= -1.0
 
 					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 					write_tensor<dim>(filename, loc_stiffness);
@@ -3286,7 +3286,7 @@ namespace HMM
 						for(unsigned int n=m;n<dim;n++)
 							if(!((k==l && m==n) || (k==m && l==n))){
 								//std::cout << "       ... removal of shear coupling terms" << std::endl;
-								initial_ensemble_stiffness_tensor[k][l][m][n] *= 1.0;
+								initial_ensemble_stiffness_tensor[k][l][m][n] *= 0.0;
 							}
 							else if(initial_ensemble_stiffness_tensor[k][l][m][n]<0.0) initial_ensemble_stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
 

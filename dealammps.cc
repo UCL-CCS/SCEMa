@@ -821,7 +821,7 @@ namespace HMM
 	class FEProblem
 	{
 	public:
-		FEProblem (MPI_Comm dcomm, int pcolor, char* mslocin, char* mslocout, char* mslocres, char* mlogloc);
+		FEProblem (MPI_Comm dcomm, int pcolor, char* mslocin, char* mslocout, char* mslocouttime, char* mslocres, char* mlogloc);
 		~FEProblem ();
 
 		void make_grid ();
@@ -894,6 +894,7 @@ namespace HMM
 
 		char*                               macrostatelocin;
 		char*                               macrostatelocout;
+		char*                               macrostatelocouttime;
 		char*                               macrostatelocres;
 		char*                               macrologloc;
 
@@ -903,7 +904,7 @@ namespace HMM
 
 
 	template <int dim>
-	FEProblem<dim>::FEProblem (MPI_Comm dcomm, int pcolor, char* mslocin, char* mslocout, char* mslocres, char* mlogloc)
+	FEProblem<dim>::FEProblem (MPI_Comm dcomm, int pcolor, char* mslocin, char* mslocout, char* mslocouttime, char* mslocres, char* mlogloc)
 	:
 		FE_communicator (dcomm),
 		n_FE_processes (Utilities::MPI::n_mpi_processes(FE_communicator)),
@@ -916,6 +917,7 @@ namespace HMM
 		quadrature_formula (2),
 		macrostatelocin (mslocin),
 		macrostatelocout (mslocout),
+		macrostatelocouttime (mslocouttime),
 		macrostatelocres (mslocres),
 		macrologloc (mlogloc)
 	{}
@@ -1919,11 +1921,28 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi)
 	{
-		// Compute applied force
+		// Compute applied force vector
 		Vector<double> local_residual (dof_handler.n_dofs());
-
 		local_residual = compute_internal_forces();
 
+		// Storing at every time-step the displacement and internal force vector
+		if (this_FE_process==0)
+		{
+			std::string smacrostatelocouttimetmp(macrostatelocouttime);
+
+			// Write internal forces and displacement vector to regenerate output if needed
+			const std::string force_filename = (smacrostatelocouttimetmp + std::to_string(timestep_no) + ".solution.bin");
+			std::ofstream offile(force_filename);
+			local_residual.block_write(offile);
+			offile.close();
+
+			const std::string solution_filename = (smacrostatelocouttimetmp + std::to_string(timestep_no) + ".internal_forces.bin");
+			std::ofstream osfile(solution_filename);
+			solution.block_write(osfile);
+			osfile.close();
+		}
+
+		// Compute force under the loading boundary condition
 		double aforce = 0.;
 		//dcout << "hello Y force ------ " << std::endl;
 		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
@@ -2725,6 +2744,7 @@ namespace HMM
 		char                                macrostateloc[1024];
 		char                                macrostatelocin[1024];
 		char                                macrostatelocout[1024];
+		char                                macrostatelocouttime[1024];
 		char                                macrostatelocres[1024];
 		char                                macrologloc[1024];
 
@@ -3357,6 +3377,7 @@ namespace HMM
 		sprintf(macrostateloc, "./macroscale_state"); mkdir(macrostateloc, ACCESSPERMS);
 		sprintf(macrostatelocin, "%s/in", macrostateloc); mkdir(macrostatelocin, ACCESSPERMS);
 		sprintf(macrostatelocout, "%s/out", macrostateloc); mkdir(macrostatelocout, ACCESSPERMS);
+		sprintf(macrostatelocouttime, "%s/time_history", macrostatelocout); mkdir(macrostatelocouttime, ACCESSPERMS);
 		sprintf(macrostatelocres, "%s/restart", macrostateloc); mkdir(macrostatelocres, ACCESSPERMS);
 		sprintf(macrologloc, "./macroscale_log"); mkdir(macrologloc, ACCESSPERMS);
 
@@ -3395,7 +3416,7 @@ namespace HMM
 		// Construct FE class
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;
 		FEProblem<dim> fe_problem (dealii_communicator, dealii_pcolor,
-				                    macrostatelocin, macrostatelocout, macrostatelocres, macrologloc);
+				                    macrostatelocin, macrostatelocout, macrostatelocouttime, macrostatelocres, macrologloc);
 		MPI_Barrier(world_communicator);
 
 		// Since LAMMPS is highly scalable, the initiation number of processes NI

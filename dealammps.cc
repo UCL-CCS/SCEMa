@@ -1169,6 +1169,8 @@ namespace HMM
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
 			{
+				SymmetricTensor<2,dim> avg_upd_strain_tensor;
+
 				PointHistory<dim> *local_quadrature_points_history
 				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
 				Assert (local_quadrature_points_history >=
@@ -1184,6 +1186,8 @@ namespace HMM
 				// Restore the new stiffness tensors from ./macroscale_state/out/last.cellid-qid.stiff
 				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
 				char filename[1024];
+
+				avg_upd_strain_tensor = 0.;
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
@@ -1211,6 +1215,10 @@ namespace HMM
 					// Secant stiffness computation of the new stress tensor
 					//local_quadrature_points_history[q].new_stress =
 					//		local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].new_strain;
+
+					for(unsigned int k=0;k<dim;k++)
+						for(unsigned int l=k;l<dim;l++)
+							avg_upd_strain_tensor[k][l] += local_quadrature_points_history[q].upd_strain[k][l];
 
 					// Apply rotation of the sample to the new state tensors.
 					// Only needed if the mesh is modified...
@@ -1245,8 +1253,12 @@ namespace HMM
 
 				// Write update_strain tensor. Arbitrary use the data from the qp 0.
 				// Might be worth using data from the qp that exceeds most the threshold (norm?).
+				for(unsigned int k=0;k<dim;k++)
+					for(unsigned int l=k;l<dim;l++)
+						avg_upd_strain_tensor[k][l] /= quadrature_formula.size();
+
 				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
-				write_tensor<dim>(filename, local_quadrature_points_history[0].upd_strain);
+				write_tensor<dim>(filename, avg_upd_strain_tensor);
 
 				// Save strain since update history for later checking...
 //				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);

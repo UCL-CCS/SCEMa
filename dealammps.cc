@@ -2005,6 +2005,7 @@ namespace HMM
 
 			std::vector<unsigned int> tmp;
 
+			dcout << "Cells with detailed output: " << std::endl;
 			for (unsigned int i=0; i<llis.size(); i++)
 				for (typename DoFHandler<dim>::active_cell_iterator
 						cell = dof_handler.begin_active();
@@ -2022,7 +2023,7 @@ namespace HMM
 
 					if (cell->point_inside(llis[i])){
 						lcis.push_back(cell->active_cell_index());
-						dcout << "hello   " << llis[i][0] << " cells " << cell->active_cell_index() << std::endl;
+						dcout << "at x: " << llis[i][0] << " - y: " << llis[i][1] << " cells " << cell->active_cell_index() << std::endl;
 						//break;
 					}
 				}

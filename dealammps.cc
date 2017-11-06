@@ -1363,16 +1363,16 @@ namespace HMM
 					value = present_timestep*velocity;
 					component = 1;
 					double vertex_force = iforce[cell->vertex_dof_index (v, component)];
-					if(value*vertex_force >= 0.0){
+					if(value*vertex_force >= 0.0 || fabs(vertex_force)<1.0e-3){
 						loaded_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 						boundary_values.insert(std::pair<types::global_dof_index, double>
 						(cell->vertex_dof_index (v, component), value));
 					}
-					/*dcout << "Y load type"
+					dcout << "Y load type"
 						  << " -- dof id: " << cell->vertex_dof_index (v, component)
 						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - "
 						  << " -- Y force: " << vertex_force
-						  << " -- is loaded? " << loaded_boundary_dofs[cell->vertex_dof_index (v, component)] << std::endl;*/
+						  << " -- is loaded? " << loaded_boundary_dofs[cell->vertex_dof_index (v, component)] << std::endl;
 				}
 			}
 		}
@@ -1501,7 +1501,7 @@ namespace HMM
 					for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 					{
 						const SymmetricTensor<2,dim> &new_stress
-						= local_quadrature_points_data[q_point].inc_stress;
+						= local_quadrature_points_data[q_point].new_stress;
 
 						// how to handle body forces?
 						// apply increment of body force since last step...
@@ -1960,7 +1960,7 @@ namespace HMM
 		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
 			if (loaded_boundary_dofs[i] == true)
 			{
-				//dcout << "force: " << local_residual[i] << std::endl;
+				dcout << "   force on loaded nodes: " << local_residual[i] << std::endl;
 				aforce += local_residual[i];
 			}
 

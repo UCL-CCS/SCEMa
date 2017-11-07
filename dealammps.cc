@@ -830,6 +830,7 @@ namespace HMM
 		void set_boundary_values (const double present_timestep, const int timestep_no);
 		double assemble_system ();
 		void solve_linear_problem_CG ();
+		void solve_linear_problem_GMRES ();
 		void solve_linear_problem_BiCGStab ();
 		void solve_linear_problem_direct ();
 		void error_estimation ();
@@ -1622,6 +1623,45 @@ namespace HMM
 		// not optimal for large scale simulations.
 		PETScWrappers::PreconditionBlockJacobi preconditioner(system_matrix);
 		cg.solve (system_matrix, distributed_newton_update, system_rhs,
+				preconditioner);
+
+		newton_update = distributed_newton_update;
+		hanging_node_constraints.distribute (newton_update);
+
+		const double alpha = determine_step_length();
+		incremental_displacement.add (alpha, newton_update);
+
+		dcout << "    FE Solver - norm of newton update is " << newton_update.l2_norm()
+							  << std::endl;
+		dcout << "    FE Solver converged in " << solver_control.last_step()
+				<< " iterations "
+				<< " with value " << solver_control.last_value()
+				<<  std::endl;
+	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::solve_linear_problem_GMRES ()
+	{
+		PETScWrappers::MPI::Vector
+		distributed_newton_update (locally_owned_dofs,FE_communicator);
+		distributed_newton_update = newton_update;
+
+		// The residual used internally to test solver convergence is
+		// not identical to ours, it probably considers preconditionning.
+		// Therefore, extra precision is required in the solver proportionnaly
+		// to the norm of the system matrix, to reduce sufficiently our residual
+		SolverControl       solver_control (dof_handler.n_dofs(),
+				1e-03/system_matrix.l1_norm());
+
+		PETScWrappers::SolverGMRES gmres (solver_control,
+				FE_communicator);
+
+		// Apparently (according to step-17.tuto) the BlockJacobi preconditionner is
+		// not optimal for large scale simulations.
+		PETScWrappers::PreconditionBlockJacobi preconditioner(system_matrix);
+		gmres.solve (system_matrix, distributed_newton_update, system_rhs,
 				preconditioner);
 
 		newton_update = distributed_newton_update;
@@ -3027,7 +3067,8 @@ namespace HMM
 										//std::cout << "       ... removal of shear coupling terms" << std::endl;
 										loc_stiffness[k][l][m][n] *= 0.0; // correction -> *= 0.0
 									}
-									else if(loc_stiffness[k][l][m][n]<0.0) loc_stiffness[k][l][m][n] *= +1.0; // correction -> *= -1.0
+									// Does not make any sense for tangent stiffness...
+									//else if(loc_stiffness[k][l][m][n]<0.0) loc_stiffness[k][l][m][n] *= +1.0; // correction -> *= -1.0
 
 					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 					write_tensor<dim>(filename, loc_stiffness);
@@ -3079,7 +3120,7 @@ namespace HMM
 				++newtonstep_no;
 				hcout << "    Beginning of timestep: " << timestep_no << " - newton step: " << newtonstep_no << std::flush;
 				hcout << "    Solving FE system..." << std::flush;
-				if(dealii_pcolor==0) fe_problem.solve_linear_problem_CG();
+				if(dealii_pcolor==0) fe_problem.solve_linear_problem_GMRES();
 
 				hcout << "    Updating quadrature point data..." << std::endl;
 
@@ -3301,7 +3342,8 @@ namespace HMM
 								//std::cout << "       ... removal of shear coupling terms" << std::endl;
 								initial_ensemble_stiffness_tensor[k][l][m][n] *= 0.0;
 							}
-							else if(initial_ensemble_stiffness_tensor[k][l][m][n]<0.0) initial_ensemble_stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
+							// Does not make any sense for tangent stiffness...
+							//else if(initial_ensemble_stiffness_tensor[k][l][m][n]<0.0) initial_ensemble_stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
 
 			char macrofilenameout[1024];
 			sprintf(macrofilenameout, "%s/init.stiff", macrostatelocout);

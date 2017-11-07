@@ -3463,7 +3463,7 @@ namespace HMM
 		// Set the dealii communicator using a limited amount of available processors
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
-		set_dealii_procs(machine_ppn*10);
+		set_dealii_procs(machine_ppn*20);
 
 		// Initialize global lammps communicator
 		// init_lammps_procs();

@@ -29,7 +29,7 @@ INCLUDE_DIRECTORIES(
   )
 
 ## Include LAMMPS library shared (or static)
-SET(CMAKE_CXX_FLAGS "/u/sciteam/vassaux/source/lammps/src/liblammps.so")
+SET(CMAKE_CXX_FLAGS " -dynamic /u/sciteam/vassaux/source/lammps/src/liblammps.so")
 #SET(CMAKE_CXX_FLAGS "/gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/liblammps.a")
 
 ## Create additional targets to the standard DEAL.II targets

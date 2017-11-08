@@ -150,32 +150,32 @@ write_restart ${loco}/restart.equil
 # uxx Perturbation
 
 variable dir equal 1
-include ${locbe}/displace.mod.lammps
+include ${locbe}/bi-displace.mod.lammps
 
 # uyy Perturbation
 
 variable dir equal 2
-include ${locbe}/displace.mod.lammps
+include ${locbe}/bi-displace.mod.lammps
 
 # uzz Perturbation
 
 variable dir equal 3
-include ${locbe}/displace.mod.lammps
+include ${locbe}/bi-displace.mod.lammps
 
 # uyz Perturbation
 
 variable dir equal 4
-include ${locbe}/displace.mod.lammps
+include ${locbe}/bi-displace.mod.lammps
 
 # uxz Perturbation
 
 variable dir equal 5
-include ${locbe}/displace.mod.lammps
+include ${locbe}/bi-displace.mod.lammps
 
 # uxy Perturbation
 
 variable dir equal 6
-include ${locbe}/displace.mod.lammps
+include ${locbe}/bi-displace.mod.lammps
 
 # Output final values
 

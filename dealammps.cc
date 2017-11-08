@@ -3102,7 +3102,7 @@ namespace HMM
 								for(unsigned int n=m;n<dim;n++)
 									if(!((k==l && m==n) || (k==m && l==n))){
 										//std::cout << "       ... removal of shear coupling terms" << std::endl;
-										loc_stiffness[k][l][m][n] *= 0.0; // correction -> *= 0.0
+										loc_stiffness[k][l][m][n] *= 1.0; // correction -> *= 0.0
 									}
 									// Does not make any sense for tangent stiffness...
 									//else if(loc_stiffness[k][l][m][n]<0.0) loc_stiffness[k][l][m][n] *= +1.0; // correction -> *= -1.0
@@ -3377,7 +3377,7 @@ namespace HMM
 						for(unsigned int n=m;n<dim;n++)
 							if(!((k==l && m==n) || (k==m && l==n))){
 								//std::cout << "       ... removal of shear coupling terms" << std::endl;
-								initial_ensemble_stiffness_tensor[k][l][m][n] *= 0.0;
+								initial_ensemble_stiffness_tensor[k][l][m][n] *= 1.0;
 							}
 							// Does not make any sense for tangent stiffness...
 							//else if(initial_ensemble_stiffness_tensor[k][l][m][n]<0.0) initial_ensemble_stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0

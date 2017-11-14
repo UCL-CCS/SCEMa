@@ -3202,6 +3202,8 @@ namespace HMM
 	void HMMProblem<dim>::do_timestep (FEProblem<dim> &fe_problem)
 	{
 		int freq_restart_output = 10;
+		int freq_output_results = 5;
+		int freq_output_specific = 1;
 
 		present_time += present_timestep;
 		++timestep_no;
@@ -3241,9 +3243,9 @@ namespace HMM
 
 		if(dealii_pcolor==0) fe_problem.error_estimation ();
 
-		if(dealii_pcolor==0) fe_problem.output_results (present_time, timestep_no);
+		if(dealii_pcolor==0) if(timestep_no%freq_output_results==0)  fe_problem.output_results (present_time, timestep_no);
 
-		if(dealii_pcolor==0) fe_problem.output_specific (present_time, timestep_no, nrepl, nanostatelocout, nanostatelocoutsi);
+		if(dealii_pcolor==0) if(timestep_no%freq_output_specific==0) fe_problem.output_specific (present_time, timestep_no, nrepl, nanostatelocout, nanostatelocoutsi);
 
 		if(dealii_pcolor==0) if(timestep_no%freq_restart_output==0) fe_problem.restart_output (nanologloc, nanostatelocout, nanostatelocres, nrepl);
 

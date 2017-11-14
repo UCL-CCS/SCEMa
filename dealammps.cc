@@ -1021,7 +1021,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		double strain_perturbation = 0.005;
+		double strain_perturbation = 0.025;
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
@@ -1171,7 +1171,7 @@ namespace HMM
 			if (cell->is_locally_owned())
 			{
 				SymmetricTensor<2,dim> avg_upd_strain_tensor;
-				SymmetricTensor<2,dim> avg_stress_tensor;
+				//SymmetricTensor<2,dim> avg_stress_tensor;
 
 				PointHistory<dim> *local_quadrature_points_history
 				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
@@ -1190,7 +1190,7 @@ namespace HMM
 				char filename[1024];
 
 				avg_upd_strain_tensor = 0.;
-				avg_stress_tensor = 0.;
+				//avg_stress_tensor = 0.;
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
@@ -1219,13 +1219,18 @@ namespace HMM
 					//local_quadrature_points_history[q].new_stress =
 					//		local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].new_strain;
 
+					// Write stress tensor for each gauss point
+					sprintf(filename, "%s/last.%s-%d.stress", macrostatelocout, cell_id,q);
+					write_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);
+
+					// Averaging upd_strain over cell
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
 							avg_upd_strain_tensor[k][l] += local_quadrature_points_history[q].upd_strain[k][l];
 
-					for(unsigned int k=0;k<dim;k++)
+					/*for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
-							avg_stress_tensor[k][l] += local_quadrature_points_history[q].new_stress[k][l];
+							avg_stress_tensor[k][l] += local_quadrature_points_history[q].new_stress[k][l];*/
 
 					// Apply rotation of the sample to the new state tensors.
 					// Only needed if the mesh is modified...
@@ -1267,12 +1272,12 @@ namespace HMM
 				write_tensor<dim>(filename, avg_upd_strain_tensor);
 
 				// Write stress tensor
-				for(unsigned int k=0;k<dim;k++)
+				/*for(unsigned int k=0;k<dim;k++)
 					for(unsigned int l=k;l<dim;l++)
 						avg_stress_tensor[k][l] /= quadrature_formula.size();
 
 				sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
-				write_tensor<dim>(filename, avg_stress_tensor);
+				write_tensor<dim>(filename, avg_stress_tensor);*/
 
 				// Save strain since update history for later checking...
 //				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
@@ -2416,59 +2421,62 @@ namespace HMM
 		// The strain tensor since last update (upd_strain) should be saved for every quadrature point
 		// The stiffness tensor and the box state should also be saved for every quadrature point if it has
 		// been updated since init.
-//		for (typename DoFHandler<dim>::active_cell_iterator
-//				cell = dof_handler.begin_active();
-//				cell != dof_handler.end(); ++cell)
-//			if (cell->is_locally_owned())
-//			{
-//				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-//				char filename[1024];
-//
-//				// Save strain since last update history
-//				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
-//				std::ifstream  macroinstrain(filename, std::ios::binary);
-//				sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocres, cell_id);
-//				std::ofstream  macrooutstrain(filename,   std::ios::binary);
-//				macrooutstrain << macroinstrain.rdbuf();
-//				macroinstrain.close();
-//				macrooutstrain.close();
-//
-//				// Save stiffness history
-//				sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
-//				std::ifstream  macroin(filename, std::ios::binary);
-//				if (macroin.good()){
-//					sprintf(filename, "%s/lcts.%s.stiff", macrostatelocres, cell_id);
-//					std::ofstream  macroout(filename,   std::ios::binary);
-//					macroout << macroin.rdbuf();
-//					macroin.close();
-//					macroout.close();
-//				}
-//
-//				// Save stress history
-//				sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
-//				std::ifstream  macroinstress(filename, std::ios::binary);
-//				if (macroinstress.good()){
-//					sprintf(filename, "%s/lcts.%s.stress", macrostatelocres, cell_id);
-//					std::ofstream  macrooutstress(filename,   std::ios::binary);
-//					macrooutstress << macroinstress.rdbuf();
-//					macroinstress.close();
-//					macrooutstress.close();
-//				}
-//
-//				// Save box state history
-//				for(unsigned int repl=1;repl<nrepl+1;repl++)
-//				{
-//					sprintf(filename, "%s/last.%s.PE_%d.bin", nanostatelocout, cell_id, repl);
-//					std::ifstream  nanoin(filename, std::ios::binary);
-//					if (nanoin.good()){
-//						sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocres, cell_id, repl);
-//						std::ofstream  nanoout(filename,   std::ios::binary);
-//						nanoout << nanoin.rdbuf();
-//						nanoin.close();
-//						nanoout.close();
-//					}
-//				}
-//			}
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+				char filename[1024];
+
+				// Save strain since last update history
+				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
+				std::ifstream  macroinstrain(filename, std::ios::binary);
+				sprintf(filename, "%s/lcts.%s.upstrain", macrostatelocres, cell_id);
+				std::ofstream  macrooutstrain(filename,   std::ios::binary);
+				macrooutstrain << macroinstrain.rdbuf();
+				macroinstrain.close();
+				macrooutstrain.close();
+
+				// Save stiffness history
+				sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
+				std::ifstream  macroin(filename, std::ios::binary);
+				if (macroin.good()){
+					sprintf(filename, "%s/lcts.%s.stiff", macrostatelocres, cell_id);
+					std::ofstream  macroout(filename,   std::ios::binary);
+					macroout << macroin.rdbuf();
+					macroin.close();
+					macroout.close();
+				}
+
+				// Save stress history
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+				{
+					sprintf(filename, "%s/last.%s-%d.stress", macrostatelocout, cell_id,q);
+					std::ifstream  macroinstress(filename, std::ios::binary);
+					if (macroinstress.good()){
+						sprintf(filename, "%s/lcts.%s-%d.stress", macrostatelocres, cell_id,q);
+						std::ofstream  macrooutstress(filename,   std::ios::binary);
+						macrooutstress << macroinstress.rdbuf();
+						macroinstress.close();
+						macrooutstress.close();
+					}
+				}
+
+				// Save box state history
+				for(unsigned int repl=1;repl<nrepl+1;repl++)
+				{
+					sprintf(filename, "%s/last.%s.PE_%d.bin", nanostatelocout, cell_id, repl);
+					std::ifstream  nanoin(filename, std::ios::binary);
+					if (nanoin.good()){
+						sprintf(filename, "%s/lcts.%s.PE_%d.bin", nanostatelocres, cell_id, repl);
+						std::ofstream  nanoout(filename,   std::ios::binary);
+						nanoout << nanoin.rdbuf();
+						nanoin.close();
+						nanoout.close();
+					}
+				}
+			}
 		MPI_Barrier(FE_communicator);
 
 //		if (this_FE_process==0)
@@ -2747,10 +2755,10 @@ namespace HMM
 					}
 
 					// Restore stress history
-					sprintf(filename, "%s/restart/lcts.%s.stress", macrostatelocin, cell_id);
+					sprintf(filename, "%s/restart/lcts.%s-%d.stress", macrostatelocin, cell_id,q);
 					std::ifstream  macroinstress(filename, std::ios::binary);
 					if (macroinstress.good()){
-						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
+						sprintf(filename, "%s/last.%s-%d.stress", macrostatelocout, cell_id,q);
 						std::ofstream  macrooutstress(filename,   std::ios::binary);
 						macrooutstress << macroinstress.rdbuf();
 						macroinstress.close();
@@ -3193,6 +3201,7 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::do_timestep (FEProblem<dim> &fe_problem)
 	{
+		int freq_restart_output = 10;
 
 		present_time += present_timestep;
 		++timestep_no;
@@ -3236,7 +3245,7 @@ namespace HMM
 
 		if(dealii_pcolor==0) fe_problem.output_specific (present_time, timestep_no, nrepl, nanostatelocout, nanostatelocoutsi);
 
-		if(dealii_pcolor==0) fe_problem.restart_output (nanologloc, nanostatelocout, nanostatelocres, nrepl);
+		if(dealii_pcolor==0) if(timestep_no%freq_restart_output==0) fe_problem.restart_output (nanologloc, nanostatelocout, nanostatelocres, nrepl);
 
 		hcout << std::endl;
 	}
@@ -3525,7 +3534,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 600;
+		end_time = 2000;
 		timestep_no = 0;
 
 		hcout << " Initiation of the Mesh...       " << std::endl;

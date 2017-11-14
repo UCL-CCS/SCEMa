@@ -1298,7 +1298,7 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values
 	(const double present_timestep, const int timestep_no)
 	{
-		velocity = -0.00005;
+		velocity = -0.00025;
 
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);

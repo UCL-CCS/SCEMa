@@ -76,24 +76,14 @@ variable pp23 equal ${tmp}
 ## again if this has been done at the end of the application of the strain state).
 ## Need to pay attention to indexes conversion because compute pressure does not use
 ## Voigt indexes to order stress vector...
-if "${flinit} == 0" then &
-    "variable pxx0 equal ${pp11}" &
-    "variable pyy0 equal ${pp22}" &
-    "variable pzz0 equal ${pp33}" &
-    "variable pyz0 equal ${pp12}" &
-    "variable pxz0 equal ${pp13}" &
-    "variable pxy0 equal ${pp23}" &
-else &
-    "variable pxx0 equal ${isig_00}" &
-    "variable pyy0 equal ${isig_11}" &
-    "variable pzz0 equal ${isig_22}" &
-    "variable pxy0 equal ${isig_01}" &
-    "variable pxz0 equal ${isig_02}" &
-    "variable pyz0 equal ${isig_12}"
+variable pxx0 equal ${pp11}
+variable pyy0 equal ${pp22}
+variable pzz0 equal ${pp33}
+variable pyz0 equal ${pp12}
+variable pxz0 equal ${pp13}
+variable pxy0 equal ${pp23}
 
 print "Current stress: ${pp11} ${pp22} ${pp33} ${pp12} ${pp13} ${pp23} "
-if "${flinit} == 1" then &
-    'print "Initial stress: ${isig_00} ${isig_11} ${isig_22} ${isig_01} ${isig_02} ${isig_12} "'
 print "Used stress for homogenization: ${pxx0} ${pyy0} ${pzz0} ${pyz0} ${pxz0} ${pxy0} "
 
 variable tmp equal lx

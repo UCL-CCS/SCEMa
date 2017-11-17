@@ -365,10 +365,6 @@ namespace HMM
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal %f", strain_nrm); lammps_command(lmp,cline);
 
-		// Set flag to define if stiffness is computed from initial (secant) or current
-		// stresses (tangent)
-		sprintf(cline, "variable flinit equal %d", flinit); lammps_command(lmp,cline);
-
 		// Using a routine based on the example ELASTIC/ to compute the stress and the
 		// stiffness tensors
 		sprintf(cfile, "%s/%s", location, "ELASTIC/in.elastic.lammps");
@@ -557,7 +553,7 @@ namespace HMM
 		if (me == 0) std::cout << "(MD - init - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;
 		// Compute secant stiffness operator and initial stresses
-		lammps_homogenization<dim>(lmp, location, stress, stiffness, 0);
+		lammps_homogenization<dim>(lmp, location, stress, stiffness);
 
 		// close down LAMMPS
 		delete lmp;
@@ -734,15 +730,9 @@ namespace HMM
 		/*if (me == 0) std::cout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
-		// Loading initial state stresses used to compute the SECANT stiffness
-		for(unsigned int k=0;k<dim;k++)
-			for(unsigned int l=k;l<dim;l++)
-			{
-				sprintf(cline, "variable isig_%d%d equal %.6e", k, l, (-1)*init_stress[k][l]/1.01325e+05);
-				lammps_command(lmp,cline);
-			}
+
 		// Compute the secant stiffness tensor at the given stress/strain state
-		lammps_homogenization<dim>(lmp, location, stress, stiffness, 0);
+		lammps_homogenization<dim>(lmp, location, stress, stiffness);
 
 		// Cleaning initial offset of stresses
 		stress -= init_stress;
@@ -2580,10 +2570,11 @@ namespace HMM
 
 			triangulation.refine_global (2);
 
-			sprintf(filename, "%s/mesh.tria", macrostatelocout);
+			// Saving triangulation, not usefull now and costly...
+			/*sprintf(filename, "%s/mesh.tria", macrostatelocout);
 			std::ofstream oss(filename);
 			boost::archive::text_oarchive oa(oss, boost::archive::no_header);
-			triangulation.save(oa, 0);
+			triangulation.save(oa, 0);*/
 		}
 
 		dcout << "    Number of active cells:       "

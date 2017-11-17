@@ -335,7 +335,7 @@ namespace HMM
 	// Computes the stress tensor and the complete tanget elastic stiffness tensor
 	template <int dim>
 	void
-	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, int flinit)
+	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses)
 	{
 		SymmetricTensor<2,2*dim> tmp;
 

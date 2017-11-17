@@ -335,7 +335,7 @@ namespace HMM
 	// Computes the stress tensor and the complete tanget elastic stiffness tensor
 	template <int dim>
 	void
-	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses)
+	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, bool init)
 	{
 		SymmetricTensor<2,2*dim> tmp;
 
@@ -365,8 +365,7 @@ namespace HMM
 		// Set strain perturbation amplitude
 		sprintf(cline, "variable up equal %f", strain_nrm); lammps_command(lmp,cline);
 
-		// Using a routine based on the example ELASTIC/ to compute the stress and the
-		// stiffness tensors
+		// Using a routine based on the example ELASTIC/ to compute the stress tensor
 		sprintf(cfile, "%s/%s", location, "ELASTIC/in.elastic.lammps");
 		lammps_file(lmp,cfile);
 
@@ -382,38 +381,44 @@ namespace HMM
 				stresses[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*(-1.0)*1.01325e+05;
 			}
 
-		// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
-		// by LAMMPS and conversion from GPa to Pa
-		for(unsigned int k=0;k<2*dim;k++)
-			for(unsigned int l=k;l<2*dim;l++)
+		if(init){
+			// Using a routine based on the example ELASTIC/ to compute the stiffness tensor
+			sprintf(cfile, "%s/%s", location, "ELASTIC/in.homog.lammps");
+			lammps_file(lmp,cfile);
+
+			// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
+			// by LAMMPS and conversion from GPa to Pa
+			for(unsigned int k=0;k<2*dim;k++)
+				for(unsigned int l=k;l<2*dim;l++)
+				{
+					char vcoef[1024];
+					sprintf(vcoef, "C%d%dall", k+1, l+1);
+					tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
+				}
+
+			// Write test... (on the data returned by lammps)
+
+			// Conversion of the 6x6 Voigt Stiffness Tensor into the 3x3x3x3
+			// Standard Stiffness Tensor
+			for(unsigned int i=0;i<2*dim;i++)
 			{
-				char vcoef[1024];
-				sprintf(vcoef, "C%d%dall", k+1, l+1);
-				tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
-			}
-
-		// Write test... (on the data returned by lammps)
-
-		// Conversion of the 6x6 Voigt Stiffness Tensor into the 3x3x3x3
-		// Standard Stiffness Tensor
-		for(unsigned int i=0;i<2*dim;i++)
-		{
-			int k, l;
-			if     (i==(3+0)){k=0; l=1;}
-			else if(i==(3+1)){k=0; l=2;}
-			else if(i==(3+2)){k=1; l=2;}
-			else  /*(i<3)*/  {k=i; l=i;}
+				int k, l;
+				if     (i==(3+0)){k=0; l=1;}
+				else if(i==(3+1)){k=0; l=2;}
+				else if(i==(3+2)){k=1; l=2;}
+				else  /*(i<3)*/  {k=i; l=i;}
 
 
-			for(unsigned int j=0;j<2*dim;j++)
-			{
-				int m, n;
-				if     (j==(3+0)){m=0; n=1;}
-				else if(j==(3+1)){m=0; n=2;}
-				else if(j==(3+2)){m=1; n=2;}
-				else  /*(j<3)*/  {m=j; n=j;}
+				for(unsigned int j=0;j<2*dim;j++)
+				{
+					int m, n;
+					if     (j==(3+0)){m=0; n=1;}
+					else if(j==(3+1)){m=0; n=2;}
+					else if(j==(3+2)){m=1; n=2;}
+					else  /*(j<3)*/  {m=j; n=j;}
 
-				stiffnesses[k][l][m][n]=tmp[i][j];
+					stiffnesses[k][l][m][n]=tmp[i][j];
+				}
 			}
 		}
 
@@ -435,6 +440,9 @@ namespace HMM
 					   char* logloc,
 					   unsigned int repl)
 	{
+		// Is this initialization?
+		bool init = true;
+
 		// Timestep length in fs
 		double dts = 2.0;
 		// Number of timesteps factor
@@ -553,7 +561,7 @@ namespace HMM
 		if (me == 0) std::cout << "(MD - init - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;
 		// Compute secant stiffness operator and initial stresses
-		lammps_homogenization<dim>(lmp, location, stress, stiffness);
+		lammps_homogenization<dim>(lmp, location, stress, stiffness, init);
 
 		// close down LAMMPS
 		delete lmp;
@@ -582,8 +590,9 @@ namespace HMM
 		int me;
 		MPI_Comm_rank(comm_lammps, &me);
 
-		// v_sound in PE is 2000m/s, since l0 = 8nm, with dts = 2.0fs, the condition
-		// is nts > 1000 * strain so that v_load < v_sound...
+		// Is this initialization?
+		bool init = false;
+
 		// Declaration of run parameters
 		// timestep length in fs
 		double dts = 2.0;
@@ -732,7 +741,7 @@ namespace HMM
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
 
 		// Compute the secant stiffness tensor at the given stress/strain state
-		lammps_homogenization<dim>(lmp, location, stress, stiffness);
+		lammps_homogenization<dim>(lmp, location, stress, stiffness, init);
 
 		// Cleaning initial offset of stresses
 		stress -= init_stress;
@@ -1011,7 +1020,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		double strain_perturbation = 0.025;
+		double strain_perturbation = 0.010;
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
@@ -1188,8 +1197,8 @@ namespace HMM
 					if (newtonstep_no == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
 					if (local_quadrature_points_history[q].to_be_updated){
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
-						read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);
+						/*sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
+						read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);*/
 
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);
@@ -2429,7 +2438,7 @@ namespace HMM
 				macrooutstrain.close();
 
 				// Save stiffness history
-				sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
+				/*sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 				std::ifstream  macroin(filename, std::ios::binary);
 				if (macroin.good()){
 					sprintf(filename, "%s/lcts.%s.stiff", macrostatelocres, cell_id);
@@ -2437,7 +2446,7 @@ namespace HMM
 					macroout << macroin.rdbuf();
 					macroin.close();
 					macroout.close();
-				}
+				}*/
 
 				// Save stress history
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
@@ -2733,7 +2742,7 @@ namespace HMM
 					}
 
 					// Restore stiffness history
-					sprintf(filename, "%s/restart/lcts.%s.stiff", macrostatelocin, cell_id);
+					/*sprintf(filename, "%s/restart/lcts.%s.stiff", macrostatelocin, cell_id);
 					std::ifstream  macroin(filename, std::ios::binary);
 					if (macroin.good()){
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
@@ -2743,7 +2752,7 @@ namespace HMM
 						macroout.close();
 						// Loading in quadrature_point_history
 						read_tensor<dim>(filename, local_quadrature_points_history[q].new_stiff);
-					}
+					}*/
 
 					// Restore stress history
 					sprintf(filename, "%s/restart/lcts.%s-%d.stress", macrostatelocin, cell_id,q);
@@ -2918,7 +2927,7 @@ namespace HMM
 				<< " - lammps color: " << lammps_pcolor << std::endl;*/
 
 		// For debug...
-		for (int c=0; c<ncupd; ++c)
+		/*for (int c=0; c<ncupd; ++c)
 		{
 			char filename[1024];
 			SymmetricTensor<4,dim> loc_stiffness;
@@ -2935,7 +2944,7 @@ namespace HMM
 				  << "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
 				  << " " << loc_stiffness[1][1][1][1]
 				  << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
-		}
+		}*/
 		MPI_Barrier(world_communicator);
 
 		// It might be worth doing the splitting of in batches of lammps processors here according to
@@ -2990,10 +2999,10 @@ namespace HMM
 					if(this_lammps_batch_process == 0)
 					{
 						std::cout << " \t" << cell_id[c] <<"-"<< repl << " \t" << std::flush;
-						sprintf(filename, "%s/last.%s.PE_%d.stiff", macrostatelocout, cell_id[c], repl);
-						write_tensor<dim>(filename, loc_rep_stiffness);
 
-						std::cout << " \t" << cell_id[c] <<"-"<< repl << " \t" << std::flush;
+						/*sprintf(filename, "%s/last.%s.PE_%d.stiff", macrostatelocout, cell_id[c], repl);
+						write_tensor<dim>(filename, loc_rep_stiffness);*/
+
 						sprintf(filename, "%s/last.%s.PE_%d.stress", macrostatelocout, cell_id[c], repl);
 						write_tensor<dim>(filename, loc_rep_stress);
 					}
@@ -3005,7 +3014,7 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		// Verify the integrity of the stiffness tensor (constraint C_upd>stol*C_ini)
-		double stol = 0.001;
+		/*double stol = 0.001;
 
 		for (int c=0; c<ncupd; ++c)
 		{
@@ -3032,10 +3041,10 @@ namespace HMM
 									for(unsigned int n=m;n<dim;n++)
 										if(fabs(loc_upd_rep_stiffness[k][l][m][n]) < stol*loc_ini_rep_stiffness[k][l][m][n])
 										{
-											std::cout << "               "
-													  << "Cell: " << cell_id[c] << " Replica: " << repl
-													  << " required stiffness correction !!"
-													  << std::endl;
+											//std::cout << "               "
+											//		  << "Cell: " << cell_id[c] << " Replica: " << repl
+											//		  << " required stiffness correction !!"
+											//		  << std::endl;
 											loc_upd_rep_stiffness[k][l][m][n] *= stol*
 													loc_ini_rep_stiffness[k][l][m][n]/fabs(loc_upd_rep_stiffness[k][l][m][n]);
 										}
@@ -3047,7 +3056,7 @@ namespace HMM
 			}
 		}
 
-		MPI_Barrier(world_communicator);
+		MPI_Barrier(world_communicator);*/
 
 		for (int c=0; c<ncupd; ++c)
 		{
@@ -3057,17 +3066,17 @@ namespace HMM
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
 				if(this_lammps_batch_process == 0)
 				{
-					SymmetricTensor<4,dim> loc_stiffness;
+					//SymmetricTensor<4,dim> loc_stiffness;
 					SymmetricTensor<2,dim> loc_stress;
 					char filename[1024];
 
 					for(unsigned int repl=1;repl<nrepl+1;repl++)
 					{
-						SymmetricTensor<4,dim> loc_rep_stiffness;
+						/*SymmetricTensor<4,dim> loc_rep_stiffness;
 						sprintf(filename, "%s/last.%s.PE_%d.stiff", macrostatelocout, cell_id[c], repl);
 						read_tensor<dim>(filename, loc_rep_stiffness);
 
-						loc_stiffness += loc_rep_stiffness;
+						loc_stiffness += loc_rep_stiffness;*/
 
 						SymmetricTensor<2,dim> loc_rep_stress;
 						sprintf(filename, "%s/last.%s.PE_%d.stress", macrostatelocout, cell_id[c], repl);
@@ -3076,15 +3085,15 @@ namespace HMM
 						loc_stress += loc_rep_stress;
 					}
 
-					loc_stiffness /= nrepl;
+					//loc_stiffness /= nrepl;
 					loc_stress /= nrepl;
 
 					// For debug...
-					std::cout << "               "
+					/*std::cout << "               "
 							<< "Cell: " << cell_id[c]
 							<< " " << "Stiffnesses: " << loc_stiffness[0][0][0][0]
 							<< " " << loc_stiffness[1][1][1][1]
-							<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;
+							<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;*/
 
 					// For debug...
 					/*std:: << " New Voigt Stiffness Tensor (3x3 first terms)" << std::endl;
@@ -3095,7 +3104,7 @@ namespace HMM
 
 					// For debug...
 					// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
-					for(unsigned int k=0;k<dim;k++)
+					/*for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
 							for(unsigned int m=0;m<dim;m++)
 								for(unsigned int n=m;n<dim;n++)
@@ -3107,7 +3116,7 @@ namespace HMM
 									//else if(loc_stiffness[k][l][m][n]<0.0) loc_stiffness[k][l][m][n] *= +1.0; // correction -> *= -1.0
 
 					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
-					write_tensor<dim>(filename, loc_stiffness);
+					write_tensor<dim>(filename, loc_stiffness);*/
 
 					sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id[c]);
 					write_tensor<dim>(filename, loc_stress);

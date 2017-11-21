@@ -3165,7 +3165,7 @@ namespace HMM
 				++newtonstep_no;
 				hcout << "    Beginning of timestep: " << timestep_no << " - newton step: " << newtonstep_no << std::flush;
 				hcout << "    Solving FE system..." << std::flush;
-				if(dealii_pcolor==0) fe_problem.solve_linear_problem_GMRES();
+				if(dealii_pcolor==0) fe_problem.solve_linear_problem_CG();
 
 				hcout << "    Updating quadrature point data..." << std::endl;
 

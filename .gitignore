@@ -54,3 +54,6 @@ pbs.*
 
 # Scripts repository 
 scripts/
+
+# Preequilibrated MD box files
+saved_input_boxes

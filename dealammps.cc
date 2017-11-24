@@ -67,6 +67,7 @@
 #include <deal.II/grid/tria_iterator.h>
 #include <deal.II/grid/manifold_lib.h>
 #include <deal.II/grid/grid_tools.h>
+#include <deal.II/grid/grid_in.h>
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
@@ -448,7 +449,7 @@ namespace HMM
 		// Number of timesteps factor
 		int nsinit = 10000;
 		// Temperature
-		double tempt = 200.0;
+		double tempt = 300.0;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -602,7 +603,7 @@ namespace HMM
 		int nts = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 
 		// Temperature
-		double tempt = 200.0;
+		double tempt = 300.0;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -882,15 +883,10 @@ namespace HMM
 		unsigned int 						n_local_cells;
 
 		double 								velocity;
-		std::vector<bool> 					xzsupport_boundary_dofs;
-		std::vector<bool> 					lsupport_boundary_dofs;
-		std::vector<bool> 					rsupport_boundary_dofs;
-		std::vector<bool> 					loaded_boundary_dofs;
+		std::vector<bool> 					topsupport_boundary_dofs;
+		std::vector<bool> 					botsupport_boundary_dofs;
 
-		double 								ll;
-		double 								fl;
-		double 								bb;
-		double 								hh;
+		double 								lo;
 
 		char*                               macrostatelocin;
 		char*                               macrostatelocout;
@@ -1297,17 +1293,16 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values
 	(const double present_timestep, const int timestep_no)
 	{
-		velocity = -0.00025;
+		velocity = +0.0005;
 
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);
 		FEValuesExtractors::Scalar z_component (dim-1);
 		std::map<types::global_dof_index,double> boundary_values;
 
-		loaded_boundary_dofs.resize(dof_handler.n_dofs());
-		lsupport_boundary_dofs.resize(dof_handler.n_dofs());
-		rsupport_boundary_dofs.resize(dof_handler.n_dofs());
-		xzsupport_boundary_dofs.resize(dof_handler.n_dofs());
+
+		topsupport_boundary_dofs.resize(dof_handler.n_dofs());
+		botsupport_boundary_dofs.resize(dof_handler.n_dofs());
 
 		// Computing internal forces to apply the contact BC
 		Vector<double>  iforce = compute_internal_forces();
@@ -1324,73 +1319,59 @@ namespace HMM
 				double value;
 
 				for (unsigned int c = 0; c < dim; ++c) {
-					loaded_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
-					lsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
-					rsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
-					xzsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
+					botsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
+					topsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
 				}
 
-				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
-						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.
-						&& fabs(cell->vertex(v)(2) - 0.0) < eps/3.)
+				if (fabs(cell->vertex(v)(1) - -lo/2.) < eps/3.)
 				{
 					value = 0.;
 					component = 0;
-					xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
+
+					value = 0.;
+					component = 1;
+					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+
 					value = 0.;
 					component = 2;
-					xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
-//					dcout << "XZ support type"
+
+//					dcout << "bot support type"
 //						  << " -- dof id: " << cell->vertex_dof_index (v, component)
 //						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
 				}
 
-				if (fabs(cell->vertex(v)(0) - -ll/2.) < eps/3.
-						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
+
+				if (fabs(cell->vertex(v)(1) - +lo/2.) < eps/3.)
 				{
 					value = 0.;
-					component = 1;
-					lsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					component = 0;
+					topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
-//					dcout << "left Y support type"
-//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
-//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
-				}
 
-				if (fabs(cell->vertex(v)(0) - +ll/2.) < eps/3.
-						&& fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
-				{
-					value = 0.;
-					component = 1;
-					rsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-//					dcout << "right Y support type"
-//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
-//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
-				}
-
-				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
-						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
-				{
 					value = present_timestep*velocity;
 					component = 1;
-					double vertex_force = iforce[cell->vertex_dof_index (v, component)];
-					if(value*vertex_force >= 0.0 || fabs(vertex_force)<1.0e-3){
-						loaded_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-						(cell->vertex_dof_index (v, component), value));
-					}
-					dcout << "Y load type"
-						  << " -- dof id: " << cell->vertex_dof_index (v, component)
-						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - "
-						  << " -- Y force: " << vertex_force
-						  << " -- is loaded? " << loaded_boundary_dofs[cell->vertex_dof_index (v, component)] << std::endl;
+					topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+
+					value = 0.;
+					component = 2;
+					topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+
+//					dcout << "top support type"
+//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
+//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
 				}
 			}
 		}
@@ -1555,14 +1536,21 @@ namespace HMM
 		endc = dof_handler.end();
 
 		for ( ; cell != endc; ++cell) {
-			//double eps = (cell->minimum_vertex_distance());
 			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
 				unsigned int component;
 				double value;
 
 				value = 0.;
 				component = 0;
-				if (xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
+				if (botsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
+				{
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+				}
+
+				value = 0.;
+				component = 1;
+				if (botsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
 				{
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
@@ -1570,7 +1558,15 @@ namespace HMM
 
 				value = 0.;
 				component = 2;
-				if (xzsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
+				if (botsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
+				{
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
+				}
+
+				value = 0.;
+				component = 0;
+				if (topsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
 				{
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
@@ -1578,23 +1574,15 @@ namespace HMM
 
 				value = 0.;
 				component = 1;
-				if (lsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
+				if (topsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
 				{
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
 				}
 
 				value = 0.;
-				component = 1;
-				if (rsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-				{
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-				}
-
-				value = 0.;
-				component = 1;
-				if (loaded_boundary_dofs[cell->vertex_dof_index (v, component)])
+				component = 2;
+				if (topsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
 				{
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
@@ -2015,7 +2003,7 @@ namespace HMM
 		double aforce = 0.;
 		//dcout << "hello Y force ------ " << std::endl;
 		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-			if (loaded_boundary_dofs[i] == true)
+			if (topsupport_boundary_dofs[i] == true)
 			{
 				dcout << "   force on loaded nodes: " << local_residual[i] << std::endl;
 				aforce += local_residual[i];
@@ -2054,11 +2042,7 @@ namespace HMM
 		if(timestep_no==1){
 			std::vector<Point<dim>> llis;
 			// fill the list of locations of interest
-			llis.push_back(Point<dim>(0.,+hh/2.,0.));
-			llis.push_back(Point<dim>(0.,-hh/2.,0.));
 			llis.push_back(Point<dim>(0.,0.,0.));
-			llis.push_back(Point<dim>(-ll/2.,0.,0.));
-			llis.push_back(Point<dim>(+ll/2.,0.,0.));
 
 			std::vector<unsigned int> tmp;
 
@@ -2554,10 +2538,7 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::make_grid ()
 	{
-		ll=0.080;
-		fl=1.20*0.080;
-		bb=0.013;
-		hh=0.004;
+		lo=0.185;
 
 		char filename[1024];
 		sprintf(filename, "%s/mesh.tria", macrostatelocin);
@@ -2570,20 +2551,15 @@ namespace HMM
 			triangulation.load(ia, 0);
 		}
 		else{
-			dcout << "    Creation of triangulation..." << std::endl;
-			Point<dim> pp1 (-fl/2.,-hh/2.,-bb/2.);
-			Point<dim> pp2 (fl/2.,hh/2.,bb/2.);
-			std::vector< unsigned int > reps (dim);
-			reps[0] = (int) std::round(fl/hh); reps[1] = 1; reps[2] =  (int) std::round(bb/hh);
-			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
-
-			triangulation.refine_global (2);
-
-			// Saving triangulation, not usefull now and costly...
-			/*sprintf(filename, "%s/mesh.tria", macrostatelocout);
-			std::ofstream oss(filename);
-			boost::archive::text_oarchive oa(oss, boost::archive::no_header);
-			triangulation.save(oa, 0);*/
+			char meshfile[1024];
+			sprintf(meshfile, "%s/mesh/dogbone.msh", macrostatelocin);
+			GridIn<dim> gridin;
+			gridin.attach_triangulation(triangulation);
+			std::ifstream fmesh(meshfile);
+			if (fmesh.is_open()){
+				gridin.read_msh(fmesh);
+			}
+			else dcout << "    Cannot find external mesh file... " << std::endl;
 		}
 
 		dcout << "    Number of active cells:       "
@@ -3202,7 +3178,7 @@ namespace HMM
 	void HMMProblem<dim>::do_timestep (FEProblem<dim> &fe_problem)
 	{
 		int freq_restart_output = 10;
-		int freq_output_results = 5;
+		int freq_output_results = 1;
 		int freq_output_specific = 1;
 
 		present_time += present_timestep;
@@ -3536,7 +3512,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 2000;
+		end_time = 500;
 		timestep_no = 0;
 
 		hcout << " Initiation of the Mesh...       " << std::endl;

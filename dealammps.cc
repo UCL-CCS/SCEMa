@@ -895,6 +895,7 @@ namespace HMM
 		char*                               macrologloc;
 
 		std::vector<unsigned int> 			lcis;
+		std::vector<unsigned int> 			lcga;
 	};
 
 
@@ -1978,6 +1979,49 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi)
 	{
+		// Build lists of cells for output
+		if(timestep_no==1){
+			dcout << "Cells with detailed output: " << std::endl;
+			for (typename DoFHandler<dim>::active_cell_iterator
+					cell = dof_handler.begin_active();
+					cell != dof_handler.end(); ++cell)
+			{
+				double eps = (cell->minimum_vertex_distance());
+
+				// Build vector of ids of cells of special interest 'lcis'
+				//for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
+					if (cell->barycenter()(1) <  (lo/3.)/2. && cell->barycenter()(1) >  -((lo/3.)/2.)
+							&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
+							&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
+						lcis.push_back(cell->active_cell_index());
+						dcout << " specific cell: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
+					}
+					if (fabs(cell->barycenter()(0) - eps/2.) >= eps/3.
+							&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
+							&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
+						lcis.push_back(cell->active_cell_index());
+						dcout << " specific cell: " << cell->active_cell_index() << " x: " << cell->barycenter()(0) << std::endl;
+					}
+					if (fabs(cell->barycenter()(2) - 0.0) >= 2.*eps/3.
+							&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
+							&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.){
+						lcis.push_back(cell->active_cell_index());
+						dcout << " specific cell: " << cell->active_cell_index() << " z: " << cell->barycenter()(2) << std::endl;
+					}
+				//}
+				// Build vector of ids of cells for measuring gauge displacement 'lcga'
+				//for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
+					if ((fabs(cell->barycenter()(1) - 0.050/2.) < 2.*eps/3. || fabs(cell->barycenter()(1) - -0.050/2.) < 2.*eps/3.)
+						&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
+						&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.)
+					{
+						lcga.push_back(cell->active_cell_index());
+						dcout << " gauge cell: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
+					}
+				//}
+			}
+		}
+
 		// Compute applied force vector
 		Vector<double> local_residual (dof_handler.n_dofs());
 		local_residual = compute_internal_forces();
@@ -1988,12 +2032,12 @@ namespace HMM
 			std::string smacrostatelocouttimetmp(macrostatelocouttime);
 
 			// Write internal forces and displacement vector to regenerate output if needed
-			const std::string force_filename = (smacrostatelocouttimetmp + "/" + std::to_string(timestep_no) + ".solution.bin");
+			const std::string force_filename = (smacrostatelocouttimetmp + "/" + std::to_string(timestep_no)+ ".internal_forces.bin");
 			std::ofstream offile(force_filename);
 			local_residual.block_write(offile);
 			offile.close();
 
-			const std::string solution_filename = (smacrostatelocouttimetmp + "/" + std::to_string(timestep_no) + ".internal_forces.bin");
+			const std::string solution_filename = (smacrostatelocouttimetmp + "/" + std::to_string(timestep_no) + ".solution.bin");
 			std::ofstream osfile(solution_filename);
 			solution.block_write(osfile);
 			osfile.close();
@@ -2005,14 +2049,30 @@ namespace HMM
 		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
 			if (topsupport_boundary_dofs[i] == true)
 			{
-				dcout << "   force on loaded nodes: " << local_residual[i] << std::endl;
+				// For Debug...
+				//dcout << "   force on loaded nodes: " << local_residual[i] << std::endl;
 				aforce += local_residual[i];
 			}
 
-		//dcout << "Total force : " << aforce << std::endl;
-
-		double idisp = velocity*timestep_no;
-		dcout << "Timestep: " << timestep_no << " - Time: " << present_time << " - Imp. Disp.: " << idisp << " - App. Force: " << aforce << std::endl;
+		// Compute displacement of the gauge
+		double idisp = 0.;
+		double ytop = 0.;
+		double ybot = 0.;
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+		{
+			for(unsigned int ii=0;ii<lcga.size();ii++){
+				if (cell->active_cell_index()==lcga[ii])
+				{
+					double ypos = cell->vertex(0)(1)+solution[cell->vertex_dof_index (0, 1)];
+					if(ypos > 0.0) ytop = ypos;
+					else ybot = ypos;
+				}
+			}
+		}
+		idisp = ytop-ybot;
+		dcout << "Timestep: " << timestep_no << " - Time: " << present_time << " - Gauge Length: " << idisp << " - App. Force: " << aforce << std::endl;
 
 		if (this_FE_process==0)
 		{
@@ -2023,7 +2083,28 @@ namespace HMM
 				ofile.open (fname);
 				if (ofile.is_open())
 				{
-					ofile << "timestep,time,imposed_displacement,applied_force" << std::endl;
+					// writing the header of the file
+					ofile << "timestep,time,gauge_length,applied_force" << std::endl;
+
+					// writing the initial length of the gauge
+					double ilength = 0.;
+					double ytop = 0.;
+					double ybot = 0.;
+					for (typename DoFHandler<dim>::active_cell_iterator
+							cell = dof_handler.begin_active();
+							cell != dof_handler.end(); ++cell)
+					{
+						for(unsigned int ii=0;ii<lcga.size();ii++){
+							if (cell->active_cell_index()==lcga[ii])
+							{
+								double ypos = cell->vertex(0)(1);
+								if(ypos > 0.0) ytop = ypos;
+								else ybot = ypos;
+							}
+						}
+					}
+					ilength = ytop-ybot;
+					ofile << 0 << ", " << 0 << ", " << std::setprecision(16) << ilength << ", " << 0.0 << std::endl;
 					ofile.close();
 				}
 				else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
@@ -2036,38 +2117,6 @@ namespace HMM
 				ofile.close();
 			}
 			else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
-		}
-
-		// Build vector of ids of cells of special interest 'lcis'
-		if(timestep_no==1){
-			std::vector<Point<dim>> llis;
-			// fill the list of locations of interest
-			llis.push_back(Point<dim>(0.,0.,0.));
-
-			std::vector<unsigned int> tmp;
-
-			dcout << "Cells with detailed output: " << std::endl;
-			for (unsigned int i=0; i<llis.size(); i++)
-				for (typename DoFHandler<dim>::active_cell_iterator
-						cell = dof_handler.begin_active();
-						cell != dof_handler.end(); ++cell)
-				{
-//					int min_dist = 1000*ll;
-//					bool cell_is_closest = true;
-//					double cell_dist;
-//					Point<dim> loi = llis(i);
-//					// compute cell distance to location of interest
-//
-//					if (cell_dist>min_dist) cell_is_closest = false;
-//					else min_dist = cell_dist;
-//					if (cell_is_closest) lcis.push_back(cell->active_cell_index());
-
-					if (cell->point_inside(llis[i])){
-						lcis.push_back(cell->active_cell_index());
-						dcout << "at x: " << llis[i][0] << " - y: " << llis[i][1] << " cells " << cell->active_cell_index() << std::endl;
-						//break;
-					}
-				}
 		}
 
 		// Cells of special interest (nanostate: cell_replica; metadata: time,

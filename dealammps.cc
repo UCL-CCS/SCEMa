@@ -450,7 +450,7 @@ namespace HMM
 		// Number of timesteps factor
 		int nsinit = 10000;
 		// Temperature
-		double tempt = 300.0;
+		double tempt = 200.0;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -604,7 +604,7 @@ namespace HMM
 		int nts = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 
 		// Temperature
-		double tempt = 300.0;
+		double tempt = 200.0;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -896,7 +896,9 @@ namespace HMM
 		std::vector<bool> 					topsupport_boundary_dofs;
 		std::vector<bool> 					botsupport_boundary_dofs;
 
-		double 								lo;
+		double 								ll;
+		double 								hh;
+		double 								bb;
 
 		char*                               macrostatelocin;
 		char*                               macrostatelocout;
@@ -1353,7 +1355,7 @@ namespace HMM
 					topsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
 				}
 
-				if (fabs(cell->vertex(v)(1) - -lo/2.) < eps/3.)
+				if (fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
 				{
 					value = 0.;
 					component = 0;
@@ -1379,7 +1381,7 @@ namespace HMM
 				}
 
 
-				if (fabs(cell->vertex(v)(1) - +lo/2.) < eps/3.)
+				if (fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
 				{
 					value = 0.;
 					component = 0;
@@ -1406,53 +1408,6 @@ namespace HMM
 			}
 		}
 
-//		cell = dof_handler.begin_active(),
-//		endc = dof_handler.end();
-//
-//		for ( ; cell != endc; ++cell) {
-//			double eps = (cell->minimum_vertex_distance());
-//			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
-//				unsigned int component;
-//				double value;
-//
-//				component = 1;
-//				value = present_timestep*vsupport*2.0;
-//				if (fabs(cell->vertex(v)(0) - 0.0) < eps/3.
-//						&& fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
-//				{
-//					(boundary_values.find(cell->vertex_dof_index (v, component)))->second = value;
-//				}
-//			}
-//		}
-
-//		dcout << "hello Y Force ------ " << std::endl;
-//		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-//			if (loaded_boundary_dofs[i] == true)
-//			{
-//				dcout << "dof: " << i << std::endl;
-//			}
-//
-//		dcout << "hello Y left support ------ " << std::endl;
-//		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-//			if (lsupport_boundary_dofs[i] == true)
-//			{
-//				dcout << "dof: " << i << std::endl;
-//			}
-//
-//		dcout << "hello Y right support ------ " << std::endl;
-//		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-//			if (rsupport_boundary_dofs[i] == true)
-//			{
-//				dcout << "dof: " << i << std::endl;
-//			}
-//
-//		dcout << "hello XZ support ------ " << std::endl;
-//		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-//			if (xzsupport_boundary_dofs[i] == true)
-//			{
-//				dcout << "dof: " << i << std::endl;
-//			}
-
 
 		for (std::map<types::global_dof_index, double>::const_iterator
 				p = boundary_values.begin();
@@ -1478,17 +1433,10 @@ namespace HMM
 		const unsigned int   dofs_per_cell = fe.dofs_per_cell;
 		const unsigned int   n_q_points    = quadrature_formula.size();
 
-//		FullMatrix<double>   cell_stiffness (dofs_per_cell, dofs_per_cell);
 		FullMatrix<double>   cell_mass (dofs_per_cell, dofs_per_cell);
-//		FullMatrix<double>   cell_mass_inverse (dofs_per_cell, dofs_per_cell);
 		Vector<double>       cell_force (dofs_per_cell);
-//		Vector<double>       cell_old_velo (dofs_per_cell);
-//		Vector<double>       cell_old_disp (dofs_per_cell);
 
-		//FullMatrix<double>   cell_u_matrix (dofs_per_cell, dofs_per_cell);
-		//Vector<double>       cell_u_rhs (dofs_per_cell);
 		FullMatrix<double>   cell_v_matrix (dofs_per_cell, dofs_per_cell);
-//		FullMatrix<double>   cell_v_inverse (dofs_per_cell, dofs_per_cell);
 		Vector<double>       cell_v_rhs (dofs_per_cell);
 
 		Vector<double>       vtmp (dofs_per_cell);
@@ -1501,22 +1449,14 @@ namespace HMM
 
 		system_rhs = 0;
 		system_matrix = 0;
-//		system_inverse = 0;
 
 		for (; cell!=endc; ++cell)
 			if (cell->is_locally_owned())
 			{
-//				cell_stiffness = 0;
 				cell_mass = 0;
-//				cell_mass_inverse = 0;
 				cell_force = 0;
-//				cell_old_velo = 0;
-//				cell_old_disp = 0;
 
-				//cell_u_matrix = 0;
-				//cell_u_rhs = 0;
 				cell_v_matrix = 0;
-//				cell_v_inverse = 0;
 				cell_v_rhs = 0;
 
 				fe_values.reinit (cell);
@@ -1548,32 +1488,6 @@ namespace HMM
 							+= (rho * dcorr * phi_i * phi_j
 									* fe_values.JxW (q_point));
 						}
-
-//				// Assembly of mass matrix inverse
-//				for (unsigned int i=0; i<dofs_per_cell; ++i)
-//				{
-//					// Lumped mass matrix because the consistent one doesnt work...
-//					cell_mass_inverse(i,i) // cell_mass(i,j) instead...
-//									= 1/cell_mass(i,i) ;
-//				}
-
-//				// Assembly of stiffness matrix
-//				for (unsigned int i=0; i<dofs_per_cell; ++i)
-//					for (unsigned int j=0; j<dofs_per_cell; ++j)
-//						for (unsigned int q_point=0; q_point<n_q_points;
-//								++q_point)
-//						{
-//							const SymmetricTensor<4,dim> &new_stiff
-//							= local_quadrature_points_data[q_point].new_stiff;
-//
-//							const SymmetricTensor<2,dim>
-//							eps_phi_i = get_strain (fe_values, i, q_point),
-//							eps_phi_j = get_strain (fe_values, j, q_point);
-//
-//							cell_stiffness(i,j)
-//							+= (eps_phi_i * new_stiff * eps_phi_j
-//									* fe_values.JxW (q_point));
-//						}
 
 				// Assembly of external forces vector
 				for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -1612,34 +1526,14 @@ namespace HMM
 							dcout << std::endl;
 					}*/
 
-//				// Assembly of old displacement vector
-//				for (unsigned int i=0; i<dofs_per_cell; ++i)
-//				{
-//					//dcout << int(i/dim)<< " " <<i%dim<< " " << cell->vertex_dof_index (int(i/dim),i%dim) << " / " << dofs_per_cell << std::endl;
-//					//double tmp = old_displacement(cell->vertex_dof_index (int(i/dim),i%dim));
-//					cell_old_disp(i) = old_displacement(cell->vertex_dof_index (int(i/dim),i%dim));
-//				}
-
-//				// Assembly of old velocity vector
-//				for (unsigned int i=0; i<dofs_per_cell; ++i)
-//					{
-//						cell_old_velo(i) += old_velocity(cell->dof_index (i));
-//					}
-
 				cell->get_dof_indices (local_dof_indices);
 
-				// Assemble local matrices for u and v problems
-				//cell_u_matrix = cell_mass;
+				// Assemble local matrices for v problem
 				cell_v_matrix = cell_mass;
-//				cell_v_inverse = cell_mass_inverse;
 
 				//std::cout << "norm matrix " << cell_v_matrix.l1_norm() << " stiffness " << cell_stiffness.l1_norm() << std::endl;
 
-				// Assemble local rhs for u and v problems
-				//cell_u_rhs = kk*cell_mass*cell_old_velo;
-				//cell_v_rhs = -1.0*timestep*(cell_stiffness*cell_old_disp) + timestep*cell_force;
-				//cell_stiffness.vmult (vtmp, cell_old_disp);
-				//cell_v_rhs.add(-1.0*timestep, vtmp);
+				// Assemble local rhs for v problem
 				cell_v_rhs.add(timestep, cell_force);
 
 				// Local to global for u and v problems
@@ -1647,15 +1541,9 @@ namespace HMM
 				.distribute_local_to_global(cell_v_matrix, cell_v_rhs,
 						local_dof_indices,
 						system_matrix, system_rhs);
-
-//				hanging_node_constraints
-//				.distribute_local_to_global(cell_v_inverse,
-//						local_dof_indices,
-//						system_inverse);
 			}
 
 		system_matrix.compress(VectorOperation::add);
-//		system_inverse.compress(VectorOperation::add);
 		system_rhs.compress(VectorOperation::add);
 
 
@@ -2024,7 +1912,7 @@ namespace HMM
 
 				// Build vector of ids of cells of special interest 'lcis'
 				//for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
-					if (cell->barycenter()(1) <  (lo/3.)/2. && cell->barycenter()(1) >  -((lo/3.)/2.)
+					if (cell->barycenter()(1) <  (hh/3.)/2. && cell->barycenter()(1) >  -((hh/3.)/2.)
 							&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
 							&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
 						lcis.push_back(cell->active_cell_index());
@@ -2628,7 +2516,9 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::make_grid ()
 	{
-		lo=0.185;
+		ll=0.00010;
+		bb=0.00002;
+		hh=0.00002;
 
 		char filename[1024];
 		sprintf(filename, "%s/mesh.tria", macrostatelocin);
@@ -2641,15 +2531,20 @@ namespace HMM
 			triangulation.load(ia, 0);
 		}
 		else{
-			char meshfile[1024];
-			sprintf(meshfile, "%s/mesh/dogbone_w0.013.msh", macrostatelocin);
-			GridIn<dim> gridin;
-			gridin.attach_triangulation(triangulation);
-			std::ifstream fmesh(meshfile);
-			if (fmesh.is_open()){
-				gridin.read_msh(fmesh);
-			}
-			else dcout << "    Cannot find external mesh file... " << std::endl;
+			dcout << "    Creation of triangulation..." << std::endl;
+			Point<dim> pp1 (-ll/2.,-hh/2.,-bb/2.);
+			Point<dim> pp2 (ll/2.,hh/2.,bb/2.);
+			std::vector< unsigned int > reps (dim);
+			reps[0] = 1; reps[1] = 1; reps[2] = 1;
+			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
+
+			triangulation.refine_global (2);
+
+			// Saving triangulation, not usefull now and costly...
+			/*sprintf(filename, "%s/mesh.tria", macrostatelocout);
+			std::ofstream oss(filename);
+			boost::archive::text_oarchive oa(oss, boost::archive::no_header);
+			triangulation.save(oa, 0);*/
 		}
 
 		dcout << "    Number of active cells:       "

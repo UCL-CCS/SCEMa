@@ -2642,7 +2642,7 @@ namespace HMM
 		}
 		else{
 			char meshfile[1024];
-			sprintf(meshfile, "%s/mesh/dogbone.msh", macrostatelocin);
+			sprintf(meshfile, "%s/mesh/dogbone_w0.013.msh", macrostatelocin);
 			GridIn<dim> gridin;
 			gridin.attach_triangulation(triangulation);
 			std::ifstream fmesh(meshfile);
@@ -3255,7 +3255,7 @@ namespace HMM
 				if(dealii_pcolor==0){
 
 					// Solving for the update of the increment of velocity
-					fe_problem.solve_linear_problem_direct();
+					fe_problem.solve_linear_problem_CG();
 
 					// Displacement newton update is equal to the current velocity multiplied by the timestep length
 					fe_problem.newton_update_displacement.equ(present_timestep, fe_problem.velocity);

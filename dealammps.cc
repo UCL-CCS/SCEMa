@@ -93,6 +93,7 @@ namespace HMM
 	template <int dim>
 	struct PointHistory
 	{
+		// History
 		SymmetricTensor<2,dim> old_stress;
 		SymmetricTensor<2,dim> new_stress;
 		SymmetricTensor<2,dim> inc_stress;
@@ -103,8 +104,13 @@ namespace HMM
 		SymmetricTensor<2,dim> inc_strain;
 		SymmetricTensor<2,dim> upd_strain;
 		SymmetricTensor<2,dim> newton_strain;
-		double rho;
 		bool to_be_updated;
+
+		// Characteristics
+		double rho;
+		bool flaked;
+		double fangle1;
+		double fangle2;
 	};
 
 	bool file_exists(const char* file) {
@@ -767,14 +773,12 @@ namespace HMM
 		virtual
 		void
 		vector_value (const Point<dim> &p,
-				Vector<double>   &values,
-				const double rho) const;
+				Vector<double>   &values) const;
 
 		virtual
 		void
 		vector_value_list (const std::vector<Point<dim> > &points,
-				std::vector<Vector<double> >   &value_list,
-				const double rho) const;
+				std::vector<Vector<double> >   &value_list) const;
 	};
 
 
@@ -789,8 +793,7 @@ namespace HMM
 	inline
 	void
 	BodyForce<dim>::vector_value (const Point<dim> &/*p*/,
-			Vector<double>   &values,
-			const double rho) const
+			Vector<double>   &values) const
 	{
 		Assert (values.size() == dim,
 				ExcDimensionMismatch (values.size(), dim));
@@ -798,7 +801,7 @@ namespace HMM
 		const double g   = 9.81;
 
 		values = 0;
-		values(dim-1) = -rho * g * 0.0;
+		values(dim-1) = -g * 0.0;
 	}
 
 
@@ -806,8 +809,7 @@ namespace HMM
 	template <int dim>
 	void
 	BodyForce<dim>::vector_value_list (const std::vector<Point<dim> > &points,
-			std::vector<Vector<double> >   &value_list,
-			const double rho) const
+			std::vector<Vector<double> >   &value_list) const
 	{
 		const unsigned int n_points = points.size();
 
@@ -816,7 +818,7 @@ namespace HMM
 
 		for (unsigned int p=0; p<n_points; ++p)
 			BodyForce<dim>::vector_value (points[p],
-					value_list[p], rho);
+					value_list[p]);
 	}
 
 
@@ -841,6 +843,8 @@ namespace HMM
 		double determine_step_length () const;
 		void move_mesh ();
 
+		void generate_nanostructure();
+		void assign_nanostructure (Point<dim> pos, bool flaked, double angle1, double angle2, double rho);
 		void setup_quadrature_point_history ();
 
 		void update_strain_quadrature_point_history
@@ -942,6 +946,33 @@ namespace HMM
 
 
 	template <int dim>
+	void FEProblem<dim>::generate_nanostructure ()
+	{
+		// What are the morphology parameters of influence:
+		//   - shape of flakes: hexagonal, even circle is fine.. > no "hard" angle (bigger than pi/2.), "natural" shape of ideal flakes
+		//   - size of flakes: 10-15µm
+		//   - orientation of flakes: based on one angle and one direction (in the plane of the graphene flake),
+		//                            direction of load, orthogonal direction of load, random uniform, random with spatial correlation
+		//   - position/dispersion: regularly disperse, non-crossing of flakes or boundaries
+		//   - weight ratio: 0.08%, 0.16%
+		//   - number of flakes: weight ratio > total mass of flakes > number=total mass of flakes/mass of a single flake
+
+		// Ex: vcell=150.0e-6*50.0e-6*50.0e-6 & mratio=0.16% & lflake=10µm > 31 flakes
+		//     if lcell=5µm > ncell=3000 ~ 4 cells/flake
+
+	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::assign_nanostructure (Point<dim> pos, bool flaked, double angle1, double angle2, double rho)
+	{
+
+	}
+
+
+
+	template <int dim>
 	void FEProblem<dim>::setup_quadrature_point_history ()
 	{
 		triangulation.clear_user_data();
@@ -983,6 +1014,9 @@ namespace HMM
 		Assert (history_index == quadrature_point_history.size(),
 				ExcInternalError());
 
+		// Generation of nanostructure based on size, weight ratio
+		generate_nanostructure();
+
 		// History data at integration points initialization
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
@@ -1005,7 +1039,14 @@ namespace HMM
 					local_quadrature_points_history[q].to_be_updated = false;
 					local_quadrature_points_history[q].new_stiff = stiffness_tensor;
 					local_quadrature_points_history[q].new_stress = 0;
-					local_quadrature_points_history[q].rho = 1000.;
+					//local_quadrature_points_info[q].rho = 1000.;
+
+					// Assign nanostructure to the current cell and associated characteristics
+					assign_nanostructure(cell->center(),
+							local_quadrature_points_history[q].flaked,
+							local_quadrature_points_history[q].fangle1,
+							local_quadrature_points_history[q].fangle2,
+							local_quadrature_points_history[q].rho);
 				}
 			}
 
@@ -1091,7 +1132,7 @@ namespace HMM
 
 				bool cell_to_be_updated = false;
 				//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
-				//if (false) // For debug...
+				if (false) // For debug...
 				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
@@ -1307,12 +1348,12 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values(const int timestep_no, const double present_time, const double present_timestep)
 	{
 
-		double tvel_vsupport=400.; // target velocity of the boundary m/s-1
+		double tvel_vsupport=100.0; // target velocity of the boundary m/s-1
 
-		double acc_time=1*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
+		double acc_time=1.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
 		double acc_vsupport=tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
 
-		double tvel_time=1000*present_timestep;
+		double tvel_time=50.0*present_timestep;
 
 		if (present_time<acc_time){
 			dcout << "ACCELERATE!!!" << std::endl;
@@ -1335,9 +1376,6 @@ namespace HMM
 
 		topsupport_boundary_dofs.resize(dof_handler.n_dofs());
 		botsupport_boundary_dofs.resize(dof_handler.n_dofs());
-
-		// Computing internal forces to apply the contact BC
-		Vector<double>  iforce = compute_internal_forces();
 
 		typename DoFHandler<dim>::active_cell_iterator
 		cell = dof_handler.begin_active(),
@@ -1461,7 +1499,7 @@ namespace HMM
 
 				fe_values.reinit (cell);
 
-				const PointHistory<dim> *local_quadrature_points_data
+				const PointHistory<dim> *local_quadrature_points_history
 				= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
 
 				// Assembly of mass matrix
@@ -1471,7 +1509,7 @@ namespace HMM
 								++q_point)
 						{
 							const double rho =
-									local_quadrature_points_data[q_point].rho;
+									local_quadrature_points_history[q_point].rho;
 
 							const double
 							phi_i = fe_values.shape_value (i,q_point),
@@ -1498,14 +1536,15 @@ namespace HMM
 					for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 					{
 						body_force.vector_value_list (fe_values.get_quadrature_points(),
-								body_force_values, local_quadrature_points_data[q_point].rho);
+								body_force_values);
 
 						const SymmetricTensor<2,dim> &new_stress
-						= local_quadrature_points_data[q_point].new_stress;
+						= local_quadrature_points_history[q_point].new_stress;
 
 						// how to handle body forces?
 						cell_force(i) += (
 								body_force_values[q_point](component_i) *
+								local_quadrature_points_history[q_point].rho *
 								fe_values.shape_value (i,q_point)
 								-
 								new_stress *
@@ -1640,7 +1679,7 @@ namespace HMM
 		// Therefore, extra precision is required in the solver proportionnaly
 		// to the norm of the system matrix, to reduce sufficiently our residual
 		SolverControl       solver_control (dof_handler.n_dofs(),
-				1e-03/system_matrix.l1_norm());
+				1e-03);
 
 		PETScWrappers::SolverCG cg (solver_control,
 				FE_communicator);
@@ -1676,7 +1715,7 @@ namespace HMM
 		// Therefore, extra precision is required in the solver proportionnaly
 		// to the norm of the system matrix, to reduce sufficiently our residual
 		SolverControl       solver_control (dof_handler.n_dofs(),
-				1e-03/system_matrix.l1_norm());
+				1e-03);
 
 		PETScWrappers::SolverGMRES gmres (solver_control,
 				FE_communicator);
@@ -1720,7 +1759,7 @@ namespace HMM
 		// Therefore, extra precision is required in the solver proportionnaly
 		// to the norm of the system matrix, to reduce sufficiently our residual
 		SolverControl       solver_control (dof_handler.n_dofs(),
-				1e-12/system_matrix.l1_norm());
+				1e-12);
 
 		PETScWrappers::SolverBicgstab bicgs (solver_control,
 				FE_communicator);
@@ -1795,7 +1834,7 @@ namespace HMM
 				cell_residual = 0;
 				fe_values.reinit (cell);
 
-				const PointHistory<dim> *local_quadrature_points_data
+				const PointHistory<dim> *local_quadrature_points_history
 				= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
 
 				for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -1803,7 +1842,7 @@ namespace HMM
 					for (unsigned int q_point=0; q_point<n_q_points; ++q_point)
 					{
 						const SymmetricTensor<2,dim> &old_stress
-						= local_quadrature_points_data[q_point].new_stress;
+						= local_quadrature_points_history[q_point].new_stress;
 
 						cell_residual(i) +=
 								(old_stress *
@@ -1912,7 +1951,7 @@ namespace HMM
 
 				// Build vector of ids of cells of special interest 'lcis'
 				//for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
-					if (cell->barycenter()(1) <  (hh/3.)/2. && cell->barycenter()(1) >  -((hh/3.)/2.)
+					if (cell->barycenter()(1) <  (hh)/2. && cell->barycenter()(1) >  -((hh)/2.)
 							&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
 							&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
 						lcis.push_back(cell->active_cell_index());
@@ -1924,7 +1963,7 @@ namespace HMM
 						lcis.push_back(cell->active_cell_index());
 						dcout << " specific cell: " << cell->active_cell_index() << " x: " << cell->barycenter()(0) << std::endl;
 					}
-					if (fabs(cell->barycenter()(2) - 0.0) >= 2.*eps/3.
+					if (fabs(cell->barycenter()(2) - eps/2.) >= eps/3.
 							&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
 							&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.){
 						lcis.push_back(cell->active_cell_index());
@@ -1933,9 +1972,9 @@ namespace HMM
 				//}
 				// Build vector of ids of cells for measuring gauge displacement 'lcga'
 				//for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
-					if ((fabs(cell->barycenter()(1) - 0.050/2.) < 2.*eps/3. || fabs(cell->barycenter()(1) - -0.050/2.) < 2.*eps/3.)
+					if ((fabs(cell->barycenter()(1) - hh/2.) < 2.*eps/3. || fabs(cell->barycenter()(1) - -hh/2.) < 2.*eps/3.)
 						&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
-						&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.)
+						&& fabs(cell->barycenter()(2) - eps/2.) < eps/3.)
 					{
 						lcga.push_back(cell->active_cell_index());
 						dcout << " gauge cell: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
@@ -2516,9 +2555,9 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::make_grid ()
 	{
-		ll=0.00010;
-		bb=0.00002;
-		hh=0.00002;
+		ll=0.000010;
+		bb=0.000010;
+		hh=0.000025;
 
 		char filename[1024];
 		sprintf(filename, "%s/mesh.tria", macrostatelocin);
@@ -2535,10 +2574,10 @@ namespace HMM
 			Point<dim> pp1 (-ll/2.,-hh/2.,-bb/2.);
 			Point<dim> pp2 (ll/2.,hh/2.,bb/2.);
 			std::vector< unsigned int > reps (dim);
-			reps[0] = 1; reps[1] = 1; reps[2] = 1;
+			reps[0] = 10; reps[1] = 25; reps[2] = 10;
 			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
 
-			triangulation.refine_global (2);
+			//triangulation.refine_global (2);
 
 			// Saving triangulation, not usefull now and costly...
 			/*sprintf(filename, "%s/mesh.tria", macrostatelocout);
@@ -2962,6 +3001,8 @@ namespace HMM
 						sprintf(filename, "%s/init.PE_%d.length", macrostatelocout, repl);
 						read_tensor<dim>(filename, init_rep_length);
 
+						// Rotate the input strain, stress wrt the flake angles
+
 						// Then the lammps function instanciates lammps, starting from an initial
 						// microstructure and applying the complete new_strain or starting from
 						// the microstructure at the old_strain and applying the difference between
@@ -2977,6 +3018,9 @@ namespace HMM
 								nanostatelocout,
 								nanologloc,
 								repl);
+
+						// Rotate the output strain, stress and stiffness wrt the flake angles
+
 						if(this_lammps_batch_process == 0)
 						{
 							std::cout << " \t" << cell_id[c] <<"-"<< repl << " \t" << std::flush;
@@ -3317,6 +3361,8 @@ namespace HMM
 					lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, initial_length, lammps_batch_communicator,
 							nanostatelocin, nanostatelocout, nanologloc, repl);
 
+					// Rotate output stres and stiffness wrt the flake angles
+
 					// For debug...
 					// if(this_lammps_process == 0){
 					// 	double young = 3.0e9, poisson = 0.45;
@@ -3538,8 +3584,8 @@ namespace HMM
 
 		// Initialization of time variables
 		present_time = 0;
-		present_timestep = 0.0000005;
-		end_time = 0.001200;
+		present_timestep = 1.0e-10;
+		end_time = 100.0*present_timestep;
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem

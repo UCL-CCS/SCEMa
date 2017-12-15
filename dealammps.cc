@@ -109,8 +109,14 @@ namespace HMM
 		// Characteristics
 		double rho;
 		bool flaked;
-		double fangle1;
-		double fangle2;
+		Tensor<2,dim> loc_ref;
+	};
+
+	template <int dim>
+	struct FlakeData
+	{
+		Point<dim> cntr;
+		Tensor<2,dim> loc_ref;
 	};
 
 	bool file_exists(const char* file) {
@@ -844,7 +850,8 @@ namespace HMM
 		void move_mesh ();
 
 		void generate_nanostructure();
-		void assign_nanostructure (Point<dim> pos, bool flaked, double angle1, double angle2, double rho);
+		void assign_nanostructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
+				bool flaked, Tensor<2,dim> loc_ref, double rho);
 		void setup_quadrature_point_history ();
 
 		void update_strain_quadrature_point_history
@@ -945,9 +952,26 @@ namespace HMM
 
 
 
-	template <int dim>
+	/*template <int dim>
 	void FEProblem<dim>::generate_nanostructure ()
 	{
+		typename DoFHandler<dim>::active_cell_iterator
+						cell = dof_handler.begin_active();
+
+		// Parameters of graphene flakes
+		double smass_flake = 0.00077;
+		double diam_flake = 10e-6;
+		double mass_ratio = 1.0*(1.0/100.);
+		// Orientation of flakes
+		Tensor<2,dim> referential_flake; // local referential of the flake (xf and yf define the plane of the flake, zf the normal)
+		referential_flake = unit_symmetric_tensor<dim>();
+
+
+		// Parameters of epoxy (ideally to be passed as argument)
+		double dens_epoxy = 1000.;
+		double vol_sample =
+		double vol_cell = cell->measure();
+
 		// What are the morphology parameters of influence:
 		//   - shape of flakes: hexagonal, even circle is fine.. > no "hard" angle (bigger than pi/2.), "natural" shape of ideal flakes
 		//   - size of flakes: 10-15µm
@@ -957,16 +981,29 @@ namespace HMM
 		//   - weight ratio: 0.08%, 0.16%
 		//   - number of flakes: weight ratio > total mass of flakes > number=total mass of flakes/mass of a single flake
 
+
 		// Ex: vcell=150.0e-6*50.0e-6*50.0e-6 & mratio=0.16% & lflake=10µm > 31 flakes
 		//     if lcell=5µm > ncell=3000 ~ 4 cells/flake
 
-	}
+	}*/
 
 
 
 	template <int dim>
-	void FEProblem<dim>::assign_nanostructure (Point<dim> pos, bool flaked, double angle1, double angle2, double rho)
+	void FEProblem<dim>::assign_nanostructure (Point<dim> cpos,
+			std::vector<Vector<double> > flakes_data, bool flaked, Tensor<2,dim> loc_ref, double rho)
 	{
+		unsigned int nflakes=flakes_data.size();
+		unsigned int nfchar=flakes_data[0].size();
+		//dcout << "Nflakes " << nflakes << " - Nchar " << nfchar << std::endl;
+
+		flaked = false;
+
+
+
+		// Setting density of composite or pure material
+		if (flaked) rho = 1200.;
+		else rho = 1000.;
 
 	}
 
@@ -1015,7 +1052,58 @@ namespace HMM
 				ExcInternalError());
 
 		// Generation of nanostructure based on size, weight ratio
-		generate_nanostructure();
+		//generate_nanostructure();
+
+		// Load flakes data (center position, angles, density)
+		unsigned int nflakes = 0;
+		unsigned int nfchar = 0;
+		std::vector<Vector<double> > flakes_data (nflakes, Vector<double>(nfchar));
+
+		sprintf(filename, "%s/flakes_data.csv", macrostatelocin);
+
+		std::ifstream ifile;
+		ifile.open (filename);
+
+		if (ifile.is_open())
+		{
+			std::string iline, ival;
+
+			if(getline(ifile, iline)){
+				std::istringstream iss(iline);
+				if(getline(iss, ival, ',')) nflakes = std::stoi(ival);
+				if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
+			}
+			dcout << "Nflakes " << nflakes << " - Nchar " << nfchar << std::endl;
+
+			dcout << "Char names: " << std::flush;
+			if(getline(ifile, iline)){
+				std::istringstream iss(iline);
+				for(unsigned int k=0;k<nfchar;k++){
+					getline(iss, ival, ',');
+					dcout << ival << " " << std::flush;
+				}
+			}
+			dcout << std::endl;
+
+			flakes_data.resize(nflakes, Vector<double>(nfchar));
+			for(unsigned int n=0;n<nflakes;n++)
+				if(getline(ifile, iline)){
+					dcout << "flake: " << n << std::flush;
+					std::istringstream iss(iline);
+					for(unsigned int k=0;k<nfchar;k++){
+						getline(iss, ival, ',');
+						flakes_data[n][k] = std::stof(ival);
+						dcout << " - " << flakes_data[n][k] << std::flush;
+					}
+					dcout << std::endl;
+				}
+
+			ifile.close();
+		}
+		else{
+			dcout << "Unable to open" << filename << " to read it" << std::endl;
+			dcout << "No microstructure loaded!!" << std::endl;
+		}
 
 		// History data at integration points initialization
 		for (typename DoFHandler<dim>::active_cell_iterator
@@ -1042,10 +1130,9 @@ namespace HMM
 					//local_quadrature_points_info[q].rho = 1000.;
 
 					// Assign nanostructure to the current cell and associated characteristics
-					assign_nanostructure(cell->center(),
+					assign_nanostructure(cell->center(), flakes_data,
 							local_quadrature_points_history[q].flaked,
-							local_quadrature_points_history[q].fangle1,
-							local_quadrature_points_history[q].fangle2,
+							local_quadrature_points_history[q].loc_ref,
 							local_quadrature_points_history[q].rho);
 				}
 			}
@@ -3585,7 +3672,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1.0e-10;
-		end_time = 100.0*present_timestep;
+		end_time = 1*present_timestep; //100.0*
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem

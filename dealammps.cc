@@ -109,7 +109,7 @@ namespace HMM
 		// Characteristics
 		double rho;
 		bool flaked;
-		Tensor<2,dim> loc_ref;
+		Tensor<1,dim> nvec;
 	};
 
 	template <int dim>
@@ -157,6 +157,28 @@ namespace HMM
 		{
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
+				{
+					char line[1024];
+					if(ifile.getline(line, sizeof(line)))
+						tensor[k][l] = std::strtod(line, NULL);
+				}
+			ifile.close();
+		}
+		else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+	}
+
+	template <int dim>
+	inline
+	void
+	read_tensor (char *filename, Tensor<2,dim> &tensor)
+	{
+		std::ifstream ifile;
+
+		ifile.open (filename);
+		if (ifile.is_open())
+		{
+			for(unsigned int k=0;k<dim;k++)
+				for(unsigned int l=0;l<dim;l++)
 				{
 					char line[1024];
 					if(ifile.getline(line, sizeof(line)))
@@ -221,6 +243,25 @@ namespace HMM
 		{
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
+					//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
+					ofile << std::setprecision(16) << tensor[k][l] << std::endl;
+			ofile.close();
+		}
+		else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
+	}
+
+	template <int dim>
+	inline
+	void
+	write_tensor (char *filename, Tensor<2,dim> &tensor)
+	{
+		std::ofstream ofile;
+
+		ofile.open (filename);
+		if (ofile.is_open())
+		{
+			for(unsigned int k=0;k<dim;k++)
+				for(unsigned int l=0;l<dim;l++)
 					//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
 					ofile << std::setprecision(16) << tensor[k][l] << std::endl;
 			ofile.close();
@@ -850,8 +891,8 @@ namespace HMM
 		void move_mesh ();
 
 		void generate_nanostructure();
-		void assign_nanostructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
-				bool flaked, Tensor<2,dim> loc_ref, double rho);
+		void assign_nanostructure (Point<dim> cpos, unsigned int cindex, std::vector<Vector<double> > flakes_data,
+				bool &flaked, Tensor<1,dim> &nglo, double &rho, SymmetricTensor<4,dim> &stiffness);
 		void setup_quadrature_point_history ();
 
 		void update_strain_quadrature_point_history
@@ -990,21 +1031,63 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::assign_nanostructure (Point<dim> cpos,
-			std::vector<Vector<double> > flakes_data, bool flaked, Tensor<2,dim> loc_ref, double rho)
+	void FEProblem<dim>::assign_nanostructure (Point<dim> cpos, unsigned int cindex, std::vector<Vector<double> > flakes_data,
+			bool &flaked, Tensor<1,dim> &nglo, double &rho, SymmetricTensor<4,dim> &stiffness)
 	{
 		unsigned int nflakes=flakes_data.size();
 		unsigned int nfchar=flakes_data[0].size();
 		//dcout << "Nflakes " << nflakes << " - Nchar " << nfchar << std::endl;
 
+		// Standard properties of cell (pure epoxy)
 		flaked = false;
+		rho = 1000.;
 
+		//std::cout << "test flakes data" << flakes_data[0][0] << " " << flakes_data[0][3] << " " << std::endl;
+		//std::cout << "test cell pos: " << cpos[0] << " " << flakes_data[0][0] << std::endl;
 
+		// Check if the cell contains a graphene flake
+		for(unsigned int n=0;n<nflakes;n++){
+			Point<dim> fpos (flakes_data[n][0],flakes_data[n][1],flakes_data[n][2]);
+			double diam_flake = flakes_data[n][3];
+			double dist = fpos.distance(cpos);
+			if(dist < diam_flake/2.0){
+				flaked = true;
+				stiffness *= 2.0;
+				rho = 1200.;
+				nglo[0]=flakes_data[n][4]; nglo[1]=flakes_data[n][5]; nglo[2]=flakes_data[n][6];
+				//std::cout << "x-component nglo: " << nglo[0] << std::endl;
+				//std::cout << "a cell has been flaked" << std::endl;
+				// Stop the for loop since a cell can only be in one flake at a time...
+				break;
+			}
+		}
 
-		// Setting density of composite or pure material
-		if (flaked) rho = 1200.;
-		else rho = 1000.;
+		// Write the rotation tensor to the MD box flakes referential (0,1,0)
+		Tensor<1,dim> nloc;
+		nloc[0]=0.0; nloc[1]=1.0; nloc[2]=0.0;
 
+		double ccos;
+		Tensor<2,dim> rot_glo_loc, skew_rot, idmat;
+
+		for (unsigned int i=0; i<dim; ++i)
+			for (unsigned int j=i+1; j<dim; ++j){
+				if(i==j) idmat[i][j] = 1.0;
+				else idmat[i][j] = 0.0;
+			}
+
+		//pvec = cross_product_3d(nglo, nloc);
+		ccos = scalar_product(nglo, nloc);
+		//ssin = pvec.norm();
+
+		for (unsigned int i=0; i<dim; ++i)
+			for (unsigned int j=i+1; j<dim; ++j)
+				skew_rot[i][j] = nglo[i]*nloc[j] - nglo[j]*nloc[i];
+
+		rot_glo_loc = idmat + skew_rot + (1/(1+ccos))*skew_rot*skew_rot;
+
+		char filename[1024];
+		sprintf(filename, "%s/init.%d.rotflake", macrostatelocout, cindex);
+		write_tensor<dim>(filename, rot_glo_loc);
 	}
 
 
@@ -1127,16 +1210,16 @@ namespace HMM
 					local_quadrature_points_history[q].to_be_updated = false;
 					local_quadrature_points_history[q].new_stiff = stiffness_tensor;
 					local_quadrature_points_history[q].new_stress = 0;
-					//local_quadrature_points_info[q].rho = 1000.;
+					local_quadrature_points_history[q].rho = 1000.;
 
 					// Assign nanostructure to the current cell and associated characteristics
-					assign_nanostructure(cell->center(), flakes_data,
+					assign_nanostructure(cell->center(), cell->active_cell_index(), flakes_data,
 							local_quadrature_points_history[q].flaked,
-							local_quadrature_points_history[q].loc_ref,
-							local_quadrature_points_history[q].rho);
+							local_quadrature_points_history[q].nvec,
+							local_quadrature_points_history[q].rho,
+							local_quadrature_points_history[q].new_stiff);
 				}
 			}
-
 	}
 
 
@@ -1440,7 +1523,7 @@ namespace HMM
 		double acc_time=1.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
 		double acc_vsupport=tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
 
-		double tvel_time=50.0*present_timestep;
+		double tvel_time=200.0*present_timestep;
 
 		if (present_time<acc_time){
 			dcout << "ACCELERATE!!!" << std::endl;
@@ -1846,7 +1929,7 @@ namespace HMM
 		// Therefore, extra precision is required in the solver proportionnaly
 		// to the norm of the system matrix, to reduce sufficiently our residual
 		SolverControl       solver_control (dof_handler.n_dofs(),
-				1e-12);
+				1e-03);
 
 		PETScWrappers::SolverBicgstab bicgs (solver_control,
 				FE_communicator);
@@ -2642,9 +2725,9 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::make_grid ()
 	{
-		ll=0.000010;
-		bb=0.000010;
-		hh=0.000025;
+		ll=0.000050;
+		hh=0.000150;
+		bb=0.000050;
 
 		char filename[1024];
 		sprintf(filename, "%s/mesh.tria", macrostatelocin);
@@ -3067,14 +3150,11 @@ namespace HMM
 
 					if (lammps_pcolor == (imdrun%n_lammps_batch))
 					{
-						SymmetricTensor<2,dim> loc_strain;
-						SymmetricTensor<2,dim> loc_rep_stress;
+						SymmetricTensor<2,dim> loc_strain, rot_loc_strain;
+						SymmetricTensor<2,dim> loc_rep_stress, rot_loc_rep_stress;
+						Tensor<2,dim> rot_flake;
 
 						char filename[1024];
-
-						// Argument of the MD simulation
-						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
-						read_tensor<dim>(filename, loc_strain);
 
 						SymmetricTensor<4,dim> loc_rep_stiffness;
 						SymmetricTensor<2,dim> init_rep_stress;
@@ -3088,15 +3168,23 @@ namespace HMM
 						sprintf(filename, "%s/init.PE_%d.length", macrostatelocout, repl);
 						read_tensor<dim>(filename, init_rep_length);
 
+						// Argument of the MD simulation: strain to apply
+						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
+						read_tensor<dim>(filename, loc_strain);
+
 						// Rotate the input strain, stress wrt the flake angles
+						sprintf(filename, "%s/init.%s.rotflake", macrostatelocout, cell_id[c]);
+						read_tensor<dim>(filename, rot_flake);
+
+						//rot_loc_strain = rot_flake*loc_strain*transpose(rot_flake);
 
 						// Then the lammps function instanciates lammps, starting from an initial
 						// microstructure and applying the complete new_strain or starting from
 						// the microstructure at the old_strain and applying the difference between
 						// the new_ and _old_strains, returns the new_stress state.
-						lammps_straining<dim> (loc_strain,
+						lammps_straining<dim> (rot_loc_strain,
 								init_rep_stress,
-								loc_rep_stress,
+								rot_loc_rep_stress,
 								loc_rep_stiffness,
 								init_rep_length,
 								cell_id[c],
@@ -3106,7 +3194,8 @@ namespace HMM
 								nanologloc,
 								repl);
 
-						// Rotate the output strain, stress and stiffness wrt the flake angles
+						// Rotate the output stress and stiffness wrt the flake angles
+						//loc_rep_stress = transpose(rot_flake)*rot_loc_rep_stress*rot_loc_rep_stress
 
 						if(this_lammps_batch_process == 0)
 						{
@@ -3671,8 +3760,8 @@ namespace HMM
 
 		// Initialization of time variables
 		present_time = 0;
-		present_timestep = 1.0e-10;
-		end_time = 1*present_timestep; //100.0*
+		present_timestep = 5.0e-10;
+		end_time = 1000.0*present_timestep; //100.0*
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem

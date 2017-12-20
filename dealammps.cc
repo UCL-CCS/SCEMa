@@ -1267,8 +1267,8 @@ namespace HMM
 					// global orientation (microstructure)
 					if (local_quadrature_points_history[q].flaked){
 						// Apply and rotate the stiffness tensor measured in the flake referential (nloc)
-						Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
-						local_quadrature_points_history[q].new_stiff = 0;
+						//Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
+						//local_quadrature_points_history[q].new_stiff = 0;
 						local_quadrature_points_history[q].new_stiff =
 								rotate_tensor(stiffness_tensor_composite, transpose(local_quadrature_points_history[q].rotam));
 

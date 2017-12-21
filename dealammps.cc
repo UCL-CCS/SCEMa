@@ -272,10 +272,12 @@ namespace HMM
 		SymmetricTensor<4,dim> tmp;
 		tmp = 0;
 
+		// Loop over the indices of the SymmetricTensor (upper "triangle" only)
 		for(unsigned int k=0;k<dim;k++)
-			for(unsigned int l=0;l<dim;l++)
+			for(unsigned int l=k;l<dim;l++)
 				for(unsigned int s=0;s<dim;s++)
-					for(unsigned int t=0;t<dim;t++)
+					for(unsigned int t=s;t<dim;t++)
+					{
 						for(unsigned int m=0;m<dim;m++)
 							for(unsigned int n=0;n<dim;n++)
 								for(unsigned int p=0;p<dim;p++)
@@ -284,6 +286,7 @@ namespace HMM
 												tensor[m][n][p][r]
 												* rotam[k][m] * rotam[l][n]
 												* rotam[s][p] * rotam[t][r];
+					}
 
 		return tmp;
 	}
@@ -1173,14 +1176,14 @@ namespace HMM
 			flakes_data.resize(nflakes, Vector<double>(nfchar));
 			for(unsigned int n=0;n<nflakes;n++)
 				if(getline(ifile, iline)){
-					//dcout << "flake: " << n << std::flush;
+					dcout << "flake: " << n << std::flush;
 					std::istringstream iss(iline);
 					for(unsigned int k=0;k<nfchar;k++){
 						getline(iss, ival, ',');
 						flakes_data[n][k] = std::stof(ival);
-						//dcout << " - " << flakes_data[n][k] << std::flush;
+						dcout << " - " << flakes_data[n][k] << std::flush;
 					}
-					//dcout << std::endl;
+					dcout << std::endl;
 				}
 
 			ifile.close();
@@ -1232,25 +1235,10 @@ namespace HMM
 							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
 						}
 
-						Tensor<4,dim> tmp_stiffness_tensor_composite = stiffness_tensor;
 						Tensor<4,dim> tmp_rot_stiffness_tensor_composite;
-						Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
 
-						for(unsigned int k=0;k<dim;k++)
-							for(unsigned int l=0;l<dim;l++)
-								for(unsigned int s=0;s<dim;s++)
-									for(unsigned int t=0;t<dim;t++){
-										tmp_rot_stiffness_tensor_composite[k][l][s][t] = 0.0;
-										for(unsigned int m=0;m<dim;m++)
-											for(unsigned int n=0;n<dim;n++)
-												for(unsigned int p=0;p<dim;p++)
-													for(unsigned int r=0;r<dim;r++)
-
-														tmp_rot_stiffness_tensor_composite[k][l][s][t] +=
-																tmp_stiffness_tensor_composite[m][n][p][r]
-																* rotam[k][m] * rotam[l][n]
-																* rotam[s][p] * rotam[t][r];
-									}
+						tmp_rot_stiffness_tensor_composite =
+							rotate_tensor(stiffness_tensor_composite, transpose(local_quadrature_points_history[q].rotam));
 
 						if(this_FE_process==0){
 							std::cout << "    Rotated initial stiffness..." << std::endl;
@@ -1271,18 +1259,6 @@ namespace HMM
 						//local_quadrature_points_history[q].new_stiff = 0;
 						local_quadrature_points_history[q].new_stiff =
 								rotate_tensor(stiffness_tensor_composite, transpose(local_quadrature_points_history[q].rotam));
-
-						/*for(unsigned int k=0;k<dim;k++)
-							for(unsigned int l=0;l<dim;l++)
-								for(unsigned int s=0;s<dim;s++)
-									for(unsigned int t=0;t<dim;t++)
-										for(unsigned int m=0;m<dim;m++)
-											for(unsigned int n=0;n<dim;n++)
-												for(unsigned int p=0;p<dim;p++)
-													for(unsigned int r=0;r<dim;r++)
-														local_quadrature_points_history[q].new_stiff[k][l][s][t] +=
-																stiffness_tensor_composite[m][n][p][r]
-																* rotam[k][m] * rotam[l][n] * rotam[s][p] * rotam[t][r];*/
 
 						// Apply composite density
 						local_quadrature_points_history[q].rho = 1200.;
@@ -1396,13 +1372,10 @@ namespace HMM
 
 								SymmetricTensor<2,dim> rot_avg_upd_strain_tensor;
 
-								if(local_quadrature_points_history[0].flaked){
+								if(local_quadrature_points_history[0].flaked)
+									// Rotation of the strain update tensor wrt to the flake angle
 									rot_avg_upd_strain_tensor =
 											rotate_tensor(avg_upd_strain_tensor, local_quadrature_points_history[0].rotam);
-									//rot_avg_upd_strain_tensor = local_quadrature_points_history[0].rotam
-									//		*tmp
-									//		*transpose(local_quadrature_points_history[0].rotam);
-								}
 								else rot_avg_upd_strain_tensor = avg_upd_strain_tensor;
 
 								sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
@@ -1502,16 +1475,15 @@ namespace HMM
 					/*if (local_quadrature_points_history[q].flaked
 							and q==0){
 
-						Tensor<2,dim> tmp_stress = local_quadrature_points_history[q].new_stress;
+						SymmetricTensor<2,dim> tmp_stress = local_quadrature_points_history[q].new_stress;
 
 						std::cout << "ori " << tmp_stress[0][0] << " " << tmp_stress[0][1] << " " << tmp_stress[0][2] << std::endl;
 						std::cout << "ori " << tmp_stress[1][0] << " " << tmp_stress[1][1] << " " << tmp_stress[1][2] << std::endl;
 						std::cout << "ori " << tmp_stress[2][0] << " " << tmp_stress[2][1] << " " << tmp_stress[2][2] << std::endl;
 
-						SymmetricTensor<2,dim> rot_stress =
-								transpose(local_quadrature_points_history[q].rotam)
-								*tmp_stress
-								*local_quadrature_points_history[q].rotam;
+						SymmetricTensor<2,dim> rot_stress;
+						rot_stress =
+							rotate_tensor(tmp_stress, transpose(local_quadrature_points_history[q].rotam));
 
 						std::cout << "rot " << rot_stress[0][0] << " " << rot_stress[0][1] << " " << rot_stress[0][2] << std::endl;
 						std::cout << "rot " << rot_stress[1][0] << " " << rot_stress[1][1] << " " << rot_stress[1][2] << std::endl;
@@ -1527,24 +1499,11 @@ namespace HMM
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stiff);
 
-						if(local_quadrature_points_history[q].flaked){
-							//Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
-							//local_quadrature_points_history[q].new_stiff = 0;
+						if(local_quadrature_points_history[q].flaked)
+							// Rotate the output stiffness wrt the flake angles
 							local_quadrature_points_history[q].new_stiff =
 									rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
 
-							/*for(unsigned int k=0;k<dim;k++)
-								for(unsigned int l=0;l<dim;l++)
-									for(unsigned int s=0;s<dim;s++)
-										for(unsigned int t=0;t<dim;t++)
-											for(unsigned int m=0;m<dim;m++)
-												for(unsigned int n=0;n<dim;n++)
-													for(unsigned int p=0;p<dim;p++)
-														for(unsigned int r=0;r<dim;r++)
-															local_quadrature_points_history[q].new_stiff[k][l][s][t] +=
-																	stmp_stiff[m][n][p][r]
-																	* rotam[k][m] * rotam[l][n] * rotam[s][p] * rotam[t][r];*/
-						}
 						else local_quadrature_points_history[q].new_stiff = stmp_stiff;
 
 						// Updating stress tensor

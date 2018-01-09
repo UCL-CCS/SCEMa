@@ -894,7 +894,7 @@ namespace HMM
 
 		void generate_nanostructure();
 		void assign_microstructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
-				bool &flaked, Tensor<2,dim> &rotam);
+				bool &flaked, Tensor<2,dim> &rotam, double thick_cell);
 		void setup_quadrature_point_history ();
 
 		void update_strain_quadrature_point_history
@@ -1034,7 +1034,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::assign_microstructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
-			bool &flaked, Tensor<2,dim> &rotam)
+			bool &flaked, Tensor<2,dim> &rotam, double thick_cell)
 	{
 		// Number of flakes
 		unsigned int nflakes=flakes_data.size();
@@ -1051,21 +1051,36 @@ namespace HMM
 
 		// Check if the cell contains a graphene flake (composite)
 		for(unsigned int n=0;n<nflakes;n++){
+			// Load flake center
 			Point<dim> fpos (flakes_data[n][0],flakes_data[n][1],flakes_data[n][2]);
+			// Load flake diameter
 			double diam_flake = flakes_data[n][3];
-			double dist = fpos.distance(cpos);
-			if(dist < diam_flake/2.0){
+			// Load flake normal vector
+			Tensor<1,dim> nglo; nglo[0]=flakes_data[n][4]; nglo[1]=flakes_data[n][5]; nglo[2]=flakes_data[n][6];
+			// Load flake thickness
+			double thick_flake = flakes_data[n][7];
+
+			// Compute vector from flake center to cell center
+			Tensor<1,dim> vcc; vcc[0]=cpos[0]-fpos[0]; vcc[1]=cpos[1]-fpos[1]; vcc[2]=cpos[2]-fpos[2];
+
+			// Compute normal distance from cell center to flake plane
+			double ndist = scalar_product(nglo,vcc);
+
+			// Compute in-plane distance from cell center to flake center
+			double pdist = sqrt(vcc.norm_square() - ndist*ndist);
+
+			if(abs(pdist) < diam_flake/2.0 and (/*abs(ndist)<thick_flake/2.0 or */abs(ndist)<thick_cell/2.0)){
+
+//				std::cout << " flake number: " << n << " - pdist: " << pdist << " - ndist: " << ndist
+//						  << "  --- cell position: " << cpos[0] << " " << cpos[1] << " " << cpos[2] << " " << std::endl;
 
 				// Setting composite box status
 				flaked = true;
 
 				// Decalaration variables rotation matrix computation
-				Tensor<1,dim> nglo, nloc;
+				Tensor<1,dim> nloc;
 				double ccos;
 				Tensor<2,dim> skew_rot;
-
-				// Load actual real orientation of the flake (from generator)
-				nglo[0]=flakes_data[n][4]; nglo[1]=flakes_data[n][5]; nglo[2]=flakes_data[n][6];
 
 				// Write the rotation tensor to the MD box flakes referential (0,1,0)
 				nloc[0]=0.0; nloc[1]=1.0; nloc[2]=0.0;
@@ -1112,6 +1127,9 @@ namespace HMM
 		read_tensor<dim>(filename, stiffness_tensor);
 		sprintf(filename, "%s/init.stiff", macrostatelocout);
 		read_tensor<dim>(filename, stiffness_tensor_composite);
+
+//		stiffness_tensor_composite[0][0][0][0] = stiffness_tensor_composite[0][0][0][0]*10.;
+//		stiffness_tensor_composite[2][2][2][2] = stiffness_tensor_composite[2][2][2][2]*10.;
 
 		if(this_FE_process==0){
 			std::cout << "    Imported initial stiffness..." << std::endl;
@@ -1217,9 +1235,14 @@ namespace HMM
 
 					// Assign microstructure to the current cell (so far, flaked (?)
 					// and rotation from global to local referential of the flake plane
-					assign_microstructure(cell->center(), flakes_data,
-							local_quadrature_points_history[q].flaked,
-							local_quadrature_points_history[q].rotam);
+					if (q==0) assign_microstructure(cell->center(), flakes_data,
+								local_quadrature_points_history[q].flaked,
+								local_quadrature_points_history[q].rotam,
+								cell->minimum_vertex_distance());
+					else if (local_quadrature_points_history[0].flaked){
+						local_quadrature_points_history[q].flaked = local_quadrature_points_history[0].flaked;
+						local_quadrature_points_history[q].rotam = local_quadrature_points_history[0].rotam;
+					}
 
 					// For debug...
 					/*if (local_quadrature_points_history[q].flaked
@@ -1258,7 +1281,7 @@ namespace HMM
 						//Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
 						//local_quadrature_points_history[q].new_stiff = 0;
 						local_quadrature_points_history[q].new_stiff =
-								rotate_tensor(stiffness_tensor_composite, transpose(local_quadrature_points_history[q].rotam));
+								rotate_tensor(stiffness_tensor_composite, transpose(local_quadrature_points_history[q].rotam))*1000.;
 
 						// Apply composite density
 						local_quadrature_points_history[q].rho = 1200.;
@@ -1351,7 +1374,7 @@ namespace HMM
 
 				bool cell_to_be_updated = false;
 				//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
-				if (false) // For debug...
+				//if (false) // For debug...
 				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
@@ -2842,7 +2865,7 @@ namespace HMM
 			reps[0] = 10; reps[1] = 25; reps[2] = 10;
 			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
 
-			//triangulation.refine_global (2);
+			//triangulation.refine_global (1);
 
 			// Saving triangulation, not usefull now and costly...
 			/*sprintf(filename, "%s/mesh.tria", macrostatelocout);
@@ -3846,7 +3869,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 5.0e-10;
-		end_time = 1000.0*present_timestep; //100.0*
+		end_time = 3.0*present_timestep; //1000.0*
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem

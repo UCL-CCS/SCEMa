@@ -53,7 +53,7 @@ pbs.*
 ._.DS_Store
 
 # Scripts repository 
-scripts/
+#scripts/
 
 # Preequilibrated MD box files
 saved_input_boxes

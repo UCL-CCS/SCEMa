@@ -38,7 +38,7 @@ Debug/
 # Deal reference tutorials
 ref-steps/
 
-# PBS scripts 
+# PBS scripts
 pbs.*
 
 # Eclipse files
@@ -52,8 +52,11 @@ pbs.*
 .DS_Store
 ._.DS_Store
 
-# Scripts repository 
+# Scripts repository
 #scripts/
+
+# Notebook files
+*.ipynb_checkpoints/
 
 # Preequilibrated MD box files
 saved_input_boxes

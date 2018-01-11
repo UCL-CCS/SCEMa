@@ -248,12 +248,17 @@ namespace HMM
 	rotate_tensor (const SymmetricTensor<2,dim> &tensor,
 			const Tensor<2,dim> &rotam)
 	{
-		SymmetricTensor<2,dim> tmp;
+		SymmetricTensor<2,dim> stmp;
+
+		Tensor<2,dim> tmp;
 
 		Tensor<2,dim> tmp_tensor = tensor;
+
 		tmp = rotam*tmp_tensor*transpose(rotam);
 
-		return tmp;
+		stmp = 0.5*(tmp + transpose(tmp));
+
+		return stmp;
 	}
 
 	template <int dim>
@@ -1135,8 +1140,8 @@ namespace HMM
 		sprintf(filename, "%s/init.stiff", macrostatelocout);
 		read_tensor<dim>(filename, stiffness_tensor_composite);
 
-//		stiffness_tensor_composite[0][0][0][0] = stiffness_tensor_composite[0][0][0][0]*10.;
-//		stiffness_tensor_composite[2][2][2][2] = stiffness_tensor_composite[2][2][2][2]*10.;
+		stiffness_tensor_composite[0][0][0][0] = stiffness_tensor_composite[0][0][0][0]*3.;
+		stiffness_tensor_composite[2][2][2][2] = stiffness_tensor_composite[2][2][2][2]*3.;
 
 		if(this_FE_process==0){
 			std::cout << "    Imported initial stiffness..." << std::endl;
@@ -1288,7 +1293,7 @@ namespace HMM
 						//Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
 						//local_quadrature_points_history[q].new_stiff = 0;
 						local_quadrature_points_history[q].new_stiff =
-								rotate_tensor(stiffness_tensor_composite, transpose(local_quadrature_points_history[q].rotam))*1000.;
+								rotate_tensor(stiffness_tensor_composite, transpose(local_quadrature_points_history[q].rotam));
 
 						// Apply composite density
 						local_quadrature_points_history[q].rho = 1200.;
@@ -2900,7 +2905,7 @@ namespace HMM
 			Point<dim> pp1 (-ll/2.,-hh/2.,-bb/2.);
 			Point<dim> pp2 (ll/2.,hh/2.,bb/2.);
 			std::vector< unsigned int > reps (dim);
-			reps[0] = 10; reps[1] = 25; reps[2] = 10;
+			reps[0] = 10; reps[1] = 30; reps[2] = 10;
 			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
 
 			//triangulation.refine_global (1);

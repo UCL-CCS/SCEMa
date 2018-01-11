@@ -1386,8 +1386,8 @@ namespace HMM
 
 
 				bool cell_to_be_updated = false;
-				//if ((cell->active_cell_index() < 95) && (cell->active_cell_index() > 90) && (newtonstep_no > 0)) // For debug...
-				if (false) // For debug...
+				//if ((cell->active_cell_index() == 240)) // For debug...
+				//if (false) // For debug...
 				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
@@ -1543,7 +1543,7 @@ namespace HMM
 					if (local_quadrature_points_history[q].to_be_updated){
 
 						// Updating stiffness tensor
-						SymmetricTensor<4,dim> stmp_stiff;
+						/*SymmetricTensor<4,dim> stmp_stiff;
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stiff);
 
@@ -1552,7 +1552,7 @@ namespace HMM
 							local_quadrature_points_history[q].new_stiff =
 									rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
 
-						else local_quadrature_points_history[q].new_stiff = stmp_stiff;
+						else local_quadrature_points_history[q].new_stiff = stmp_stiff;*/
 
 						// Updating stress tensor
 						SymmetricTensor<2,dim> stmp_stress;
@@ -1668,14 +1668,17 @@ namespace HMM
 
 		double tvel_time=200.0*present_timestep;
 
+		// acceleration of the loading support (reaching aimed velocity)
 		if (present_time<acc_time){
 			dcout << "ACCELERATE!!!" << std::endl;
 			inc_vsupport = acc_vsupport*present_timestep;
 		}
+		// deccelaration of the loading support (return to 0 velocity)
 		else if (present_time>acc_time+tvel_time and present_time<acc_time+tvel_time+acc_time){
 			dcout << "DECCELERATE!!!" << std::endl;
 			inc_vsupport = -1.0*acc_vsupport*present_timestep;
 		}
+		// stationary motion of the loading support
 		else{
 			dcout << "CRUISING!!!" << std::endl;
 			inc_vsupport = 0.0;
@@ -2348,6 +2351,7 @@ namespace HMM
 		idisp = ytop-ybot;
 		dcout << "Timestep: " << timestep_no << " - Time: " << present_time << " - Gauge Length: " << idisp << " - App. Force: " << aforce << std::endl;
 
+		// Write specific outputs to file
 		if (this_FE_process==0)
 		{
 			std::ofstream ofile;
@@ -2472,7 +2476,7 @@ namespace HMM
 						}
 					}
 
-					// writing striffnesses
+					// writing stiffnesses
 					for(unsigned int k=0;k<dim;k++){
 						double average_qp = 0.;
 						for (unsigned int q=0;q<quadrature_formula.size();++q)
@@ -3532,14 +3536,14 @@ namespace HMM
 					fe_problem.newton_update_displacement.add(present_timestep, fe_problem.newton_update_velocity);
 					fe_problem.newton_update_displacement.add(-1.0, fe_problem.incremental_displacement);
 
-					hcout << "    Upd. Norms: " << fe_problem.newton_update_displacement.l2_norm() << " - " << fe_problem.newton_update_velocity.l2_norm() <<  std::endl;
+					//hcout << "    Upd. Norms: " << fe_problem.newton_update_displacement.l2_norm() << " - " << fe_problem.newton_update_velocity.l2_norm() <<  std::endl;
 
 					//fe_problem.newton_update_displacement.equ(present_timestep, fe_problem.newton_update_velocity);
 
 					const double alpha = fe_problem.determine_step_length();
 					fe_problem.incremental_velocity.add (alpha, fe_problem.newton_update_velocity);
 					fe_problem.incremental_displacement.add (alpha, fe_problem.newton_update_displacement);
-					hcout << "    Inc. Norms: " << fe_problem.incremental_displacement.l2_norm() << " - " << fe_problem.incremental_velocity.l2_norm() <<  std::endl;
+					//hcout << "    Inc. Norms: " << fe_problem.incremental_displacement.l2_norm() << " - " << fe_problem.incremental_velocity.l2_norm() <<  std::endl;
 				}
 
 
@@ -3934,7 +3938,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 5.0e-10;
-		end_time = 3.0*present_timestep; //1000.0*
+		end_time = 1000.0*present_timestep; //1000.0*
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem

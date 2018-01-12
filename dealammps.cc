@@ -1274,17 +1274,6 @@ namespace HMM
 
 						// Apply composite density
 						local_quadrature_points_history[q].rho = 1200.;
-
-						if(q==0 && this_FE_process==0){
-							SymmetricTensor<4,dim> stiffness_tensor = local_quadrature_points_history[q].new_stiff;
-							std::cout << "    Imported initial stiffness..." << std::endl;
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
-						}
 					}
 					else{
 						local_quadrature_points_history[q].new_stiff = stiffness_tensors[0];
@@ -3541,7 +3530,7 @@ namespace HMM
 				if(dealii_pcolor==0){
 
 					// Solving for the update of the increment of velocity
-					fe_problem.solve_linear_problem_direct();
+					fe_problem.solve_linear_problem_CG();
 
 					// Displacement newton update is equal to the current velocity multiplied by the timestep length
 					fe_problem.newton_update_displacement.equ(present_timestep, fe_problem.velocity);

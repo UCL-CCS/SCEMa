@@ -1132,29 +1132,36 @@ namespace HMM
 		quadrature_point_history.resize (n_local_cells *
 				quadrature_formula.size());
 
-		SymmetricTensor<4,dim> stiffness_tensor, stiffness_tensor_composite;
+		//SymmetricTensor<4,dim> stiffness_tensor, stiffness_tensor_composite;
 
 		char filename[1024];
-		sprintf(filename, "%s/init.stiff", macrostatelocout);
-		read_tensor<dim>(filename, stiffness_tensor);
-		sprintf(filename, "%s/init.stiff", macrostatelocout);
-		read_tensor<dim>(filename, stiffness_tensor_composite);
 
-		stiffness_tensor_composite[0][0][0][0] = stiffness_tensor_composite[0][0][0][0]*3.;
-		stiffness_tensor_composite[2][2][2][2] = stiffness_tensor_composite[2][2][2][2]*3.;
+		std::vector<SymmetricTensor<4,dim> > stiffness_tensors (mattype.size());
 
-		if(this_FE_process==0){
-			std::cout << "    Imported initial stiffness..." << std::endl;
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
-			printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
+		for(unsigned int imd=0;imd<mattype.size();imd++){
+			sprintf(filename, "%s/init.%s.stiff", macrostatelocout, mattype[imd].c_str());
+			read_tensor<dim>(filename, stiffness_tensors[imd]);
+
+			if(imd==1){
+				stiffness_tensors[imd][0][0][0][0] = stiffness_tensors[imd][0][0][0][0]*3.;
+				stiffness_tensors[imd][2][2][2][2] = stiffness_tensors[imd][2][2][2][2]*3.;
+			}
+
+			if (imd==0)
+				if(this_FE_process==0){
+					std::cout << "    Imported initial stiffness..." << std::endl;
+					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][0][0][0], stiffness_tensors[0][0][0][1][1], stiffness_tensors[imd][0][0][2][2], stiffness_tensors[imd][0][0][0][1], stiffness_tensors[imd][0][0][0][2], stiffness_tensors[imd][0][0][1][2]);
+					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][1][1][0][0], stiffness_tensors[imd][1][1][1][1], stiffness_tensors[imd][1][1][2][2], stiffness_tensors[imd][1][1][0][1], stiffness_tensors[imd][1][1][0][2], stiffness_tensors[imd][1][1][1][2]);
+					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][2][2][0][0], stiffness_tensors[imd][2][2][1][1], stiffness_tensors[imd][2][2][2][2], stiffness_tensors[imd][2][2][0][1], stiffness_tensors[imd][2][2][0][2], stiffness_tensors[imd][2][2][1][2]);
+					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][1][0][0], stiffness_tensors[imd][0][1][1][1], stiffness_tensors[imd][0][1][2][2], stiffness_tensors[imd][0][1][0][1], stiffness_tensors[imd][0][1][0][2], stiffness_tensors[imd][0][1][1][2]);
+					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][2][0][0], stiffness_tensors[imd][0][2][1][1], stiffness_tensors[imd][0][2][2][2], stiffness_tensors[imd][0][2][0][1], stiffness_tensors[imd][0][2][0][2], stiffness_tensors[imd][0][2][1][2]);
+					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][1][2][0][0], stiffness_tensors[imd][1][2][1][1], stiffness_tensors[imd][1][2][2][2], stiffness_tensors[imd][1][2][0][1], stiffness_tensors[imd][1][2][0][2], stiffness_tensors[imd][1][2][1][2]);
+				}
+
+			sprintf(filename, "%s/last.%s.stiff", macrostatelocout, mattype[imd].c_str());
+				write_tensor<dim>(filename, stiffness_tensors[imd]);
+
 		}
-
-		sprintf(filename, "%s/last.stiff", macrostatelocout);
-			write_tensor<dim>(filename, stiffness_tensor);
 
 		unsigned int history_index = 0;
 		for (typename Triangulation<dim>::active_cell_iterator
@@ -1293,13 +1300,13 @@ namespace HMM
 						//Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
 						//local_quadrature_points_history[q].new_stiff = 0;
 						local_quadrature_points_history[q].new_stiff =
-								rotate_tensor(stiffness_tensor_composite, transpose(local_quadrature_points_history[q].rotam));
+								rotate_tensor(stiffness_tensors[1], transpose(local_quadrature_points_history[q].rotam));
 
 						// Apply composite density
 						local_quadrature_points_history[q].rho = 1200.;
 					}
 					else{
-						local_quadrature_points_history[q].new_stiff = stiffness_tensor;
+						local_quadrature_points_history[q].new_stiff = stiffness_tensors[0];
 						local_quadrature_points_history[q].rho = 1000.;
 					}
 				}
@@ -3297,7 +3304,7 @@ namespace HMM
 			sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 			ifile.open (filename);
 			if (ifile.is_open()) ifile.close();
-			else sprintf(filename, "%s/last.stiff", macrostatelocout);
+			else sprintf(filename, "%s/last.%s.stiff", macrostatelocout, matcellupd[c].c_str());
 
 			read_tensor<dim>(filename, loc_stiffness);
 
@@ -3533,7 +3540,7 @@ namespace HMM
 				if(dealii_pcolor==0){
 
 					// Solving for the update of the increment of velocity
-					fe_problem.solve_linear_problem_CG();
+					fe_problem.solve_linear_problem_direct();
 
 					// Displacement newton update is equal to the current velocity multiplied by the timestep length
 					fe_problem.newton_update_displacement.equ(present_timestep, fe_problem.velocity);
@@ -3765,11 +3772,11 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		if(this_lammps_batch_process == 0){
-			SymmetricTensor<4,dim> 				initial_ensemble_stiffness_tensor;
-			initial_ensemble_stiffness_tensor = 0.;
-
-			for(unsigned int imd=1;imd<mdtype.size();imd++)
+			for(unsigned int imd=0;imd<mdtype.size();imd++)
 			{
+				SymmetricTensor<4,dim> 				initial_ensemble_stiffness_tensor;
+				initial_ensemble_stiffness_tensor = 0.;
+
 				// type of MD box (so far PE or PNC)
 				std::string mdt = mdtype[imd];
 
@@ -3784,26 +3791,26 @@ namespace HMM
 					initial_ensemble_stiffness_tensor += initial_stiffness_tensor;
 
 				}
+
+				initial_ensemble_stiffness_tensor /= nrepl;
+
+				// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
+				for(unsigned int k=0;k<dim;k++)
+					for(unsigned int l=k;l<dim;l++)
+						for(unsigned int m=0;m<dim;m++)
+							for(unsigned int n=m;n<dim;n++)
+								if(!((k==l && m==n) || (k==m && l==n))){
+									//std::cout << "       ... removal of shear coupling terms" << std::endl;
+									initial_ensemble_stiffness_tensor[k][l][m][n] *= 1.0;
+								}
+								// Does not make any sense for tangent stiffness...
+								//else if(initial_ensemble_stiffness_tensor[k][l][m][n]<0.0) initial_ensemble_stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
+
+				char macrofilenameout[1024];
+				sprintf(macrofilenameout, "%s/init.%s.stiff", macrostatelocout, mdt.c_str());
+
+				write_tensor<dim>(macrofilenameout, initial_ensemble_stiffness_tensor);
 			}
-
-			initial_ensemble_stiffness_tensor /= nrepl;
-
-			// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
-			for(unsigned int k=0;k<dim;k++)
-				for(unsigned int l=k;l<dim;l++)
-					for(unsigned int m=0;m<dim;m++)
-						for(unsigned int n=m;n<dim;n++)
-							if(!((k==l && m==n) || (k==m && l==n))){
-								//std::cout << "       ... removal of shear coupling terms" << std::endl;
-								initial_ensemble_stiffness_tensor[k][l][m][n] *= 1.0;
-							}
-							// Does not make any sense for tangent stiffness...
-							//else if(initial_ensemble_stiffness_tensor[k][l][m][n]<0.0) initial_ensemble_stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
-
-			char macrofilenameout[1024];
-			sprintf(macrofilenameout, "%s/init.stiff", macrostatelocout);
-
-			write_tensor<dim>(macrofilenameout, initial_ensemble_stiffness_tensor);
 		}
 	}
 

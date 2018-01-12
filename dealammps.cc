@@ -2004,7 +2004,7 @@ namespace HMM
 
 		// Apparently (according to step-17.tuto) the BlockJacobi preconditionner is
 		// not optimal for large scale simulations.
-		PETScWrappers::PreconditionBlockJacobi preconditioner(system_matrix);
+		PETScWrappers::PreconditionJacobi preconditioner(system_matrix);
 		cg.solve (system_matrix, distributed_newton_update, system_rhs,
 				preconditioner);
 

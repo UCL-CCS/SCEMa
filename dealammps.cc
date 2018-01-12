@@ -1081,7 +1081,7 @@ namespace HMM
 			// Compute in-plane distance from cell center to flake center
 			double pdist = sqrt(vcc.norm_square() - ndist*ndist);
 
-			if(abs(pdist) < diam_flake/2.0 and (/*abs(ndist)<thick_flake/2.0 or */abs(ndist)<thick_cell/2.0)){
+			if(fabs(pdist) < diam_flake/2.0 and (/*fabs(ndist)<thick_flake/2.0 or */fabs(ndist)<thick_cell/2.0)){
 
 //				std::cout << " flake number: " << n << " - pdist: " << pdist << " - ndist: " << ndist
 //						  << "  --- cell position: " << cpos[0] << " " << cpos[1] << " " << cpos[2] << " " << std::endl;

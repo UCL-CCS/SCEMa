@@ -1263,36 +1263,6 @@ namespace HMM
 						local_quadrature_points_history[q].rotam = local_quadrature_points_history[0].rotam;
 					}
 
-					// For debug...
-					/*if (local_quadrature_points_history[q].mat==mattype[1]
-							and q==0){
-
-						if(this_FE_process==0){
-							std::cout << "    Imported initial stiffness..." << std::endl;
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
-						}
-
-						Tensor<4,dim> tmp_rot_stiffness_tensor_composite;
-
-						tmp_rot_stiffness_tensor_composite =
-							rotate_tensor(stiffness_tensor_composite, transpose(local_quadrature_points_history[q].rotam));
-
-						if(this_FE_process==0){
-							std::cout << "    Rotated initial stiffness..." << std::endl;
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",tmp_rot_stiffness_tensor_composite[0][0][0][0], tmp_rot_stiffness_tensor_composite[0][0][1][1], tmp_rot_stiffness_tensor_composite[0][0][2][2], tmp_rot_stiffness_tensor_composite[0][0][0][1], tmp_rot_stiffness_tensor_composite[0][0][0][2], tmp_rot_stiffness_tensor_composite[0][0][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",tmp_rot_stiffness_tensor_composite[1][1][0][0], tmp_rot_stiffness_tensor_composite[1][1][1][1], tmp_rot_stiffness_tensor_composite[1][1][2][2], tmp_rot_stiffness_tensor_composite[1][1][0][1], tmp_rot_stiffness_tensor_composite[1][1][0][2], tmp_rot_stiffness_tensor_composite[1][1][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",tmp_rot_stiffness_tensor_composite[2][2][0][0], tmp_rot_stiffness_tensor_composite[2][2][1][1], tmp_rot_stiffness_tensor_composite[2][2][2][2], tmp_rot_stiffness_tensor_composite[2][2][0][1], tmp_rot_stiffness_tensor_composite[2][2][0][2], tmp_rot_stiffness_tensor_composite[2][2][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",tmp_rot_stiffness_tensor_composite[0][1][0][0], tmp_rot_stiffness_tensor_composite[0][1][1][1], tmp_rot_stiffness_tensor_composite[0][1][2][2], tmp_rot_stiffness_tensor_composite[0][1][0][1], tmp_rot_stiffness_tensor_composite[0][1][0][2], tmp_rot_stiffness_tensor_composite[0][1][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",tmp_rot_stiffness_tensor_composite[0][2][0][0], tmp_rot_stiffness_tensor_composite[0][2][1][1], tmp_rot_stiffness_tensor_composite[0][2][2][2], tmp_rot_stiffness_tensor_composite[0][2][0][1], tmp_rot_stiffness_tensor_composite[0][2][0][2], tmp_rot_stiffness_tensor_composite[0][2][1][2]);
-							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",tmp_rot_stiffness_tensor_composite[1][2][0][0], tmp_rot_stiffness_tensor_composite[1][2][1][1], tmp_rot_stiffness_tensor_composite[1][2][2][2], tmp_rot_stiffness_tensor_composite[1][2][0][1], tmp_rot_stiffness_tensor_composite[1][2][0][2], tmp_rot_stiffness_tensor_composite[1][2][1][2]);
-						}
-					}*/
-
 					// Apply stiffness and rotating it from the local sheet orientation (MD) to
 					// global orientation (microstructure)
 					if (local_quadrature_points_history[q].mat==mattype[1]){
@@ -1304,6 +1274,17 @@ namespace HMM
 
 						// Apply composite density
 						local_quadrature_points_history[q].rho = 1200.;
+
+						if(q==0 && this_FE_process==0){
+							SymmetricTensor<4,dim> stiffness_tensor = local_quadrature_points_history[q].new_stiff;
+							std::cout << "    Imported initial stiffness..." << std::endl;
+							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][0][0][0], stiffness_tensor[0][0][1][1], stiffness_tensor[0][0][2][2], stiffness_tensor[0][0][0][1], stiffness_tensor[0][0][0][2], stiffness_tensor[0][0][1][2]);
+							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][1][0][0], stiffness_tensor[1][1][1][1], stiffness_tensor[1][1][2][2], stiffness_tensor[1][1][0][1], stiffness_tensor[1][1][0][2], stiffness_tensor[1][1][1][2]);
+							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[2][2][0][0], stiffness_tensor[2][2][1][1], stiffness_tensor[2][2][2][2], stiffness_tensor[2][2][0][1], stiffness_tensor[2][2][0][2], stiffness_tensor[2][2][1][2]);
+							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][1][0][0], stiffness_tensor[0][1][1][1], stiffness_tensor[0][1][2][2], stiffness_tensor[0][1][0][1], stiffness_tensor[0][1][0][2], stiffness_tensor[0][1][1][2]);
+							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[0][2][0][0], stiffness_tensor[0][2][1][1], stiffness_tensor[0][2][2][2], stiffness_tensor[0][2][0][1], stiffness_tensor[0][2][0][2], stiffness_tensor[0][2][1][2]);
+							printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensor[1][2][0][0], stiffness_tensor[1][2][1][1], stiffness_tensor[1][2][2][2], stiffness_tensor[1][2][0][1], stiffness_tensor[1][2][0][2], stiffness_tensor[1][2][1][2]);
+						}
 					}
 					else{
 						local_quadrature_points_history[q].new_stiff = stiffness_tensors[0];

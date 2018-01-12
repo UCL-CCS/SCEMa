@@ -1258,7 +1258,7 @@ namespace HMM
 								local_quadrature_points_history[q].mat,
 								local_quadrature_points_history[q].rotam,
 								cell->minimum_vertex_distance());
-					else if (local_quadrature_points_history[0].mat==mattype[1]){
+					else{
 						local_quadrature_points_history[q].mat = local_quadrature_points_history[0].mat;
 						local_quadrature_points_history[q].rotam = local_quadrature_points_history[0].rotam;
 					}
@@ -1311,6 +1311,26 @@ namespace HMM
 					}
 				}
 			}
+
+		/*for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
+
+				std::cout << " cell: " << cell->active_cell_index() << " - mat: "
+						<< local_quadrature_points_history[0].mat << " "
+						<< local_quadrature_points_history[1].mat
+						<< std::endl;
+			}*/
 	}
 
 

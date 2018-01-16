@@ -52,3 +52,8 @@ pbs.*
 .DS_Store
 ._.DS_Store
 
+# saved_iniatialized_box
+saved_input_boxes/
+
+# notebooks checkpoints
+.ipynb_checkpoints/

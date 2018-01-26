@@ -5,14 +5,17 @@ Works (at least) Deal.II/8.4.1 or above, and LAMMPS/17Nov16 compiled with RIGID 
 
 ## Summary of work:
 
-### 1. Parallelization implementation
+### Setting up the Finite Element simulation
+Includes solving quasi-static or dynamic equilibrium of continuum mechanics, solve equilibrium incrementally, generate or import a mesh from gmsh, assign heterogenous materials properties.
 
-### 2. Stiffness computation
+### Relate strain to stress
+Includes linear relation, MD simulation based relation, or statistically infered relation
 
-### 3. Standard virtual testing box
+### FE/MD Coupling
+Includes passing down a macroscale strain, and transfering up an homogenized stress and/or stiffness tensor
 
-### 4. Linear elastic domain
+### MD jobs scheduler
+Includes splitting the processors adequately in between MD jobs, and Pilotjob.
 
-### 5. Database of Microstates
-
-### 6. Scheduling and Message Passing
+### Database of mechanical states
+Includes storing stress/strain space trajectories

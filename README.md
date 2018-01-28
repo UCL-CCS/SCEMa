@@ -21,3 +21,6 @@ Includes splitting the processors adequately in between MD jobs, and Pilotjob.
 
 ### Database of mechanical states
 Includes storing stress/strain space trajectories
+
+### Error quantification
+Includes investigating the error at each scale and the propagation between the two.

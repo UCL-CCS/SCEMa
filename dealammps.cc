@@ -891,7 +891,7 @@ namespace HMM
 		void make_grid ();
 		void setup_system ();
 		void set_boundary_values (const double present_time, const double present_timestep);
-		double assemble_system (const double timestep);
+		double assemble_system (const double present_timestep);
 		void solve_linear_problem_CG ();
 		void solve_linear_problem_GMRES ();
 		void solve_linear_problem_BiCGStab ();
@@ -905,16 +905,17 @@ namespace HMM
 				std::string &mat, Tensor<2,dim> &rotam, double thick_cell);
 		void setup_quadrature_point_history ();
 
-		void clean_transfer();
 		void update_strain_quadrature_point_history
 		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no, const bool updated_stiffnesses);
 		void update_stress_quadrature_point_history
 		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no);
+		void update_incremental_variables (const double present_timestep);
 
 		void output_lhistory (const double present_time);
 		void output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
 		void output_visualisation (const double present_time, const int timestep_no);
 		void output_results (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
+		void clean_transfer();
 
 		Vector<double>  compute_internal_forces () const;
 
@@ -1753,7 +1754,7 @@ namespace HMM
 
 
 	template <int dim>
-	double FEProblem<dim>::assemble_system (const double timestep)
+	double FEProblem<dim>::assemble_system (const double present_timestep)
 	{
 		double rhs_residual;
 
@@ -1870,7 +1871,7 @@ namespace HMM
 				//std::cout << "norm matrix " << cell_v_matrix.l1_norm() << " stiffness " << cell_stiffness.l1_norm() << std::endl;
 
 				// Assemble local rhs for v problem
-				cell_v_rhs.add(timestep, cell_force);
+				cell_v_rhs.add(present_timestep, cell_force);
 
 				// Local to global for u and v problems
 				hanging_node_constraints
@@ -1960,6 +1961,27 @@ namespace HMM
 							  << std::endl;
 
 		return rhs_residual;
+	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::update_incremental_variables (const double present_timestep)
+	{
+		// Displacement newton update is equal to the current velocity multiplied by the timestep length
+		newton_update_displacement.equ(present_timestep, velocity);
+		newton_update_displacement.add(present_timestep, incremental_velocity);
+		newton_update_displacement.add(present_timestep, newton_update_velocity);
+		newton_update_displacement.add(-1.0, incremental_displacement);
+
+		//hcout << "    Upd. Norms: " << fe_problem.newton_update_displacement.l2_norm() << " - " << fe_problem.newton_update_velocity.l2_norm() <<  std::endl;
+
+		//fe_problem.newton_update_displacement.equ(present_timestep, fe_problem.newton_update_velocity);
+
+		const double alpha = determine_step_length();
+		incremental_velocity.add (alpha, newton_update_velocity);
+		incremental_displacement.add (alpha, newton_update_displacement);
+		//hcout << "    Inc. Norms: " << fe_problem.incremental_displacement.l2_norm() << " - " << fe_problem.incremental_velocity.l2_norm() <<  std::endl;
 	}
 
 
@@ -2490,7 +2512,7 @@ namespace HMM
 					data_component_interpretation);
 
 			// Output of error per cell as a scalar
-			data_out.add_data_vector (error_per_cell, "error_per_cell");
+			//data_out.add_data_vector (error_per_cell, "error_per_cell");
 
 			// Output of the cell averaged striffness over quadrature
 			// points as a scalar in direction 0000, 1111 and 2222
@@ -3486,22 +3508,9 @@ namespace HMM
 					// Solving for the update of the increment of velocity
 					fe_problem.solve_linear_problem_CG();
 
-					// Displacement newton update is equal to the current velocity multiplied by the timestep length
-					fe_problem.newton_update_displacement.equ(present_timestep, fe_problem.velocity);
-					fe_problem.newton_update_displacement.add(present_timestep, fe_problem.incremental_velocity);
-					fe_problem.newton_update_displacement.add(present_timestep, fe_problem.newton_update_velocity);
-					fe_problem.newton_update_displacement.add(-1.0, fe_problem.incremental_displacement);
-
-					//hcout << "    Upd. Norms: " << fe_problem.newton_update_displacement.l2_norm() << " - " << fe_problem.newton_update_velocity.l2_norm() <<  std::endl;
-
-					//fe_problem.newton_update_displacement.equ(present_timestep, fe_problem.newton_update_velocity);
-
-					const double alpha = fe_problem.determine_step_length();
-					fe_problem.incremental_velocity.add (alpha, fe_problem.newton_update_velocity);
-					fe_problem.incremental_displacement.add (alpha, fe_problem.newton_update_displacement);
-					//hcout << "    Inc. Norms: " << fe_problem.incremental_displacement.l2_norm() << " - " << fe_problem.incremental_velocity.l2_norm() <<  std::endl;
+					// Updating incremental variables
+					fe_problem.update_incremental_variables(present_timestep);
 				}
-
 
 				hcout << "    Updating quadrature point data..." << std::endl;
 

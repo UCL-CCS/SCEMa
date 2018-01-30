@@ -9,3 +9,4 @@
 * Insert decision workflow to choose between MD simulation and Kriging estimation
 * Use Pilotjob as a scheduler
 * Write documentation
+* Pass common features from all forks to master

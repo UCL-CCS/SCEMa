@@ -3412,6 +3412,7 @@ namespace HMM
 
 			MPI_Barrier(world_communicator);*/
 
+			// Averaging stiffness and stress per cell over replicas
 			for (int c=0; c<ncupd; ++c)
 			{
 				if (lammps_pcolor == (c%n_lammps_batch))

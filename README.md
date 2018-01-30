@@ -10,7 +10,7 @@ A database is populated with the stress/strain history computed using MD simulat
 ### Setting up the Finite Element simulation
 Includes solving quasi-static or dynamic equilibrium of continuum mechanics, solve equilibrium incrementally, generate or import a mesh from gmsh, assign heterogenous materials properties.
 
-### Relate strain to stress
+### Constitutive behaviour (strain/stress relation)
 Includes linear relation, MD simulation based relation, or statistically infered relation
 
 ### FE/MD Coupling

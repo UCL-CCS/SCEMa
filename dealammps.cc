@@ -3278,25 +3278,6 @@ namespace HMM
 				<< " - deal color: " << dealii_pcolor
 				<< " - lammps color: " << lammps_pcolor << std::endl;*/
 
-			// For debug...
-			/*for (int c=0; c<ncupd; ++c)
-			{
-			char filename[1024];
-			SymmetricTensor<4,dim> loc_stiffness;
-
-			sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
-			ifile.open (filename);
-			if (ifile.is_open()) ifile.close();
-			else sprintf(filename, "%s/last.%s.stiff", macrostatelocout, matcellupd[c].c_str());
-
-			read_tensor<dim>(filename, loc_stiffness);
-
-			// For debug...
-			hcout << "               "
-				  << "Old Stiffnesses: "<< loc_stiffness[0][0][0][0]
-				  << " " << loc_stiffness[1][1][1][1]
-				  << " " << loc_stiffness[2][2][2][2] << " " << std::endl;
-			}*/
 			MPI_Barrier(world_communicator);
 
 			// It might be worth doing the splitting of in batches of lammps processors here according to
@@ -3442,33 +3423,6 @@ namespace HMM
 
 						//loc_stiffness /= nrepl;
 						loc_stress /= nrepl;
-
-						// For debug...
-						/*std::cout << "               "
-							<< "Cell: " << cell_id[c]
-							<< " " << "Stiffnesses: " << loc_stiffness[0][0][0][0]
-							<< " " << loc_stiffness[1][1][1][1]
-							<< " " << loc_stiffness[2][2][2][2] << " " << std::endl;*/
-
-						// For debug...
-						/*std:: << " New Voigt Stiffness Tensor (3x3 first terms)" << std::endl;
-						hcout << loc_stiffness[0][0][0][0] << " \t" << loc_stiffness[0][0][1][1] << " \t" << loc_stiffness[0][0][2][2] << std::endl;
-						hcout << loc_stiffness[1][1][0][0] << " \t" << loc_stiffness[1][1][1][1] << " \t" << loc_stiffness[1][1][2][2] << std::endl;
-						hcout << loc_stiffness[2][2][0][0] << " \t" << loc_stiffness[2][2][1][1] << " \t" << loc_stiffness[2][2][2][2] << std::endl;
-						hcout << std::endl;*/
-
-						// For debug...
-						// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
-						/*for(unsigned int k=0;k<dim;k++)
-						for(unsigned int l=k;l<dim;l++)
-							for(unsigned int m=0;m<dim;m++)
-								for(unsigned int n=m;n<dim;n++)
-									if(!((k==l && m==n) || (k==m && l==n))){
-										//std::cout << "       ... removal of shear coupling terms" << std::endl;
-										loc_stiffness[k][l][m][n] *= 1.0; // correction -> *= 0.0
-									}
-									// Does not make any sense for tangent stiffness...
-									//else if(loc_stiffness[k][l][m][n]<0.0) loc_stiffness[k][l][m][n] *= +1.0; // correction -> *= -1.0
 
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 						write_tensor<dim>(filename, loc_stiffness);*/
@@ -3666,26 +3620,6 @@ namespace HMM
 						lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, initial_length, lammps_batch_communicator,
 								nanostatelocin, nanostatelocout, nanologloc, mdt, repl);
 
-						// Rotate output stres and stiffness wrt the flake angles
-
-						// For debug...
-						// if(this_lammps_process == 0){
-						// 	double young = 3.0e9, poisson = 0.45;
-						// 	double mu = 0.5*young/(1+poisson), lambda = young*poisson/((1+poisson)*(1-2*poisson));
-						// 	for (unsigned int i=0; i<dim; ++i)
-						// 		for (unsigned int j=0; j<dim; ++j)
-						// 			for (unsigned int k=0; k<dim; ++k)
-						// 				for (unsigned int l=0; l<dim; ++l)
-						// 					initial_stiffness_tensor[i][j][k][l]
-						// 														  = (((i==k) && (j==l) ? mu : 0.0) +
-						// 																  ((i==l) && (j==k) ? mu : 0.0) +
-						// 																  ((i==j) && (k==l) ? lambda : 0.0));
-						// 	for (unsigned int i=0; i<dim; ++i)
-						// 		for (unsigned int j=0; j<dim; ++j)
-						// 			initial_stress_tensor[i][j] = 0.0;
-						// }
-						// MPI_Barrier(world_communicator);
-
 						if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameout, initial_stiffness_tensor);
 						if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameoutstress, initial_stress_tensor);
 						if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameoutlength, initial_length);
@@ -3805,18 +3739,6 @@ namespace HMM
 		MPI_Comm_split(world_communicator, lammps_pcolor, this_world_process, &lammps_batch_communicator);
 		MPI_Comm_rank(lammps_batch_communicator,&this_lammps_batch_process);
 	}
-
-
-
-	/*template <int dim>
-	void HMMProblem<dim>::init_lammps_procs ()
-	{
-		// Create a communicator for all processes allocated to lammps
-		MPI_Comm_dup(world_communicator, &lammps_global_communicator);
-
-		MPI_Comm_rank(lammps_global_communicator,&this_lammps_process);
-		MPI_Comm_size(lammps_global_communicator,&n_lammps_processes);
-	}*/
 
 
 

@@ -915,7 +915,7 @@ namespace HMM
 		void output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
 		void output_visualisation (const double present_time, const int timestep_no);
 		void output_results (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
-		void clean_transfer();
+		void clean_transfer(unsigned int nrepl);
 
 		Vector<double>  compute_internal_forces () const;
 
@@ -3077,19 +3077,36 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::clean_transfer()
+	void FEProblem<dim>::clean_transfer(unsigned int nrepl)
 	{
+		char filename[1024];
+
+		// Removing lists of material types of quadrature points to update per procs
+		sprintf(filename, "%s/last.%d.matqpupdates", macrostatelocout, this_FE_process);
+		remove(filename);
+
+		// Removing lists of quadrature points to update per procs
+		sprintf(filename, "%s/last.%d.qpupdates", macrostatelocout, this_FE_process);
+		remove(filename);
+
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
 			{
 				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-				char filename[1024];
 
 				// Removing stiffness passing file
 				//sprintf(filename, "%s/last.%s.striff", macrostatelocout, cell_id);
 				//remove(filename);
+
+				for(unsigned int repl=1;repl<nrepl+1;repl++)
+				{
+					//sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, cell_id, repl);
+
+					sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id, repl);
+
+				}
 
 				// Removing stress passing file
 				sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
@@ -3337,10 +3354,10 @@ namespace HMM
 						{
 							std::cout << " \t" << cell_id[c] <<"-"<< repl << " \t" << std::flush;
 
-							/*sprintf(filename, "%s/last.%s.%s_%d.stiff", macrostatelocout, cell_id[c], matcellupd[c].c_str(), repl);
+							/*sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, cell_id[c], repl);
 							write_tensor<dim>(filename, loc_rep_stiffness);*/
 
-							sprintf(filename, "%s/last.%s.%s_%d.stress", macrostatelocout, cell_id[c], matcellupd[c].c_str(), repl);
+							sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id[c], repl);
 							write_tensor<dim>(filename, loc_rep_stress);
 						}
 					}
@@ -3410,13 +3427,13 @@ namespace HMM
 						for(unsigned int repl=1;repl<nrepl+1;repl++)
 						{
 							/*SymmetricTensor<4,dim> loc_rep_stiffness;
-						sprintf(filename, "%s/last.%s.%s_%d.stiff", macrostatelocout, cell_id[c], matcellupd[c].c_str(), repl);
-						read_tensor<dim>(filename, loc_rep_stiffness);
+							sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, cell_id[c], repl);
+							read_tensor<dim>(filename, loc_rep_stiffness);
 
-						loc_stiffness += loc_rep_stiffness;*/
+							loc_stiffness += loc_rep_stiffness;*/
 
 							SymmetricTensor<2,dim> loc_rep_stress;
-							sprintf(filename, "%s/last.%s.%s_%d.stress", macrostatelocout, cell_id[c], matcellupd[c].c_str(), repl);
+							sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id[c], repl);
 							read_tensor<dim>(filename, loc_rep_stress);
 
 							loc_stress += loc_rep_stress;
@@ -3458,23 +3475,6 @@ namespace HMM
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id[c]);
 						write_tensor<dim>(filename, loc_stress);
 
-						//					// Save stiffness history for later checking...
-						//					sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
-						//				    std::ifstream  macroin(filename, std::ios::binary);
-						//					sprintf(filename, "%s/%s.%s.stiff", macrostatelocout, time_id, cell_id[c]);
-						//				    std::ofstream  macroout(filename,   std::ios::binary);
-						//				    macroout << macroin.rdbuf();
-						//				    macroin.close();
-						//				    macroout.close();
-						//
-						//				    // Save box state history for later checking...
-						//					sprintf(filename, "%s/last.%s.%s.bin", nanostatelocout, cell_id[c], matcellupd[c].c_str());
-						//				    std::ifstream  nanoin(filename, std::ios::binary);
-						//				    sprintf(filename, "%s/%s.%s.%s.bin", nanostatelocout, time_id, cell_id[c], matcellupd[c].c_str());
-						//				    std::ofstream  nanoout(filename,   std::ios::binary);
-						//				    nanoout << nanoin.rdbuf();
-						//				    nanoin.close();
-						//				    nanoout.close();
 					}
 				}
 			}
@@ -3529,6 +3529,9 @@ namespace HMM
 				hcout << "    Re-assembling FE system..." << std::flush;
 				if(dealii_pcolor==0) previous_res = fe_problem.assemble_system (present_timestep);
 				MPI_Barrier(world_communicator);
+
+				// Cleaning temporary files (nanoscale logs and FE/MD data transfer)
+				clean_temporary(fe_problem);
 
 				// Share the value of previous_res in between processors
 				MPI_Bcast(&previous_res, 1, MPI_DOUBLE, root_dealii_process, world_communicator);
@@ -3596,9 +3599,6 @@ namespace HMM
 		if(dealii_pcolor==0) if(timestep_no%freq_restart_output==0) fe_problem.restart_save (present_time, nanostatelocout, nanostatelocres, nrepl);
 
 		MPI_Barrier(world_communicator);
-
-		// Cleaning temporary files (nanoscale logs and FE/MD data transfer)
-		clean_temporary(fe_problem);
 
 		hcout << std::endl;
 	}
@@ -3863,7 +3863,7 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::clean_temporary (FEProblem<dim> &fe_problem)
 	{
-		if(dealii_pcolor==0) fe_problem.clean_transfer ();
+		if(dealii_pcolor==0) fe_problem.clean_transfer (nrepl);
 
 		// Cleaning the log files for all the MD simulations of the current timestep
 		if (this_world_process==0)

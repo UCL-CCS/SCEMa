@@ -3264,17 +3264,17 @@ namespace HMM
 
 			MPI_Barrier(world_communicator);
 
-			// It might be worth doing the splitting of in batches of lammps processors here according to
-			// the number of quadrature points to update, because if the number of points is smaller than
-			// the number of batches predefined initially part of the lammps allocated processors remain idle...
+			// Computing cell state update running one simulation per MD replica (basic job scheduling and executing)
 			hcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
 			hcout << "        " << "...cells and replicas completed: " << std::flush;
 			for (int c=0; c<ncupd; ++c)
 			{
 				for(unsigned int repl=1;repl<nrepl+1;repl++)
 				{
+					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
 					int imdrun=c*nrepl + (repl-1);
 
+					// Allocation of a MD run to a batch of processes
 					if (lammps_pcolor == (imdrun%n_lammps_batch)) run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), repl);
 				}
 			}

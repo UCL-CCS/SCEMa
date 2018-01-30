@@ -39,7 +39,7 @@ kspace_style    pppm 0.0001
 
 #  Setting the formula to compute pairwise interactions to a LJ potential within 12.0 cutoff
 #  Coulombic interaction within a 9.0 cutoff of each atom
-pair_style      lj/cut/coul/long 12.0 9.0 
+pair_style      lj/cut/coul/long 12.0 9.0
 
 #  Setting the formula for bond interactions (between precised pairs of atom) to a harmonic
 #  potential (linear axial spring)
@@ -51,7 +51,7 @@ angle_style     harmonic
 
 #  Setting the formula for bond interactions (between precised quadruplets of atom) to a harmonic
 #  potential (linear torsional angular force)
-dihedral_style  harmonic
+dihedral_style  opls
 
 #  Turning off improper bond interactions (between precised quadruplets of atom)
-improper_style  none
+improper_style  harmonic

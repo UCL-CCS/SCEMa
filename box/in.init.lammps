@@ -48,7 +48,7 @@ dump            lammps_dump all custom 5000 ${loco}/${mdt}_atoms.pos id type xsu
 
 #  Setting to change velocity of each atom following on the ensemble a gaussian distribution with null total
 #  angular momentum based on a temperature of 100K and generated using the 4928459 seed
-velocity        all create   200.0 ${sseed} rot yes dist gaussian # random velocities assigned to atoms according to Maxwell-Boltzmann distribution
+velocity        all create   200.0 ${sseed} rot yes dist gaussian loop local# random velocities assigned to atoms according to Maxwell-Boltzmann distribution
 
 variable nsi equal 1*${nsinit}
 #  Setting compute minimization of the systems energy using a steepest descent algorithm and running minimize
@@ -69,7 +69,6 @@ undump            lammps_dump
 #  Setting printing position information on all atoms every 5000 steps in PE_heatup.xyz file specifying
 #  atom type 1, 2 and 3 with names respectively C, C and H
 dump            xyz_dump all xyz 5000    ${loco}/${mdt}_heatup.xyz   # XYZ dump files for visualisation with VMD
-dump_modify     xyz_dump element  C C H
 
 #  Printing evolution of stress for comparison
 variable pt equal "step"

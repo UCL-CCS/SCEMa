@@ -506,7 +506,7 @@ namespace HMM
 		// Number of timesteps factor
 		int nsinit = 10000;
 		// Temperature
-		double tempt = 200.0;
+		double tempt = 300.0;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -662,7 +662,7 @@ namespace HMM
 		int nts = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 
 		// Temperature
-		double tempt = 200.0;
+		double tempt = 300.0;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -3135,12 +3135,13 @@ namespace HMM
 		void set_repositories ();
 		void set_dealii_procs (int npd);
 		// void init_lammps_procs ();
-		void set_lammps_procs (int npb);
-		void initial_stiffness_with_molecular_dynamics ();
+		void set_lammps_procs (int nmdruns);
+		void initialize_replicas ();
 		void do_timestep (FEProblem<dim> &fe_problem);
 		void solve_timestep (FEProblem<dim> &fe_problem);
 
-		void update_stiffness_with_molecular_dynamics ();
+		void run_single_md(char* ctime, char* ccell, const char* cmat, unsigned int repl);
+		void update_cells_with_molecular_dynamics ();
 
 		MPI_Comm 							world_communicator;
 		const int 							n_world_processes;
@@ -3211,7 +3212,7 @@ namespace HMM
 
 
 	template <int dim>
-	void HMMProblem<dim>::update_stiffness_with_molecular_dynamics()
+	void HMMProblem<dim>::update_cells_with_molecular_dynamics()
 	{
 		//char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
@@ -3258,25 +3259,8 @@ namespace HMM
 			// Number of MD simulations at this iteration...
 			int nmdruns = ncupd*nrepl;
 
-			// Dispatch of the available processes on to different groups for parallel
-			// update of quadrature points
-			int npbtch_min = machine_ppn;
-			//int nbtch_max = int(n_world_processes/npbtch_min);
-
-			//int nrounds = int(nmdruns/nbtch_max)+1;
-			//int nmdruns_round = nmdruns/nrounds;
-
-			int fair_npbtch = int(n_world_processes/(nmdruns));
-
-			int npbtch = std::max(npbtch_min, fair_npbtch - fair_npbtch%npbtch_min);
-			//int nbtch = int(n_world_processes/npbtch);
-
-			set_lammps_procs(npbtch);
-
-			// Recapitulating allocation of each process to deal and lammps
-			/*std::cout << "proc world rank: " << this_world_process
-				<< " - deal color: " << dealii_pcolor
-				<< " - lammps color: " << lammps_pcolor << std::endl;*/
+			// Setting up batch of processes
+			set_lammps_procs(nmdruns);
 
 			MPI_Barrier(world_communicator);
 
@@ -3291,57 +3275,7 @@ namespace HMM
 				{
 					int imdrun=c*nrepl + (repl-1);
 
-					if (lammps_pcolor == (imdrun%n_lammps_batch))
-					{
-						SymmetricTensor<2,dim> loc_strain;
-						SymmetricTensor<2,dim> loc_rep_stress;
-
-						char filename[1024];
-
-						SymmetricTensor<4,dim> loc_rep_stiffness;
-						SymmetricTensor<2,dim> init_rep_stress;
-						std::vector<double> init_rep_length (dim);
-
-						// Arguments of the secant stiffness computation
-						sprintf(filename, "%s/init.%s_%d.stress", macrostatelocout, matcellupd[c].c_str(), repl);
-						read_tensor<dim>(filename, init_rep_stress);
-
-						// Providing initial box dimension to adjust the strain tensor
-						sprintf(filename, "%s/init.%s_%d.length", macrostatelocout, matcellupd[c].c_str(), repl);
-						read_tensor<dim>(filename, init_rep_length);
-
-						// Argument of the MD simulation: strain to apply
-						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
-						read_tensor<dim>(filename, loc_strain);
-
-						// Then the lammps function instanciates lammps, starting from an initial
-						// microstructure and applying the complete new_strain or starting from
-						// the microstructure at the old_strain and applying the difference between
-						// the new_ and _old_strains, returns the new_stress state.
-						lammps_straining<dim> (loc_strain,
-								init_rep_stress,
-								loc_rep_stress,
-								loc_rep_stiffness,
-								init_rep_length,
-								cell_id[c],
-								time_id,
-								lammps_batch_communicator,
-								nanostatelocout,
-								nanologloc,
-								matcellupd[c],
-								repl);
-
-						if(this_lammps_batch_process == 0)
-						{
-							std::cout << " \t" << cell_id[c] <<"-"<< repl << " \t" << std::flush;
-
-							/*sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, cell_id[c], repl);
-							write_tensor<dim>(filename, loc_rep_stiffness);*/
-
-							sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id[c], repl);
-							write_tensor<dim>(filename, loc_rep_stress);
-						}
-					}
+					if (lammps_pcolor == (imdrun%n_lammps_batch)) run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), repl);
 				}
 			}
 			hcout << std::endl;
@@ -3424,7 +3358,7 @@ namespace HMM
 						//loc_stiffness /= nrepl;
 						loc_stress /= nrepl;
 
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
+						/*sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
 						write_tensor<dim>(filename, loc_stiffness);*/
 
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id[c]);
@@ -3475,7 +3409,7 @@ namespace HMM
 
 				hcout << "    Have some stiffnesses been updated in this group of iterations? " << updated_md << std::endl;
 
-				if (!updated_md) update_stiffness_with_molecular_dynamics();
+				if (!updated_md) update_cells_with_molecular_dynamics();
 				MPI_Barrier(world_communicator);
 
 				if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history
@@ -3562,19 +3496,11 @@ namespace HMM
 
 
 	template <int dim>
-	void HMMProblem<dim>::initial_stiffness_with_molecular_dynamics ()
+	void HMMProblem<dim>::initialize_replicas ()
 	{
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int fair_npbtch = int(n_world_processes/(nrepl*mdtype.size()));
-		int npbtch = std::max(machine_ppn, fair_npbtch - fair_npbtch%machine_ppn);
-
-		set_lammps_procs(npbtch);
-
-		// Recapitulating allocation of each process to deal and lammps
-		std::cout << "        proc world rank: " << this_world_process
-				<< " - deal color: " << dealii_pcolor
-				<< " - lammps color: " << lammps_pcolor << std::endl;
+		set_lammps_procs(nrepl*mdtype.size());
 
 		for(unsigned int imd=0;imd<mdtype.size();imd++)
 		{
@@ -3710,8 +3636,21 @@ namespace HMM
 	// [as close as possible to n_world_processes], and (iv) n_lammps_processes_per_batch the number of processes provided to one lammps
 	// testing [NT divided by n_lammps_batch the number of concurrent testing boxes].
 	template <int dim>
-	void HMMProblem<dim>::set_lammps_procs (int npb)
+	void HMMProblem<dim>::set_lammps_procs (int nmdruns)
 	{
+		// Dispatch of the available processes on to different groups for parallel
+		// update of quadrature points
+		int npbtch_min = machine_ppn;
+		//int nbtch_max = int(n_world_processes/npbtch_min);
+
+		//int nrounds = int(nmdruns/nbtch_max)+1;
+		//int nmdruns_round = nmdruns/nrounds;
+
+		int fair_npbtch = int(n_world_processes/(nmdruns));
+
+		int npb = std::max(npbtch_min, fair_npbtch - fair_npbtch%npbtch_min);
+		//int nbtch = int(n_world_processes/npbtch);
+
 		// Arbitrary setting of NB and NT
 		n_lammps_processes_per_batch = npb;
 
@@ -3738,6 +3677,11 @@ namespace HMM
 		// Definition of the communicators
 		MPI_Comm_split(world_communicator, lammps_pcolor, this_world_process, &lammps_batch_communicator);
 		MPI_Comm_rank(lammps_batch_communicator,&this_lammps_batch_process);
+
+		// Recapitulating allocation of each process to deal and lammps
+		/*std::cout << "        proc world rank: " << this_world_process
+				<< " - deal color: " << dealii_pcolor
+				<< " - lammps color: " << lammps_pcolor << std::endl;*/
 	}
 
 
@@ -3758,6 +3702,62 @@ namespace HMM
 
 		MPI_Comm_split(world_communicator, dealii_pcolor, this_world_process, &dealii_communicator);
 		MPI_Comm_rank(dealii_communicator, &this_dealii_process);
+	}
+
+
+
+
+	template <int dim>
+	void HMMProblem<dim>::run_single_md (char* ctime, char* ccell, const char* cmat, unsigned int repl)
+	{
+		SymmetricTensor<2,dim> loc_strain;
+		SymmetricTensor<2,dim> loc_rep_stress;
+
+		char filename[1024];
+
+		SymmetricTensor<4,dim> loc_rep_stiffness;
+		SymmetricTensor<2,dim> init_rep_stress;
+		std::vector<double> init_rep_length (dim);
+
+		// Arguments of the secant stiffness computation
+		sprintf(filename, "%s/init.%s_%d.stress", macrostatelocout, cmat, repl);
+		read_tensor<dim>(filename, init_rep_stress);
+
+		// Providing initial box dimension to adjust the strain tensor
+		sprintf(filename, "%s/init.%s_%d.length", macrostatelocout, cmat, repl);
+		read_tensor<dim>(filename, init_rep_length);
+
+		// Argument of the MD simulation: strain to apply
+		sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, ccell);
+		read_tensor<dim>(filename, loc_strain);
+
+		// Then the lammps function instanciates lammps, starting from an initial
+		// microstructure and applying the complete new_strain or starting from
+		// the microstructure at the old_strain and applying the difference between
+		// the new_ and _old_strains, returns the new_stress state.
+		lammps_straining<dim> (loc_strain,
+				init_rep_stress,
+				loc_rep_stress,
+				loc_rep_stiffness,
+				init_rep_length,
+				ccell,
+				ctime,
+				lammps_batch_communicator,
+				nanostatelocout,
+				nanologloc,
+				cmat,
+				repl);
+
+		if(this_lammps_batch_process == 0)
+		{
+			std::cout << " \t" << ccell <<"-"<< repl << " \t" << std::flush;
+
+			/*sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, ccell, repl);
+			write_tensor<dim>(filename, loc_rep_stiffness);*/
+
+			sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, ccell, repl);
+			write_tensor<dim>(filename, loc_rep_stress);
+		}
 	}
 
 
@@ -3833,8 +3833,8 @@ namespace HMM
 		// Since LAMMPS is highly scalable, the initiation number of processes NI
 		// can basically be equal to the maximum number of available processes NT which
 		// can directly be found in the MPI_COMM.
-		hcout << " Initialization of stiffness and initiation of the Molecular Dynamics sample...       " << std::endl;
-		initial_stiffness_with_molecular_dynamics();
+		hcout << " Initialization of the Molecular Dynamics replicas...       " << std::endl;
+		initialize_replicas();
 		MPI_Barrier(world_communicator);
 
 		// Initialization of time variables

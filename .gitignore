@@ -58,5 +58,5 @@ pbs.*
 # Notebook files
 *.ipynb_checkpoints/
 
-# Preequilibrated MD box files
-saved_input_boxes
+# Saved data
+saved/

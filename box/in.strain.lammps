@@ -20,7 +20,8 @@ thermo_modify   flush yes line multi format float %g format 3 %15.8g
 #  Setting printing position information on all atoms every 5000 steps PE_stress_strain_x.xyz
 #  file specifying atom type 1, 2 and 3 with names respectively C, C and H  (identical as
 #  previous with different file name)
-#dump            xyz_dump all xyz 5000    ${loco}/PE_stress_strain_x.xyz
+#dump            atom_dump all atom ${ndump} ${loco}/${mdt}_straining.atom
+#dump            xyz_dump all xyz 5000    ${loco}/${mdt}_stress_strain_x.xyz
 #dump_modify     xyz_dump element  C C H
 
 #  Printing evolution of stress for comparison
@@ -112,6 +113,9 @@ unfix 1
 unfix 3
 unfix 4
 
+#  Stopping dump
+#undump            atom_dump
+
 # Sample initial state
 #variable nss equal ${nssample0}
 #fix   shak all shake 0.001 20 1000 m 1.0
@@ -132,6 +136,3 @@ unfix 4
 #variable pp13 equal ${tmp}
 #variable tmp equal f_stress[6]
 #variable pp23 equal ${tmp}
-
-#  Stopping dump
-#undump            xyz_dump

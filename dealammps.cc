@@ -661,6 +661,9 @@ namespace HMM
 		double strain_nrm = strain.norm();
 		int nts = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 
+		// number of timesteps between dumps
+		int ntsdump = std::ceil(nts/10);
+
 		// Temperature
 		double tempt = 300.0;
 
@@ -674,6 +677,9 @@ namespace HMM
 		char initdata[1024];
 		sprintf(initdata, "init.%s", mdstate);
 
+		char atomstate[1024];
+		sprintf(atomstate, "%s_%d.atom", mdt.c_str(), repl);
+
 		char replogloc[1024];
 		sprintf(replogloc, "%s/R%d", logloc, repl);
 		mkdir(replogloc, ACCESSPERMS);
@@ -686,6 +692,9 @@ namespace HMM
 		sprintf(straindata, "%s.%s.%s", timeid, cellid, mdstate);
 		char straindata_last[1024];
 		sprintf(straindata_last, "last.%s.%s", cellid, mdstate);
+
+		char atomdata_last[1024];
+		sprintf(atomdata_last, "last.%s.%s", cellid, atomstate);
 
 		char cline[1024];
 		char cfile[1024];
@@ -719,6 +728,9 @@ namespace HMM
 
 		// Setting testing temperature
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
+
+		// Setting dumping of atom positions for post analysis of the MD simulation
+		sprintf(cline, "dump atom_dump all atom %d %s/%s", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
@@ -789,6 +801,8 @@ namespace HMM
 		sprintf(cfile, "%s/%s", location, "in.strain.lammps");
 		lammps_file(lmp,cfile);
 
+		// Unetting dumping of atom positions
+		sprintf(cline, "undump atom_dump"); lammps_command(lmp,cline);
 
 		/*if (me == 0) std::cout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
@@ -1009,43 +1023,6 @@ namespace HMM
 
 
 
-	/*template <int dim>
-	void FEProblem<dim>::generate_nanostructure ()
-	{
-		typename DoFHandler<dim>::active_cell_iterator
-						cell = dof_handler.begin_active();
-
-		// Parameters of graphene flakes
-		double smass_flake = 0.00077;
-		double diam_flake = 10e-6;
-		double mass_ratio = 1.0*(1.0/100.);
-		// Orientation of flakes
-		Tensor<2,dim> referential_flake; // local referential of the flake (xf and yf define the plane of the flake, zf the normal)
-		referential_flake = unit_symmetric_tensor<dim>();
-
-
-		// Parameters of epoxy (ideally to be passed as argument)
-		double dens_epoxy = 1000.;
-		double vol_sample =
-		double vol_cell = cell->measure();
-
-		// What are the morphology parameters of influence:
-		//   - shape of flakes: hexagonal, even circle is fine.. > no "hard" angle (bigger than pi/2.), "natural" shape of ideal flakes
-		//   - size of flakes: 10-15µm
-		//   - orientation of flakes: based on one angle and one direction (in the plane of the graphene flake),
-		//                            direction of load, orthogonal direction of load, random uniform, random with spatial correlation
-		//   - position/dispersion: regularly disperse, non-crossing of flakes or boundaries
-		//   - weight ratio: 0.08%, 0.16%
-		//   - number of flakes: weight ratio > total mass of flakes > number=total mass of flakes/mass of a single flake
-
-
-		// Ex: vcell=150.0e-6*50.0e-6*50.0e-6 & mratio=0.16% & lflake=10µm > 31 flakes
-		//     if lcell=5µm > ncell=3000 ~ 4 cells/flake
-
-	}*/
-
-
-
 	template <int dim>
 	void FEProblem<dim>::assign_microstructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
 			std::string &mat, Tensor<2,dim> &rotam, double thick_cell)
@@ -1136,8 +1113,6 @@ namespace HMM
 		}
 		quadrature_point_history.resize (n_local_cells *
 				quadrature_formula.size());
-
-		//SymmetricTensor<4,dim> stiffness_tensor, stiffness_tensor_composite;
 
 		char filename[1024];
 
@@ -2446,8 +2421,7 @@ namespace HMM
 			else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
 		}
 
-		// Cells of special interest (nanostate: cell_replica; metadata: time,
-		// strain, stress, stiff, time_upd)
+		// Cells of special interest (store atom dump of every update of each replica of each cell)
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -2468,18 +2442,22 @@ namespace HMM
 					// Save box state at all timesteps
 					for(unsigned int repl=1;repl<nrepl+1;repl++)
 					{
-						sprintf(filename, "%s/last.%s.%s_%d.bin", nanostatelocout, cell_id,
+						sprintf(filename, "%s/last.%s.%s_%d.atom", nanostatelocout, cell_id,
 								local_quadrature_points_history[0].mat.c_str(), repl);
 						std::ifstream  nanoin(filename, std::ios::binary);
 						// Also check if file has changed since last timestep
 						if (nanoin.good()){
-							sprintf(filename, "%s/%d.%s.%s_%d.bin", nanologlocsi, timestep_no, cell_id,
+							sprintf(filename, "%s/%d.%s.%s_%d.atom", nanologlocsi, timestep_no, cell_id,
 									local_quadrature_points_history[0].mat.c_str(), repl);
 							std::ofstream  nanoout(filename,   std::ios::binary);
 							nanoout << nanoin.rdbuf();
 							nanoin.close();
 							nanoout.close();
 						}
+						// Removing atom dump for all replicas of all cells (
+						sprintf(filename, "%s/last.%s.%s_%d.atom", nanostatelocout, cell_id,
+									local_quadrature_points_history[0].mat.c_str(), repl);
+						remove(filename);
 					}
 				}
 		}
@@ -3096,17 +3074,20 @@ namespace HMM
 			{
 				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
 
-				// Removing stiffness passing file
-				//sprintf(filename, "%s/last.%s.striff", macrostatelocout, cell_id);
-				//remove(filename);
-
 				for(unsigned int repl=1;repl<nrepl+1;repl++)
 				{
+					// Removing replica stiffness passing file used to average cell stiffness
 					//sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, cell_id, repl);
+					//remove(filename);
 
+					// Removing replica stress passing file used to average cell stress
 					sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id, repl);
-
+					remove(filename);
 				}
+
+				// Removing stiffness passing file
+				//sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
+				//remove(filename);
 
 				// Removing stress passing file
 				sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
@@ -3421,6 +3402,8 @@ namespace HMM
 
 				// Cleaning temporary files (nanoscale logs and FE/MD data transfer)
 				clean_temporary(fe_problem);
+
+				MPI_Barrier(world_communicator);
 
 				// Share the value of previous_res in between processors
 				MPI_Bcast(&previous_res, 1, MPI_DOUBLE, root_dealii_process, world_communicator);
@@ -3861,6 +3844,8 @@ namespace HMM
 
 		hcout << " Loading previous simulation data...       " << std::endl;
 		if(dealii_pcolor==0) fe_problem.restart_system (nanostatelocin, nanostatelocout, nrepl);
+
+		MPI_Barrier(world_communicator);
 
 		// Running the solution algorithm of the FE problem
 		hcout << "Beginning of incremental solution algorithm:       " << std::endl;

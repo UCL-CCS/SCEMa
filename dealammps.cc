@@ -2454,12 +2454,24 @@ namespace HMM
 							nanoin.close();
 							nanoout.close();
 						}
-						// Removing atom dump for all replicas of all cells (
-						sprintf(filename, "%s/last.%s.%s_%d.atom", nanostatelocout, cell_id,
-									local_quadrature_points_history[0].mat.c_str(), repl);
-						remove(filename);
 					}
 				}
+			// Remove all dump atom files in the out folder
+			if (cell->is_locally_owned()){
+				PointHistory<dim> *local_quadrature_points_history
+						= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+
+				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+				char filename[1024];
+
+				for(unsigned int repl=1;repl<nrepl+1;repl++)
+				{
+					// Removing atom dump for all replicas of all cells (
+					sprintf(filename, "%s/last.%s.%s_%d.atom", nanostatelocout, cell_id,
+								local_quadrature_points_history[0].mat.c_str(), repl);
+					remove(filename);
+				}
+			}
 		}
 	}
 
@@ -3381,7 +3393,7 @@ namespace HMM
 					// Updating incremental variables
 					fe_problem.update_incremental_variables(present_timestep);
 				}
-
+				MPI_Barrier(world_communicator);
 				hcout << "    Updating quadrature point data..." << std::endl;
 
 				if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history
@@ -3481,20 +3493,22 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::initialize_replicas ()
 	{
+		// Number of MD simulations at this iteration...
+		int nmdruns = mdtype.size()*nrepl;
+
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		set_lammps_procs(nrepl*mdtype.size());
+		set_lammps_procs(nmdruns);
 
-		for(unsigned int imd=0;imd<mdtype.size();imd++)
+		for(unsigned int imdt=0;imdt<mdtype.size();imdt++)
 		{
 			// type of MD box (so far PE or PNC)
-			std::string mdt = mdtype[imd];
+			std::string mdt = mdtype[imdt];
 
 			for(unsigned int repl=1;repl<nrepl+1;repl++)
 			{
-				// MD replica number
-				int irepl = repl-1;
-				if (lammps_pcolor == (irepl%n_lammps_batch))
+				int imdrun=imdt*nrepl + (repl-1);
+				if (lammps_pcolor == (imdrun%n_lammps_batch))
 				{
 					std::vector<double> 				initial_length (dim);
 					SymmetricTensor<2,dim> 				initial_stress_tensor;

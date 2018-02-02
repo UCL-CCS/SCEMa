@@ -1,9 +1,3 @@
-SET(TARGET "dealammps")
-
-SET(TARGET_SRC
-  ${TARGET}.cc
-  )
-
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.5 QUIET
@@ -19,9 +13,13 @@ ENDIF()
 
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
-PROJECT(${TARGET})
+PROJECT(dealammps)
 
-DEAL_II_INVOKE_AUTOPILOT()
+ADD_EXECUTABLE(dealammps dealammps.cc)
+DEAL_II_SETUP_TARGET(dealammps)
+
+ADD_EXECUTABLE(single_md single_md.cc)
+DEAL_II_SETUP_TARGET(single_md)
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
@@ -29,16 +27,11 @@ INCLUDE_DIRECTORIES(
   )
 
 ## Include LAMMPS library shared .so (or static .a)
-TARGET_LINK_LIBRARIES(${TARGET} /home/maxime/source/lammps-17Nov16/src/liblammps.a)
+TARGET_LINK_LIBRARIES(dealammps /home/maxime/source/lammps-17Nov16/src/liblammps.a)
+TARGET_LINK_LIBRARIES(single_md /home/maxime/source/lammps-17Nov16/src/liblammps.a)
 
 ## Create additional targets to the standard DEAL.II targets
 ## Use "aprun" as follow: e.g "make aprun NTHR=24"
-ADD_CUSTOM_TARGET(mpirun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
-                      DEPENDS ${TARGET}
-                      COMMAND @echo "... MPIRUN on $(NTHR) threads ..."
-                      COMMAND mpirun -np $(NTHR) ${TARGET}
-  )
-
 ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
                              DEPENDS buildclean
                              COMMAND rm
@@ -48,11 +41,10 @@ ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
 ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
                              DEPENDS outclean
                              COMMAND rm
-                             ARGS -rf ${TARGET}
+                             ARGS -rf dealammps single_md
   )
 
 ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
                            COMMAND rm
                            ARGS -rf core output.* error.* log.* *_log *_state/out *_state/restart
   )
-

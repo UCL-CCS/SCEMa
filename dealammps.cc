@@ -3854,7 +3854,7 @@ namespace HMM
 }
 
 
-
+// With the standalone MD there might not be a need for two classes now, only FEProblem should be needed
 int main (int argc, char **argv)
 {
 	try

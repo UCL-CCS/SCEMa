@@ -3249,29 +3249,12 @@ namespace HMM
 			while (nline<ncupd && std::getline(ifile, matcellupd[nline])) nline++;
 			ifile.close();
 
-			// Number of MD simulations at this iteration...
-			int nmdruns = ncupd*nrepl;
+			// Write json file containing each simulation and its parameters
+			// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
 
-			// Setting up batch of processes
-			set_lammps_procs(nmdruns);
+			// Run python script that runs all the MD jobs located in json file
 
-			MPI_Barrier(world_communicator);
-
-			// Computing cell state update running one simulation per MD replica (basic job scheduling and executing)
-			hcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
-			hcout << "        " << "...cells and replicas completed: " << std::flush;
-			for (int c=0; c<ncupd; ++c)
-			{
-				for(unsigned int repl=1;repl<nrepl+1;repl++)
-				{
-					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
-					int imdrun=c*nrepl + (repl-1);
-
-					// Allocation of a MD run to a batch of processes
-					if (lammps_pcolor == (imdrun%n_lammps_batch)) run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), repl);
-				}
-			}
-			hcout << std::endl;
+			// Create waiting function for all the MD jobs to finish, should check the presence of CompleteSucces.log sort of file
 
 			MPI_Barrier(world_communicator);
 
@@ -3321,6 +3304,7 @@ namespace HMM
 			MPI_Barrier(world_communicator);*/
 
 			// Averaging stiffness and stress per cell over replicas
+			// Could be done in the update_stress function
 			for (int c=0; c<ncupd; ++c)
 			{
 				if (lammps_pcolor == (c%n_lammps_batch))

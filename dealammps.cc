@@ -810,8 +810,6 @@ namespace HMM
 		double 								hh;
 		double 								bb;
 
-		std::vector<std::string> 			mattype;
-
 		std::vector<unsigned int> 			lcis;
 		std::vector<unsigned int> 			lcga;
 	};
@@ -1054,7 +1052,7 @@ namespace HMM
 		idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
 
 		// Standard properties of cell (pure epoxy)
-		mat = mattype[0];
+		mat = mdtype[0];
 
 		// Default orientation of cell
 		rotam = idmat;
@@ -1088,7 +1086,7 @@ namespace HMM
 //						  << "  --- cell position: " << cpos[0] << " " << cpos[1] << " " << cpos[2] << " " << std::endl;
 
 				// Setting composite box status
-				mat = mattype[1];
+				mat = mdtype[1];
 
 				// Decalaration variables rotation matrix computation
 				Tensor<1,dim> nloc;
@@ -1135,10 +1133,10 @@ namespace HMM
 
 		char filename[1024];
 
-		std::vector<SymmetricTensor<4,dim> > stiffness_tensors (mattype.size());
+		std::vector<SymmetricTensor<4,dim> > stiffness_tensors (mdtype.size());
 
-		for(unsigned int imd=0;imd<mattype.size();imd++){
-			sprintf(filename, "%s/init.%s.stiff", macrostatelocout, mattype[imd].c_str());
+		for(unsigned int imd=0;imd<mdtype.size();imd++){
+			sprintf(filename, "%s/init.%s.stiff", macrostatelocout, mdtype[imd].c_str());
 			read_tensor<dim>(filename, stiffness_tensors[imd]);
 
 			if(imd==1){
@@ -1157,7 +1155,7 @@ namespace HMM
 					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][1][2][0][0], stiffness_tensors[imd][1][2][1][1], stiffness_tensors[imd][1][2][2][2], stiffness_tensors[imd][1][2][0][1], stiffness_tensors[imd][1][2][0][2], stiffness_tensors[imd][1][2][1][2]);
 				}
 
-			sprintf(filename, "%s/last.%s.stiff", macrostatelocout, mattype[imd].c_str());
+			sprintf(filename, "%s/last.%s.stiff", macrostatelocout, mdtype[imd].c_str());
 				write_tensor<dim>(filename, stiffness_tensors[imd]);
 
 		}
@@ -1264,7 +1262,7 @@ namespace HMM
 
 					// Apply stiffness and rotating it from the local sheet orientation (MD) to
 					// global orientation (microstructure)
-					if (local_quadrature_points_history[q].mat==mattype[1]){
+					if (local_quadrature_points_history[q].mat==mdtype[1]){
 						// Apply and rotate the stiffness tensor measured in the flake referential (nloc)
 						//Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
 						//local_quadrature_points_history[q].new_stiff = 0;
@@ -1773,7 +1771,7 @@ namespace HMM
 
 								SymmetricTensor<2,dim> rot_avg_upd_strain_tensor;
 
-								if(local_quadrature_points_history[0].mat==mattype[1])
+								if(local_quadrature_points_history[0].mat==mdtype[1])
 									// Rotation of the strain update tensor wrt to the flake angle
 									rot_avg_upd_strain_tensor =
 											rotate_tensor(avg_upd_strain_tensor, local_quadrature_points_history[0].rotam);
@@ -1943,7 +1941,7 @@ namespace HMM
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					// For debug...
-					/*if (local_quadrature_points_history[q].mat==mattype[1]
+					/*if (local_quadrature_points_history[q].mat==mdtype[1]
 							and q==0){
 
 						SymmetricTensor<2,dim> tmp_stress = local_quadrature_points_history[q].new_stress;
@@ -1970,7 +1968,7 @@ namespace HMM
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stiff);
 
-						if(local_quadrature_points_history[q].mat==mattype[1])
+						if(local_quadrature_points_history[q].mat==mdtype[1])
 							// Rotate the output stiffness wrt the flake angles
 							local_quadrature_points_history[q].new_stiff =
 									rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
@@ -1982,7 +1980,7 @@ namespace HMM
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stress);
 
-						if (local_quadrature_points_history[q].mat==mattype[1]){
+						if (local_quadrature_points_history[q].mat==mdtype[1]){
 							// Rotate the output stress wrt the flake angles
 							local_quadrature_points_history[q].new_stress =
 									rotate_tensor(stmp_stress, transpose(local_quadrature_points_history[q].rotam));

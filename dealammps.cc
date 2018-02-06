@@ -26,10 +26,6 @@
 #include <math.h>
 
 #include "mpi.h"
-#include "lammps.h"
-#include "input.h"
-#include "library.h"
-#include "atom.h"
 
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
@@ -89,7 +85,6 @@
 namespace HMM
 {
 	using namespace dealii;
-	using namespace LAMMPS_NS;
 
 	template <int dim>
 	struct PointHistory
@@ -389,245 +384,6 @@ namespace HMM
 	}
 
 
-	// Computes the stress tensor and the complete tanget elastic stiffness tensor
-	template <int dim>
-	void
-	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, bool init)
-	{
-		SymmetricTensor<2,2*dim> tmp;
-
-		char cfile[1024];
-		char cline[1024];
-
-		sprintf(cline, "variable locbe string %s/%s", location, "ELASTIC");
-		lammps_command(lmp,cline);
-
-		// Timestep length in fs
-		double dts = 2.0;
-
-		// number of timesteps for averaging
-		int nssample = 200;
-		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal %d", nssample); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal %d", nssample); lammps_command(lmp,cline);
-
-		// number of timesteps for straining
-		double strain_rate = 1.0e-5; // in fs^(-1)
-		double strain_nrm = 0.005;
-		int nsstrain = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
-		// For v_sound_PE = 2000 m/s, l_box=8nm, strain_perturbation=0.005, and dts=2.0fs
-		// the min number of straining steps is 10
-		sprintf(cline, "variable nsstrain  equal %d", nsstrain); lammps_command(lmp,cline);
-
-		// Set strain perturbation amplitude
-		sprintf(cline, "variable up equal %f", strain_nrm); lammps_command(lmp,cline);
-
-		// Using a routine based on the example ELASTIC/ to compute the stress tensor
-		sprintf(cfile, "%s/%s", location, "ELASTIC/in.elastic.lammps");
-		lammps_file(lmp,cfile);
-
-		// Filling 3x3 stress tensor and conversion from ATM to Pa
-		// Useless at the moment, since it cannot be used in the Newton-Raphson algorithm.
-		// The MD evaluated stress is flucutating too much (few MPa), therefore prevents
-		// the iterative algorithm to converge...
-		for(unsigned int k=0;k<dim;k++)
-			for(unsigned int l=k;l<dim;l++)
-			{
-				char vcoef[1024];
-				sprintf(vcoef, "pp%d%d", k+1, l+1);
-				stresses[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*(-1.0)*1.01325e+05;
-			}
-
-		if(init){
-			// Using a routine based on the example ELASTIC/ to compute the stiffness tensor
-			sprintf(cfile, "%s/%s", location, "ELASTIC/in.homog.lammps");
-			lammps_file(lmp,cfile);
-
-			// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
-			// by LAMMPS and conversion from GPa to Pa
-			for(unsigned int k=0;k<2*dim;k++)
-				for(unsigned int l=k;l<2*dim;l++)
-				{
-					char vcoef[1024];
-					sprintf(vcoef, "C%d%dall", k+1, l+1);
-					tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
-				}
-
-			// Write test... (on the data returned by lammps)
-
-			// Conversion of the 6x6 Voigt Stiffness Tensor into the 3x3x3x3
-			// Standard Stiffness Tensor
-			for(unsigned int i=0;i<2*dim;i++)
-			{
-				int k, l;
-				if     (i==(3+0)){k=0; l=1;}
-				else if(i==(3+1)){k=0; l=2;}
-				else if(i==(3+2)){k=1; l=2;}
-				else  /*(i<3)*/  {k=i; l=i;}
-
-
-				for(unsigned int j=0;j<2*dim;j++)
-				{
-					int m, n;
-					if     (j==(3+0)){m=0; n=1;}
-					else if(j==(3+1)){m=0; n=2;}
-					else if(j==(3+2)){m=1; n=2;}
-					else  /*(j<3)*/  {m=j; n=j;}
-
-					stiffnesses[k][l][m][n]=tmp[i][j];
-				}
-			}
-		}
-
-	}
-
-
-	// The initiation, namely the preparation of the data from which will
-	// be ran the later tests at every quadrature point, should be ran on
-	// as many processes as available, since it will be the only on going
-	// task at the time it will be called.
-	template <int dim>
-	void
-	lammps_initiation (SymmetricTensor<2,dim>& stress,
-					   SymmetricTensor<4,dim>& stiffness,
-					   std::vector<double>& lbox0,
-					   MPI_Comm comm_lammps,
-					   char* statelocin,
-					   char* statelocout,
-					   char* logloc,
-					   std::string mdt,
-					   unsigned int repl)
-	{
-		// Is this initialization?
-		bool init = true;
-
-		// Timestep length in fs
-		double dts = 2.0;
-		// Number of timesteps factor
-		int nsinit = 10000;
-		// Temperature
-		double tempt = 300.0;
-
-		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
-		// to place LAMMPS log/dump/temporary restart outputs
-		char location[1024] = "../box";
-
-		char locdata[1024];
-		sprintf(locdata, "%s/data/%s_%d.lammps05", statelocin, mdt.c_str(), repl);
-
-		// Name of nanostate binary files
-		char mdstate[1024];
-		sprintf(mdstate, "%s_%d.bin", mdt.c_str(), repl);
-		char initdata[1024];
-		sprintf(initdata, "init.%s", mdstate);
-
-		int me;
-		MPI_Comm_rank(comm_lammps, &me);
-
-		// Repositories creation and checking...
-		char replogloc[1024];
-		sprintf(replogloc, "%s/R%d", logloc, repl);
-		mkdir(replogloc, ACCESSPERMS);
-
-		char inireplogloc[1024];
-		sprintf(inireplogloc, "%s/%s", replogloc, "init");
-		mkdir(inireplogloc, ACCESSPERMS);
-
-		char cfile[1024];
-		char cline[1024];
-		char sfile[1024];
-
-		// Specifying the command line options for screen and log output file
-		int nargs = 5;
-		char **lmparg = new char*[nargs];
-		lmparg[0] = NULL;
-		lmparg[1] = (char *) "-screen";
-		lmparg[2] = (char *) "none";
-		lmparg[3] = (char *) "-log";
-		lmparg[4] = new char[1024];
-		sprintf(lmparg[4], "%s/log.%s_heatup_cooldown", inireplogloc, mdt.c_str());
-
-		// Creating LAMMPS instance
-		LAMMPS *lmp = NULL;
-		lmp = new LAMMPS(nargs,lmparg,comm_lammps);
-
-		// Setting run parameters
-		sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
-		sprintf(cline, "variable nsinit equal %d", nsinit); lammps_command(lmp,cline);
-
-		// Passing location for input and output as variables
-		sprintf(cline, "variable mdt string %s", mdt.c_str()); lammps_command(lmp,cline);
-		sprintf(cline, "variable locd string %s", locdata); lammps_command(lmp,cline);
-		sprintf(cline, "variable loco string %s", inireplogloc); lammps_command(lmp,cline);
-
-		// Setting general parameters for LAMMPS independentely of what will be
-		// tested on the sample next.
-		sprintf(cfile, "%s/%s", location, "in.set.lammps"); lammps_file(lmp,cfile);
-
-		// Setting testing temperature
-		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
-		sprintf(cline, "variable sseed equal 1234"); lammps_command(lmp,cline);
-
-		// Check if 'init.PE.bin' has been computed already
-		sprintf(sfile, "%s/%s", statelocin, initdata);
-		bool state_exists = file_exists(sfile);
-
-		if (!state_exists)
-		{
-			if (me == 0) std::cout << "(MD - init - type " << mdt << " - repl " << repl << ") "
-					<< "Compute state data...       " << std::endl;
-			// Compute initialization of the sample which minimizes the free energy,
-			// heat up and finally cool down the sample.
-			sprintf(cfile, "%s/%s", location, "in.init.lammps"); lammps_file(lmp,cfile);
-		}
-		else
-		{
-			if (me == 0) std::cout << "(MD - init - type " << mdt << " - repl " << repl << ") "
-					<< "Reuse of state data...       " << std::endl;
-			// Reload from previously computed initial preparation (minimization and
-			// heatup/cooldown), this option shouldn't remain, as in the first step the
-			// preparation should always be computed.
-			sprintf(cline, "read_restart %s/%s", statelocin, initdata); lammps_command(lmp,cline);
-		}
-
-		// Storing initial dimensions after initiation
-		char lname[1024];
-		sprintf(lname, "lxbox0");
-		sprintf(cline, "variable tmp equal 'lx'"); lammps_command(lmp,cline);
-		sprintf(cline, "variable %s equal ${tmp}", lname); lammps_command(lmp,cline);
-		lbox0[0] = *((double *) lammps_extract_variable(lmp,lname,NULL));
-		sprintf(lname, "lybox0");
-		sprintf(cline, "variable tmp equal 'ly'"); lammps_command(lmp,cline);
-		sprintf(cline, "variable %s equal ${tmp}", lname); lammps_command(lmp,cline);
-		lbox0[1] = *((double *) lammps_extract_variable(lmp,lname,NULL));
-		sprintf(lname, "lzbox0");
-		sprintf(cline, "variable tmp equal 'lz'"); lammps_command(lmp,cline);
-		sprintf(cline, "variable %s equal ${tmp}", lname); lammps_command(lmp,cline);
-		lbox0[2] = *((double *) lammps_extract_variable(lmp,lname,NULL));
-
-		// Saving nanostate at the end of initiation
-		if (me == 0) std::cout << "(MD - init - type " << mdt << " - repl " << repl << ") "
-				<< "Saving state data...       " << std::endl;
-		sprintf(cline, "write_restart %s/%s", statelocout, initdata); lammps_command(lmp,cline);
-
-		for(unsigned int k=0;k<dim;k++)
-			for(unsigned int l=k;l<dim;l++)
-			{
-				sprintf(cline, "variable eeps_%d%d equal %.6e", k, l, 0.0);
-				lammps_command(lmp,cline);
-			}
-
-		if (me == 0) std::cout << "(MD - init - type " << mdt << " - repl " << repl << ") "
-				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;
-		// Compute secant stiffness operator and initial stresses
-		lammps_homogenization<dim>(lmp, location, stress, stiffness, init);
-
-		// close down LAMMPS
-		delete lmp;
-
-	}
-
-
 
 	template <int dim>
 	class BodyForce :  public Function<dim>
@@ -707,16 +463,9 @@ namespace HMM
 		void output_specific ();
 		void output_visualisation ();
 		void output_results ();
+
 		Vector<double>  compute_internal_forces () const;
-
-		void generate_nanostructure();
-		void assign_microstructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
-				std::string &mat, Tensor<2,dim> &rotam, double thick_cell);
-		void setup_quadrature_point_history ();
-
-		void make_grid ();
-		void setup_system ();
-		void set_boundary_values ();
+		void error_estimation ();
 
 		void do_timestep ();
 		void solve_timestep ();
@@ -725,7 +474,6 @@ namespace HMM
 		void solve_linear_problem_GMRES ();
 		void solve_linear_problem_BiCGStab ();
 		void solve_linear_problem_direct ();
-		void error_estimation ();
 		double determine_step_length () const;
 		void move_mesh ();
 
@@ -738,24 +486,21 @@ namespace HMM
 
 		void set_repositories ();
 		void initialize_replicas ();
+		void make_grid ();
+		void setup_system ();
+		void set_boundary_values ();
 
+
+		void assign_microstructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
+				std::string &mat, Tensor<2,dim> &rotam, double thick_cell);
+		void setup_quadrature_point_history ();
 
 		MPI_Comm 							world_communicator;
 		const int 							n_world_processes;
 		const int 							this_world_process;
 		int 								world_pcolor;
 		int									root_world_process;
-
-
-		double              				present_time;
-		double              				present_timestep;
-		double              				end_time;
-		int        							timestep_no;
-		int        							newtonstep_no;
-		bool 								updated_md;
-
-		std::vector<std::string>			mdtype;
-		unsigned int						nrepl;
+		ConditionalOStream 					dcout;
 
 		char                                macrostateloc[1024];
 		char                                macrostatelocin[1024];
@@ -770,46 +515,49 @@ namespace HMM
 		char                                nanologloc[1024];
 		char                                nanologlocsi[1024];
 
+		double              				present_time;
+		double              				present_timestep;
+		double              				end_time;
+		int        							timestep_no;
+		int        							newtonstep_no;
+		bool 								updated_md;
+
 		Vector<double> 		     			newton_update_displacement;
 		Vector<double> 		     			incremental_displacement;
 		Vector<double> 		     			displacement;
 		Vector<double> 		     			old_displacement;
-
 		Vector<double> 		     			newton_update_velocity;
 		Vector<double> 		     			incremental_velocity;
 		Vector<double> 		     			velocity;
 		//Vector<double> 		     		old_velocity;
 
-		ConditionalOStream 					dcout;
-
-		parallel::shared::Triangulation<dim> triangulation;
-		DoFHandler<dim>      				dof_handler;
-
-		FESystem<dim>        				fe;
-		const QGauss<dim>   				quadrature_formula;
-
-		ConstraintMatrix     				hanging_node_constraints;
-		std::vector<PointHistory<dim> > 	quadrature_point_history;
-
 		PETScWrappers::MPI::SparseMatrix	system_matrix;
 //		PETScWrappers::MPI::SparseMatrix	system_inverse;
 		PETScWrappers::MPI::Vector      	system_rhs;
+		ConstraintMatrix     				hanging_node_constraints;
+		std::vector<PointHistory<dim> > 	quadrature_point_history;
 
-		Vector<float> 						error_per_cell;
+		parallel::shared::Triangulation<dim> triangulation;
+		DoFHandler<dim>      				dof_handler;
+		FESystem<dim>        				fe;
+		const QGauss<dim>   				quadrature_formula;
 
 		std::vector<types::global_dof_index> local_dofs_per_process;
 		IndexSet 							locally_owned_dofs;
 		IndexSet 							locally_relevant_dofs;
 		unsigned int 						n_local_cells;
 
-		double 								inc_vsupport;
-		std::vector<bool> 					topsupport_boundary_dofs;
-		std::vector<bool> 					botsupport_boundary_dofs;
+		std::vector<std::string>			mdtype;
+		unsigned int						nrepl;
 
 		double 								ll;
 		double 								hh;
 		double 								bb;
+		double 								inc_vsupport;
+		std::vector<bool> 					topsupport_boundary_dofs;
+		std::vector<bool> 					botsupport_boundary_dofs;
 
+		Vector<float> 						error_per_cell;
 		std::vector<unsigned int> 			lcis;
 		std::vector<unsigned int> 			lcga;
 	};
@@ -837,6 +585,25 @@ namespace HMM
 	FEProblem<dim>::~FEProblem ()
 	{
 		dof_handler.clear ();
+	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::set_repositories ()
+	{
+		sprintf(macrostateloc, "./macroscale_state"); mkdir(macrostateloc, ACCESSPERMS);
+		sprintf(macrostatelocin, "%s/in", macrostateloc); mkdir(macrostatelocin, ACCESSPERMS);
+		sprintf(macrostatelocout, "%s/out", macrostateloc); mkdir(macrostatelocout, ACCESSPERMS);
+		sprintf(macrostatelocres, "%s/restart", macrostateloc); mkdir(macrostatelocres, ACCESSPERMS);
+		sprintf(macrologloc, "./macroscale_log"); mkdir(macrologloc, ACCESSPERMS);
+
+		sprintf(nanostateloc, "./nanoscale_state"); mkdir(nanostateloc, ACCESSPERMS);
+		sprintf(nanostatelocin, "%s/in", nanostateloc); mkdir(nanostatelocin, ACCESSPERMS);
+		sprintf(nanostatelocout, "%s/out", nanostateloc); mkdir(nanostatelocout, ACCESSPERMS);
+		sprintf(nanostatelocres, "%s/restart", nanostateloc); mkdir(nanostatelocres, ACCESSPERMS);
+		sprintf(nanologloc, "./nanoscale_log"); mkdir(nanologloc, ACCESSPERMS);
+		sprintf(nanologlocsi, "%s/spec", nanologloc); mkdir(nanologlocsi, ACCESSPERMS);
 	}
 
 
@@ -965,25 +732,6 @@ namespace HMM
 				write_tensor<dim>(macrofilenameout, initial_ensemble_stiffness_tensor);
 			}
 		}
-	}
-
-
-
-	template <int dim>
-	void FEProblem<dim>::set_repositories ()
-	{
-		sprintf(macrostateloc, "./macroscale_state"); mkdir(macrostateloc, ACCESSPERMS);
-		sprintf(macrostatelocin, "%s/in", macrostateloc); mkdir(macrostatelocin, ACCESSPERMS);
-		sprintf(macrostatelocout, "%s/out", macrostateloc); mkdir(macrostatelocout, ACCESSPERMS);
-		sprintf(macrostatelocres, "%s/restart", macrostateloc); mkdir(macrostatelocres, ACCESSPERMS);
-		sprintf(macrologloc, "./macroscale_log"); mkdir(macrologloc, ACCESSPERMS);
-
-		sprintf(nanostateloc, "./nanoscale_state"); mkdir(nanostateloc, ACCESSPERMS);
-		sprintf(nanostatelocin, "%s/in", nanostateloc); mkdir(nanostatelocin, ACCESSPERMS);
-		sprintf(nanostatelocout, "%s/out", nanostateloc); mkdir(nanostatelocout, ACCESSPERMS);
-		sprintf(nanostatelocres, "%s/restart", nanostateloc); mkdir(nanostatelocres, ACCESSPERMS);
-		sprintf(nanologloc, "./nanoscale_log"); mkdir(nanologloc, ACCESSPERMS);
-		sprintf(nanologlocsi, "%s/spec", nanologloc); mkdir(nanologlocsi, ACCESSPERMS);
 	}
 
 

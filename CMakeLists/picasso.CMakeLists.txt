@@ -29,10 +29,16 @@ INCLUDE_DIRECTORIES(
   /home/maxime/source/lammps-17Nov16/src/
   )
 
+## Include BOOST sources repository
+FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
+INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+
 ## Include LAMMPS library shared .so (or static .a)
 TARGET_LINK_LIBRARIES(dealammps /home/maxime/source/lammps-17Nov16/src/liblammps.a)
 TARGET_LINK_LIBRARIES(single_md /home/maxime/source/lammps-17Nov16/src/liblammps.a)
 TARGET_LINK_LIBRARIES(init_md /home/maxime/source/lammps-17Nov16/src/liblammps.a)
+
+TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
 
 ## Create additional targets to the standard DEAL.II targets
 ## Use "aprun" as follow: e.g "make aprun NTHR=24"

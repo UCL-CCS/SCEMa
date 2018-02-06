@@ -29,7 +29,7 @@
 
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
-//#include "boost/filesystem.hpp"
+#include "boost/filesystem.hpp"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -553,9 +553,10 @@ namespace HMM
 		IndexSet 							locally_relevant_dofs;
 		unsigned int 						n_local_cells;
 
-		// Types of materials and number of replica
+		// Types of materials, number of replica and number of procs per node
 		std::vector<std::string>			mdtype;
 		unsigned int						nrepl;
+		unsigned int						machine_ppn;
 
 		// Finite Element dimensions and boundary conditions
 		double 								ll;
@@ -1575,6 +1576,10 @@ namespace HMM
 		//char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
+		char filename[1024];
+		sprintf(filename, "%s/list_md_jobs.%d.json", nanostatelocout, this_world_process);
+		std::ofstream mdprjoblist(filename, std::ios_base::trunc);
+
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1595,13 +1600,76 @@ namespace HMM
 				{
 					// Write json file containing each simulation and its parameters
 					// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
-
-					// Run python script that runs all the MD jobs located in json file
-
-					// Create waiting function for all the MD jobs to finish, should check the presence of CompleteSucces.log sort of file
-
+					mdprjoblist<<"      \"name\": \"mdrun_cell"<< cell_id << "_repl${it}\", " <<std::endl;
+					mdprjoblist<<"      \"iterate\": [ 1, "<< nrepl << "], " <<std::endl;
+					mdprjoblist<<"      \"execution\": { " <<std::endl;
+					mdprjoblist<<"         \"exec\": \"single_md\", " <<std::endl;
+					mdprjoblist<<"         \"args\": [\"" << time_id
+							                 << " \", \"" << cell_id << " \", \""
+											 << local_quadrature_points_history[0].mat << " \", \"${it}\", \""
+											 << macrostatelocout << " \", \""
+											 << nanostatelocout << " \", \""
+											 << nanologloc << " \" ], "
+											 << std::endl;
+					mdprjoblist<<"         \"stdout\": \" " << nanologloc <<"/R${it}/" << time_id << "."
+							                                << cell_id << "/${jname}.stdout  \", " <<std::endl;
+					mdprjoblist<<"         \"stderr\": \" " << nanologloc <<"/R${it}/" << time_id << "."
+							                                << cell_id << "/${jname}.stderr  \" " <<std::endl;
+					mdprjoblist<<"      }, " <<std::endl;
+					mdprjoblist<<"      \"resources\": { " <<std::endl;
+					mdprjoblist<<"         \"numNodes\": { " <<std::endl;
+					mdprjoblist<<"            \"min\": "<< machine_ppn*1 << ", " <<std::endl;
+					mdprjoblist<<"            \"max\": "<< machine_ppn*10 << " " <<std::endl;
+					mdprjoblist<<"         } " <<std::endl;
+					mdprjoblist<<"      } " <<std::endl;
 				}
 			}
+
+		mdprjoblist.close();
+
+		MPI_Barrier(world_communicator);
+
+		if(this_world_process==0){
+			// Concatenate all the the processors job lists
+			sprintf(filename, "%s/list_md_jobs.json", nanostatelocout);
+			std::ofstream mdjoblist(filename, std::ios_base::trunc);
+
+			mdjoblist<<"["<<std::endl;
+			mdjoblist<<"{"<<std::endl;
+			mdjoblist<<"   \"request\": \"submit\", "<<std::endl;
+			mdjoblist<<"   \"jobs\": [ "<<std::endl;
+
+			// append each proc file content
+			for(int proc=0;proc<n_world_processes;proc++){
+				sprintf(filename, "%s/list_md_jobs.%d.json", nanostatelocout, proc);
+				std::ifstream  prlist(filename);
+				if (prlist.good()){
+					std::string line;
+					// Compute number of cells in local history ()
+					while(getline(prlist, line)){
+						mdjoblist << line << std::endl;
+					}
+					prlist.close();
+				}
+			}
+
+			mdjoblist<<"   ]"<<std::endl;
+			mdjoblist<<"},"<<std::endl;
+			mdjoblist<<"{"<<std::endl;
+			mdjoblist<<"   \"request\": \"control\", "<<std::endl;
+			mdjoblist<<"   \"command\": \"finishAfterAllTasksDone\" "<<std::endl;
+			mdjoblist<<"}"<<std::endl;
+			mdjoblist<<"]"<<std::endl;
+
+			mdjoblist.close();
+
+			// Run python script that runs all the MD jobs located in json file
+
+			// Create waiting function for all the MD jobs to finish,
+			// should check the presence of CompleteSucces.log sort of file
+
+			std::cout << "Finished writing .json file" << std::endl;
+		}
 
 		MPI_Barrier(world_communicator);
 
@@ -1625,6 +1693,8 @@ namespace HMM
 
 				if(local_quadrature_points_history[0].to_be_updated)
 				{
+					throw std::exception();
+
 					//SymmetricTensor<4,dim> loc_stiffness;
 					SymmetricTensor<2,dim> loc_stress;
 					char filename[1024];
@@ -2880,10 +2950,8 @@ namespace HMM
 			// Clean "nanoscale_logs" of the finished timestep
 			for(unsigned int repl=1;repl<nrepl+1;repl++)
 			{
-				sprintf(command, "rm -rf %s/R%d/*", nanologloc, repl);
-				system(command);
-				//sprintf(command, "%s/R%d/*", nanologloc, repl);
-				//boost::filesystem::remove_all(command);
+				sprintf(command, "%s/R%d/*", nanologloc, repl);
+				boost::filesystem::remove_all(command);
 			}
 		}
 	}
@@ -3018,6 +3086,9 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		dcout << "Building the HMM problem:       " << std::endl;
+
+		// PPN of the supercomputer
+		machine_ppn=16;
 
 		// List of name of MD box types
 		mdtype.push_back("PE");

@@ -853,7 +853,7 @@ namespace HMM
 			for(unsigned int repl=1;repl<nrepl+1;repl++)
 			{
 				int ireplica=imdt*nrepl + (repl-1);
-				if (this_world_process == ireplica)
+				if (this_world_process == ireplica%n_world_processes)
 				{
 					std::vector<double> 				initial_length (dim);
 					SymmetricTensor<2,dim> 				initial_stress_tensor;
@@ -885,6 +885,12 @@ namespace HMM
 
 					if(!macrostate_exists || !macrostatestress_exists || !macrostatelength_exists || !nanostate_exists){
 						dcout << " Missing initial files... Cannot run the HMM!" << std::endl;
+						// Write json file containing each simulation and its parameters
+						// which are: mat, repl, macrostatelocout, nanostatelocin, nanostatelocout, nanologloc, number of cores
+
+						// Run python script that runs all the MD jobs located in json file
+
+						// Create waiting function for all the MD jobs to finish, should check the presence of CompleteSucces.log sort of file
 					}
 					else{
 						std::cout << " (repl "<< repl << ")  ...from an existing stiffness tensor       " << std::endl;
@@ -920,7 +926,7 @@ namespace HMM
 
 		for(unsigned int imd=0;imd<mdtype.size();imd++)
 		{
-			if(this_world_process == int(imd)){
+			if(this_world_process == int(imd)%n_world_processes){
 				SymmetricTensor<4,dim> 				initial_ensemble_stiffness_tensor;
 				initial_ensemble_stiffness_tensor = 0.;
 

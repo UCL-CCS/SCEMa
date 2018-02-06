@@ -21,6 +21,9 @@ DEAL_II_SETUP_TARGET(dealammps)
 ADD_EXECUTABLE(single_md single_md.cc)
 DEAL_II_SETUP_TARGET(single_md)
 
+ADD_EXECUTABLE(init_md init_md.cc)
+DEAL_II_SETUP_TARGET(init_md)
+
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
   /home/maxime/source/lammps-17Nov16/src/
@@ -29,6 +32,7 @@ INCLUDE_DIRECTORIES(
 ## Include LAMMPS library shared .so (or static .a)
 TARGET_LINK_LIBRARIES(dealammps /home/maxime/source/lammps-17Nov16/src/liblammps.a)
 TARGET_LINK_LIBRARIES(single_md /home/maxime/source/lammps-17Nov16/src/liblammps.a)
+TARGET_LINK_LIBRARIES(init_md /home/maxime/source/lammps-17Nov16/src/liblammps.a)
 
 ## Create additional targets to the standard DEAL.II targets
 ## Use "aprun" as follow: e.g "make aprun NTHR=24"

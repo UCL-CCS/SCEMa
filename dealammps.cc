@@ -495,6 +495,7 @@ namespace HMM
 				std::string &mat, Tensor<2,dim> &rotam, double thick_cell);
 		void setup_quadrature_point_history ();
 
+		// Variables of the MPI communicator
 		MPI_Comm 							world_communicator;
 		const int 							n_world_processes;
 		const int 							this_world_process;
@@ -502,12 +503,14 @@ namespace HMM
 		int									root_world_process;
 		ConditionalOStream 					dcout;
 
+		// Directories for the macroscopic model input, ouput, and restart files
 		char                                macrostateloc[1024];
 		char                                macrostatelocin[1024];
 		char                                macrostatelocout[1024];
 		char                                macrostatelocres[1024];
 		char                                macrologloc[1024];
 
+		// Directories for the nanoscopic model input, ouput, and restart files
 		char                                nanostateloc[1024];
 		char                                nanostatelocin[1024];
 		char                                nanostatelocout[1024];
@@ -515,6 +518,7 @@ namespace HMM
 		char                                nanologloc[1024];
 		char                                nanologlocsi[1024];
 
+		// Time related and incremental iterative solution algorithm variables
 		double              				present_time;
 		double              				present_timestep;
 		double              				end_time;
@@ -522,6 +526,7 @@ namespace HMM
 		int        							newtonstep_no;
 		bool 								updated_md;
 
+		// Degrees of freedom of the Finite Element system
 		Vector<double> 		     			newton_update_displacement;
 		Vector<double> 		     			incremental_displacement;
 		Vector<double> 		     			displacement;
@@ -531,25 +536,28 @@ namespace HMM
 		Vector<double> 		     			velocity;
 		//Vector<double> 		     		old_velocity;
 
+		// Finite Element linear system matrix and local data
 		PETScWrappers::MPI::SparseMatrix	system_matrix;
-//		PETScWrappers::MPI::SparseMatrix	system_inverse;
+		//PETScWrappers::MPI::SparseMatrix	system_inverse;
 		PETScWrappers::MPI::Vector      	system_rhs;
 		ConstraintMatrix     				hanging_node_constraints;
 		std::vector<PointHistory<dim> > 	quadrature_point_history;
 
+		// Finite Element system
 		parallel::shared::Triangulation<dim> triangulation;
 		DoFHandler<dim>      				dof_handler;
 		FESystem<dim>        				fe;
 		const QGauss<dim>   				quadrature_formula;
-
 		std::vector<types::global_dof_index> local_dofs_per_process;
 		IndexSet 							locally_owned_dofs;
 		IndexSet 							locally_relevant_dofs;
 		unsigned int 						n_local_cells;
 
+		// Types of materials and number of replica
 		std::vector<std::string>			mdtype;
 		unsigned int						nrepl;
 
+		// Finite Element dimensions and boundary conditions
 		double 								ll;
 		double 								hh;
 		double 								bb;
@@ -557,6 +565,7 @@ namespace HMM
 		std::vector<bool> 					topsupport_boundary_dofs;
 		std::vector<bool> 					botsupport_boundary_dofs;
 
+		// Ouputs
 		Vector<float> 						error_per_cell;
 		std::vector<unsigned int> 			lcis;
 		std::vector<unsigned int> 			lcga;

@@ -915,7 +915,10 @@ namespace HMM
 		void move_mesh ();
 
 		void generate_nanostructure();
-		void assign_microstructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
+		std::vector<Vector<double> > get_microstructure ();
+		void assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > flakes_data,
+				std::string &mat, Tensor<2,dim> &rotam);
+		void assign_flakes (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
 				std::string &mat, Tensor<2,dim> &rotam, double thick_cell);
 		void setup_quadrature_point_history ();
 
@@ -1024,7 +1027,135 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::assign_microstructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
+	std::vector<Vector<double> > FEProblem<dim>::get_microstructure ()
+	{
+		// Generation of nanostructure based on size, weight ratio
+		//generate_nanostructure();
+
+		// Load flakes data (center position, angles, density)
+		unsigned int npoints = 0;
+		unsigned int nfchar = 0;
+		std::vector<Vector<double> > structure_data (npoints, Vector<double>(nfchar));
+
+		char filename[1024];
+		sprintf(filename, "%s/structure_data.csv", macrostatelocin);
+
+		std::ifstream ifile;
+		ifile.open (filename);
+
+		if (ifile.is_open())
+		{
+			std::string iline, ival;
+
+			if(getline(ifile, iline)){
+				std::istringstream iss(iline);
+				if(getline(iss, ival, ',')) npoints = std::stoi(ival);
+				if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
+			}
+			dcout << "Nboxes " << npoints << " - Nchar " << nfchar << std::endl;
+
+			dcout << "Char names: " << std::flush;
+			if(getline(ifile, iline)){
+				std::istringstream iss(iline);
+				for(unsigned int k=0;k<nfchar;k++){
+					getline(iss, ival, ',');
+					dcout << ival << " " << std::flush;
+				}
+			}
+			dcout << std::endl;
+
+			structure_data.resize(npoints, Vector<double>(nfchar));
+			for(unsigned int n=0;n<npoints;n++)
+				if(getline(ifile, iline)){
+					dcout << "box: " << n << std::flush;
+					std::istringstream iss(iline);
+					for(unsigned int k=0;k<nfchar;k++){
+						getline(iss, ival, ',');
+						structure_data[n][k] = std::stof(ival);
+						dcout << " - " << structure_data[n][k] << std::flush;
+					}
+					dcout << std::endl;
+				}
+
+			ifile.close();
+		}
+		else{
+			dcout << "Unable to open" << filename << " to read it" << std::endl;
+			dcout << "No microstructure loaded!!" << std::endl;
+		}
+
+		return structure_data;
+	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > structure_data,
+			std::string &mat, Tensor<2,dim> &rotam)
+	{
+		// Number of flakes
+		unsigned int nboxes=structure_data.size();
+
+		// Filling identity matrix
+		Tensor<2,dim> idmat;
+		idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
+
+		// Standard properties of cell (pure epoxy)
+		mat = mattype[0];
+
+		// Default orientation of cell
+		rotam = idmat;
+
+		// Check if the cell contains a graphene flake (composite)
+		for(unsigned int n=0;n<nboxes;n++){
+			// Load flake center
+			Point<dim> fpos (structure_data[n][1],structure_data[n][2],structure_data[n][3]);
+
+			// Load flake normal vector
+			Tensor<1,dim> nglo; nglo[0]=structure_data[n][4]; nglo[1]=structure_data[n][5]; nglo[2]=structure_data[n][6];
+
+
+			if(cell->point_inside(fpos)){
+
+				// Setting composite box material
+				for (int imat = 1; imat<int(mattype.size()); imat++)
+					if(imat == int(structure_data[n][0]))
+						mat = mattype[imat];
+
+				//std::cout << " box number: " << n << " is in cell " << cell->active_cell_index()
+				//		  << " of material " << mat << std::endl;
+
+				// Decalaration variables rotation matrix computation
+				Tensor<1,dim> nloc;
+				double ccos;
+				Tensor<2,dim> skew_rot;
+
+				// Write the rotation tensor to the MD box flakes referential (0,1,0)
+				nloc[0]=0.0; nloc[1]=1.0; nloc[2]=0.0;
+
+				// Compute the scalar product of the local and global vectors
+				ccos = scalar_product(nglo, nloc);
+
+				// Filling the skew-symmetric cross product matrix (a^Tb-b^Ta)
+				for (unsigned int i=0; i<dim; ++i)
+					for (unsigned int j=0; j<dim; ++j)
+						skew_rot[i][j] = nglo[j]*nloc[i] - nglo[i]*nloc[j];
+
+				// Assembling the rotation matrix
+				rotam = idmat + skew_rot + (1/(1+ccos))*skew_rot*skew_rot;
+
+				// Stop the for loop since a cell can only be in one flake at a time...
+				break;
+			}
+		}
+	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::assign_flakes (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
 			std::string &mat, Tensor<2,dim> &rotam, double thick_cell)
 	{
 		// Number of flakes
@@ -1103,6 +1234,7 @@ namespace HMM
 
 
 
+
 	template <int dim>
 	void FEProblem<dim>::setup_quadrature_point_history ()
 	{
@@ -1114,8 +1246,15 @@ namespace HMM
 		quadrature_point_history.resize (n_local_cells *
 				quadrature_formula.size());
 
+		// Set materials densities
+		std::vector<double>	matdensities;
+		matdensities.push_back(1000.);
+		matdensities.push_back(1200.);
+		matdensities.push_back(1200.);
+
 		char filename[1024];
 
+		// Set materials initial stiffness tensors
 		std::vector<SymmetricTensor<4,dim> > stiffness_tensors (mattype.size());
 
 		for(unsigned int imd=0;imd<mattype.size();imd++){
@@ -1143,6 +1282,7 @@ namespace HMM
 
 		}
 
+		// Application of the microstructure on each cell
 		unsigned int history_index = 0;
 		for (typename Triangulation<dim>::active_cell_iterator
 				cell = triangulation.begin_active();
@@ -1156,59 +1296,9 @@ namespace HMM
 		Assert (history_index == quadrature_point_history.size(),
 				ExcInternalError());
 
-		// Generation of nanostructure based on size, weight ratio
-		//generate_nanostructure();
-
-		// Load flakes data (center position, angles, density)
-		unsigned int nflakes = 0;
-		unsigned int nfchar = 0;
-		std::vector<Vector<double> > flakes_data (nflakes, Vector<double>(nfchar));
-
-		sprintf(filename, "%s/flakes_data.csv", macrostatelocin);
-
-		std::ifstream ifile;
-		ifile.open (filename);
-
-		if (ifile.is_open())
-		{
-			std::string iline, ival;
-
-			if(getline(ifile, iline)){
-				std::istringstream iss(iline);
-				if(getline(iss, ival, ',')) nflakes = std::stoi(ival);
-				if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
-			}
-			dcout << "Nflakes " << nflakes << " - Nchar " << nfchar << std::endl;
-
-			dcout << "Char names: " << std::flush;
-			if(getline(ifile, iline)){
-				std::istringstream iss(iline);
-				for(unsigned int k=0;k<nfchar;k++){
-					getline(iss, ival, ',');
-					dcout << ival << " " << std::flush;
-				}
-			}
-			dcout << std::endl;
-
-			flakes_data.resize(nflakes, Vector<double>(nfchar));
-			for(unsigned int n=0;n<nflakes;n++)
-				if(getline(ifile, iline)){
-					dcout << "flake: " << n << std::flush;
-					std::istringstream iss(iline);
-					for(unsigned int k=0;k<nfchar;k++){
-						getline(iss, ival, ',');
-						flakes_data[n][k] = std::stof(ival);
-						dcout << " - " << flakes_data[n][k] << std::flush;
-					}
-					dcout << std::endl;
-				}
-
-			ifile.close();
-		}
-		else{
-			dcout << "Unable to open" << filename << " to read it" << std::endl;
-			dcout << "No microstructure loaded!!" << std::endl;
-		}
+		// Load the microstructure
+		std::vector<Vector<double> > structure_data;
+		structure_data = get_microstructure();
 
 		// History data at integration points initialization
 		for (typename DoFHandler<dim>::active_cell_iterator
@@ -1234,10 +1324,9 @@ namespace HMM
 
 					// Assign microstructure to the current cell (so far, mdtype (?)
 					// and rotation from global to local referential of the flake plane
-					if (q==0) assign_microstructure(cell->center(), flakes_data,
+					if (q==0) assign_microstructure(cell, structure_data,
 								local_quadrature_points_history[q].mat,
-								local_quadrature_points_history[q].rotam,
-								cell->minimum_vertex_distance());
+								local_quadrature_points_history[q].rotam);
 					else{
 						local_quadrature_points_history[q].mat = local_quadrature_points_history[0].mat;
 						local_quadrature_points_history[q].rotam = local_quadrature_points_history[0].rotam;
@@ -1245,21 +1334,21 @@ namespace HMM
 
 					// Apply stiffness and rotating it from the local sheet orientation (MD) to
 					// global orientation (microstructure)
-					if (local_quadrature_points_history[q].mat==mattype[1]){
-						// Apply and rotate the stiffness tensor measured in the flake referential (nloc)
-						//Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
-						//local_quadrature_points_history[q].new_stiff = 0;
-						local_quadrature_points_history[q].new_stiff =
-								rotate_tensor(stiffness_tensors[1], transpose(local_quadrature_points_history[q].rotam));
+					for (int imat = 0; imat<int(mattype.size()); imat++)
+						if(local_quadrature_points_history[q].mat==mattype[imat]){
+							local_quadrature_points_history[q].new_stiff =
+								rotate_tensor(stiffness_tensors[imat],
+									transpose(local_quadrature_points_history[q].rotam));
 
-						// Apply composite density
-						local_quadrature_points_history[q].rho = 1200.;
-					}
-					else{
-						local_quadrature_points_history[q].new_stiff = stiffness_tensors[0];
-						local_quadrature_points_history[q].rho = 1000.;
-					}
+							// Apply composite density
+							local_quadrature_points_history[q].rho = matdensities[imat];
+						}
 				}
+
+				/*std::cout << "   cell " << cell->active_cell_index()
+						  << "   mat "  << local_quadrature_points_history[5].mat
+						  << "   dens " << local_quadrature_points_history[6].rho
+						  << std::endl;*/
 			}
 
 		/*for (typename DoFHandler<dim>::active_cell_iterator
@@ -1282,6 +1371,113 @@ namespace HMM
 						<< std::endl;
 			}*/
 	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::make_grid ()
+	{
+		ll=0.000050;
+		hh=0.000150;
+		bb=0.000050;
+
+		char filename[1024];
+		sprintf(filename, "%s/mesh.tria", macrostatelocin);
+
+		std::ifstream iss(filename);
+		if (iss.is_open()){
+			dcout << "    Reuse of existing triangulation... "
+				  << "(requires the exact SAME COMMUNICATOR!!)" << std::endl;
+			boost::archive::text_iarchive ia(iss, boost::archive::no_header);
+			triangulation.load(ia, 0);
+		}
+		else{
+			dcout << "    Creation of triangulation..." << std::endl;
+			Point<dim> pp1 (-ll/2.,-hh/2.,-bb/2.);
+			Point<dim> pp2 (ll/2.,hh/2.,bb/2.);
+			std::vector< unsigned int > reps (dim);
+			reps[0] = 10; reps[1] = 30; reps[2] = 10;
+			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
+
+			//triangulation.refine_global (1);
+
+			// Saving triangulation, not usefull now and costly...
+			/*sprintf(filename, "%s/mesh.tria", macrostatelocout);
+			std::ofstream oss(filename);
+			boost::archive::text_oarchive oa(oss, boost::archive::no_header);
+			triangulation.save(oa, 0);*/
+		}
+
+		dcout << "    Number of active cells:       "
+				<< triangulation.n_active_cells()
+				<< " (by partition:";
+		for (int p=0; p<n_FE_processes; ++p)
+			dcout << (p==0 ? ' ' : '+')
+			<< (GridTools::
+					count_cells_with_subdomain_association (triangulation,p));
+		dcout << ")" << std::endl;
+	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::setup_system ()
+	{
+		dof_handler.distribute_dofs (fe);
+		locally_owned_dofs = dof_handler.locally_owned_dofs();
+		DoFTools::extract_locally_relevant_dofs (dof_handler,locally_relevant_dofs);
+
+		n_local_cells
+		= GridTools::count_cells_with_subdomain_association (triangulation,
+				triangulation.locally_owned_subdomain ());
+		local_dofs_per_process = dof_handler.n_locally_owned_dofs_per_processor();
+
+		hanging_node_constraints.clear ();
+		DoFTools::make_hanging_node_constraints (dof_handler,
+				hanging_node_constraints);
+		hanging_node_constraints.close ();
+
+		DynamicSparsityPattern sparsity_pattern (locally_relevant_dofs);
+		DoFTools::make_sparsity_pattern (dof_handler, sparsity_pattern,
+				hanging_node_constraints, false);
+		SparsityTools::distribute_sparsity_pattern (sparsity_pattern,
+				local_dofs_per_process,
+				FE_communicator,
+				locally_relevant_dofs);
+
+		system_matrix.reinit (locally_owned_dofs,
+				locally_owned_dofs,
+				sparsity_pattern,
+				FE_communicator);
+		system_rhs.reinit (locally_owned_dofs, FE_communicator);
+
+//		system_inverse.reinit (locally_owned_dofs,
+//				locally_owned_dofs,
+//				sparsity_pattern,
+//				FE_communicator);
+
+		newton_update_displacement.reinit (dof_handler.n_dofs());
+		incremental_displacement.reinit (dof_handler.n_dofs());
+		displacement.reinit (dof_handler.n_dofs());
+		old_displacement.reinit (dof_handler.n_dofs());
+		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i) old_displacement(i) = 0.0;
+
+		newton_update_velocity.reinit (dof_handler.n_dofs());
+		incremental_velocity.reinit (dof_handler.n_dofs());
+		velocity.reinit (dof_handler.n_dofs());
+
+		dcout << "    Number of degrees of freedom: "
+				<< dof_handler.n_dofs()
+				<< " (by partition:";
+		for (int p=0; p<n_FE_processes; ++p)
+			dcout << (p==0 ? ' ' : '+')
+			<< (DoFTools::
+					count_dofs_with_subdomain_association (dof_handler,p));
+		dcout << ")" << std::endl;
+	}
+
 
 
 
@@ -2691,111 +2887,6 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::make_grid ()
-	{
-		ll=0.000050;
-		hh=0.000150;
-		bb=0.000050;
-
-		char filename[1024];
-		sprintf(filename, "%s/mesh.tria", macrostatelocin);
-
-		std::ifstream iss(filename);
-		if (iss.is_open()){
-			dcout << "    Reuse of existing triangulation... "
-				  << "(requires the exact SAME COMMUNICATOR!!)" << std::endl;
-			boost::archive::text_iarchive ia(iss, boost::archive::no_header);
-			triangulation.load(ia, 0);
-		}
-		else{
-			dcout << "    Creation of triangulation..." << std::endl;
-			Point<dim> pp1 (-ll/2.,-hh/2.,-bb/2.);
-			Point<dim> pp2 (ll/2.,hh/2.,bb/2.);
-			std::vector< unsigned int > reps (dim);
-			reps[0] = 10; reps[1] = 30; reps[2] = 10;
-			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
-
-			//triangulation.refine_global (1);
-
-			// Saving triangulation, not usefull now and costly...
-			/*sprintf(filename, "%s/mesh.tria", macrostatelocout);
-			std::ofstream oss(filename);
-			boost::archive::text_oarchive oa(oss, boost::archive::no_header);
-			triangulation.save(oa, 0);*/
-		}
-
-		dcout << "    Number of active cells:       "
-				<< triangulation.n_active_cells()
-				<< " (by partition:";
-		for (int p=0; p<n_FE_processes; ++p)
-			dcout << (p==0 ? ' ' : '+')
-			<< (GridTools::
-					count_cells_with_subdomain_association (triangulation,p));
-		dcout << ")" << std::endl;
-	}
-
-
-
-	template <int dim>
-	void FEProblem<dim>::setup_system ()
-	{
-		dof_handler.distribute_dofs (fe);
-		locally_owned_dofs = dof_handler.locally_owned_dofs();
-		DoFTools::extract_locally_relevant_dofs (dof_handler,locally_relevant_dofs);
-
-		n_local_cells
-		= GridTools::count_cells_with_subdomain_association (triangulation,
-				triangulation.locally_owned_subdomain ());
-		local_dofs_per_process = dof_handler.n_locally_owned_dofs_per_processor();
-
-		hanging_node_constraints.clear ();
-		DoFTools::make_hanging_node_constraints (dof_handler,
-				hanging_node_constraints);
-		hanging_node_constraints.close ();
-
-		DynamicSparsityPattern sparsity_pattern (locally_relevant_dofs);
-		DoFTools::make_sparsity_pattern (dof_handler, sparsity_pattern,
-				hanging_node_constraints, false);
-		SparsityTools::distribute_sparsity_pattern (sparsity_pattern,
-				local_dofs_per_process,
-				FE_communicator,
-				locally_relevant_dofs);
-
-		system_matrix.reinit (locally_owned_dofs,
-				locally_owned_dofs,
-				sparsity_pattern,
-				FE_communicator);
-		system_rhs.reinit (locally_owned_dofs, FE_communicator);
-
-//		system_inverse.reinit (locally_owned_dofs,
-//				locally_owned_dofs,
-//				sparsity_pattern,
-//				FE_communicator);
-
-		newton_update_displacement.reinit (dof_handler.n_dofs());
-		incremental_displacement.reinit (dof_handler.n_dofs());
-		displacement.reinit (dof_handler.n_dofs());
-		old_displacement.reinit (dof_handler.n_dofs());
-		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i) old_displacement(i) = 0.0;
-
-		newton_update_velocity.reinit (dof_handler.n_dofs());
-		incremental_velocity.reinit (dof_handler.n_dofs());
-		velocity.reinit (dof_handler.n_dofs());
-
-		dcout << "    Number of degrees of freedom: "
-				<< dof_handler.n_dofs()
-				<< " (by partition:";
-		for (int p=0; p<n_FE_processes; ++p)
-			dcout << (p==0 ? ' ' : '+')
-			<< (DoFTools::
-					count_dofs_with_subdomain_association (dof_handler,p));
-		dcout << ")" << std::endl;
-	}
-
-
-
-
-	template <int dim>
 	void FEProblem<dim>::restart_save (const double present_time, char* nanostatelocout, char* nanostatelocres, unsigned int nrepl) const
 	{
 		char filename[1024];
@@ -3821,11 +3912,12 @@ namespace HMM
 		hcout << "Building the HMM problem:       " << std::endl;
 
 		// List of name of MD box types
-		mdtype.push_back("PE");
-		mdtype.push_back("PNC");
+		mdtype.push_back("g0");
+		mdtype.push_back("g1");
+		mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble
-		nrepl=5;
+		nrepl=1;
 
 		// Since LAMMPS is highly scalable, the initiation number of processes NI
 		// can basically be equal to the maximum number of available processes NT which

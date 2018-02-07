@@ -513,7 +513,7 @@ namespace HMM
 		char location[1024] = "../box";
 
 		char locdata[1024];
-		sprintf(locdata, "%s/data/%s_%d.lammps05", statelocin, mdt.c_str(), repl);
+		sprintf(locdata, "%s/data/%s_%d.data", statelocin, mdt.c_str(), repl);
 
 		// Name of nanostate binary files
 		char mdstate[1024];

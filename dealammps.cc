@@ -1115,16 +1115,15 @@ namespace HMM
 			// Load flake normal vector
 			Tensor<1,dim> nglo; nglo[0]=structure_data[n][4]; nglo[1]=structure_data[n][5]; nglo[2]=structure_data[n][6];
 
-
 			if(cell->point_inside(fpos)){
 
 				// Setting composite box material
-				for (int imat = 1; imat<int(mattype.size()); imat++)
+				for (int imat=1; imat<int(mattype.size()); imat++)
 					if(imat == int(structure_data[n][0]))
 						mat = mattype[imat];
 
 				//std::cout << " box number: " << n << " is in cell " << cell->active_cell_index()
-				//		  << " of material " << mat << std::endl;
+				//  		  << " of material " << mat << std::endl;
 
 				// Decalaration variables rotation matrix computation
 				Tensor<1,dim> nloc;
@@ -3912,12 +3911,12 @@ namespace HMM
 		hcout << "Building the HMM problem:       " << std::endl;
 
 		// List of name of MD box types
-		mdtype.push_back("g0");
-		mdtype.push_back("g1");
-		mdtype.push_back("g2");
+		mdtype.push_back("PE");
+		mdtype.push_back("PNC");
+		mdtype.push_back("PNC");
 
 		// Number of replicas in MD-ensemble
-		nrepl=1;
+		nrepl=5;
 
 		// Since LAMMPS is highly scalable, the initiation number of processes NI
 		// can basically be equal to the maximum number of available processes NT which

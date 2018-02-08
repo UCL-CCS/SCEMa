@@ -7,7 +7,7 @@ A database is populated with the stress/strain history computed using MD simulat
 
 ## Compile and run:
 After installing separately LAMMPS and Deal.II, and building your MD input lammps data file.
-```bash
+```shell
 cd /path/to/DeaLAMMPS
 mkdir build
 mkdir -p nanoscale_state/in/data/

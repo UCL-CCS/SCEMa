@@ -5,6 +5,17 @@ Continuum mechanics equilibrium equations are solved on the basis of a linear el
 
 A database is populated with the stress/strain history computed using MD simulations. When sufficiently filled, the database is used to infer the induced stress given a current strain history. Such technique reduces rapidly and drastically the number of MD simulations to run.
 
+## Compile and run:
+After installing separately LAMMPS and Deal.II, and building your MD input lammps data file.
+```bash
+cd /path/to/DeaLAMMPS
+mkdir build
+mkdir -p nanoscale_state/in/data/
+cp /path/to/lammps.data nanoscale_state/in/data/
+cmake ../
+./dealammps
+```
+
 ## Summary of work:
 
 ### Setting up the Finite Element simulation

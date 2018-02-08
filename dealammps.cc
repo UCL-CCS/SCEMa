@@ -1793,7 +1793,7 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::set_boundary_values()
 	{
-		inc_dsupport = +0.0000001;
+		inc_dsupport = +0.0000005;
 
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);
@@ -3799,9 +3799,9 @@ namespace HMM
 		hcout << "Building the HMM problem:       " << std::endl;
 
 		// List of name of MD box types
-		mdtype.push_back("PE");
-		mdtype.push_back("PNC");
-		mdtype.push_back("PNC");
+		mdtype.push_back("g0");
+		mdtype.push_back("g1");
+		mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble
 		nrepl=5;
@@ -3816,7 +3816,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 500;
+		end_time = 200;
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem

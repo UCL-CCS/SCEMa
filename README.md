@@ -7,7 +7,7 @@ A database is populated with the stress/strain history computed using MD simulat
 
 ## Compile and run:
 After installing separately LAMMPS and Deal.II, and building your MD input lammps data file.
-```shell
+```sh
 cd /path/to/DeaLAMMPS
 mkdir build
 mkdir -p nanoscale_state/in/data/
@@ -15,6 +15,7 @@ cp /path/to/lammps.data nanoscale_state/in/data/
 cmake ../
 ./dealammps
 ```
+Additionally, a FE mesh can be imported from a GMSH file, and most of the parameters of the simulation can be found in dealammps.cc
 
 ## Summary of work:
 

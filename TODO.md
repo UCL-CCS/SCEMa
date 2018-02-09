@@ -13,3 +13,4 @@
 * Write documentation
 * Pass common features from all forks to master
 * Reflect on more than two scales
+* Gather inputs in a .json file

@@ -1600,6 +1600,7 @@ namespace HMM
 				{
 					// Write json file containing each simulation and its parameters
 					// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
+					mdprjoblist<<"   { " <<std::endl;
 					mdprjoblist<<"      \"name\": \"mdrun_cell"<< cell_id << "_repl${it}\", " <<std::endl;
 					mdprjoblist<<"      \"iterate\": [ 1, "<< nrepl << "], " <<std::endl;
 					mdprjoblist<<"      \"execution\": { " <<std::endl;
@@ -1622,6 +1623,7 @@ namespace HMM
 					mdprjoblist<<"            \"max\": "<< machine_ppn*10 << " " <<std::endl;
 					mdprjoblist<<"         } " <<std::endl;
 					mdprjoblist<<"      } " <<std::endl;
+					mdprjoblist<<"   }, " <<std::endl;
 				}
 			}
 
@@ -1653,6 +1655,12 @@ namespace HMM
 				}
 			}
 
+			// Remove the last useless comma :)
+			long pos = mdjoblist.tellp();
+			mdjoblist.seekp (pos-3);
+			mdjoblist<<""<<std::endl;
+
+			// Append with the control statement
 			mdjoblist<<"   ]"<<std::endl;
 			mdjoblist<<"},"<<std::endl;
 			mdjoblist<<"{"<<std::endl;
@@ -1663,12 +1671,31 @@ namespace HMM
 
 			mdjoblist.close();
 
+			std::cout << "   Finished writing .json file" << std::endl;
+
 			// Run python script that runs all the MD jobs located in json file
+			std::cout << "   Calling QCG-PM..." << std::endl;
 
 			// Create waiting function for all the MD jobs to finish,
 			// should check the presence of CompleteSucces.log sort of file
+			bool qcg_running = true;
+			do{
+				sprintf(filename, "%s/jobs.report", nanostatelocout);
+				std::ifstream  jobreport(filename);
+				if (jobreport.good()){
+					std::string line;
+					// Compute number of cells in local history ()
+					while(getline(jobreport, line)){
+						std::cout << line << std::endl;
+					}
+					jobreport.close();
+					qcg_running = false;
+				}
 
-			std::cout << "Finished writing .json file" << std::endl;
+			}
+			while(qcg_running);
+
+			std::cout << "   Completion signal from QCG-PM received!" << std::endl;
 		}
 
 		MPI_Barrier(world_communicator);

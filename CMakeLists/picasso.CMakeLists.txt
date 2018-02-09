@@ -51,7 +51,7 @@ ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
 ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
                              DEPENDS outclean
                              COMMAND rm
-                             ARGS -rf dealammps single_md
+                             ARGS -rf dealammps single_md init_md
   )
 
 ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"

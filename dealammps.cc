@@ -3804,7 +3804,7 @@ namespace HMM
 		mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble
-		nrepl=5;
+		nrepl=1;
 
 		// Since LAMMPS is highly scalable, the initiation number of processes NI
 		// can basically be equal to the maximum number of available processes NT which

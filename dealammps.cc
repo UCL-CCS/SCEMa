@@ -97,7 +97,7 @@ namespace HMM
 		// Characteristics
 		double rho;
 		std::string mat;
-		Tensor<1,dim> nvec;
+		Tensor<2,dim> rotam;
 		SymmetricTensor<2,dim> init_stress;
 		SymmetricTensor<4,dim> init_stiffness;
 	};
@@ -121,7 +121,7 @@ namespace HMM
 		// Characteristics
 		double rho;
 		std::string mat;
-		Tensor<1,dim> nvec;
+		Tensor<2,dim> rotam;
 	};
 
 	bool file_exists(const char* file) {
@@ -3090,6 +3090,10 @@ namespace HMM
 					// Removing replica stress passing file used to average cell stress
 					sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id, repl);
 					remove(filename);
+
+					// Removing replica strain passing file used to average cell stress
+					sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout, cell_id, repl);
+					remove(filename);
 				}
 
 				// Removing stiffness passing file
@@ -3265,6 +3269,20 @@ namespace HMM
 					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
 					int imdrun=c*nrepl + (repl-1);
 
+					SymmetricTensor<2,dim> loc_strain;
+
+					char filename[1024];
+
+					// Argument of the MD simulation: strain to apply
+					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
+					read_tensor<dim>(filename, loc_strain);
+
+					// Rotate strain tensor from common ground to replica orientation
+
+					// Write tensor to replica specific file
+					sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout, cell_id[c], repl);
+					write_tensor<dim>(filename, loc_strain);
+
 					// Allocation of a MD run to a batch of processes
 					if (lammps_pcolor == (imdrun%n_lammps_batch)) run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), repl);
 				}
@@ -3333,6 +3351,8 @@ namespace HMM
 
 						for(unsigned int repl=1;repl<nrepl+1;repl++)
 						{
+							// Rotate stress and stiffness tensor from replica orientation to common ground
+
 							/*SymmetricTensor<4,dim> loc_rep_stiffness;
 							sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, cell_id[c], repl);
 							read_tensor<dim>(filename, loc_rep_stiffness);
@@ -3583,6 +3603,9 @@ namespace HMM
 					SymmetricTensor<4,dim> 				initial_stiffness_tensor;
 					read_tensor<dim>(macrofilenamein, initial_stiffness_tensor);
 
+					// Rotate tensor from replica orientation to common ground
+
+					// Averaging tensors
 					initial_ensemble_stiffness_tensor += initial_stiffness_tensor;
 
 				}
@@ -3710,7 +3733,7 @@ namespace HMM
 		read_tensor<dim>(filename, init_rep_length);
 
 		// Argument of the MD simulation: strain to apply
-		sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, ccell);
+		sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout, ccell, repl);
 		read_tensor<dim>(filename, loc_strain);
 
 		// Then the lammps function instanciates lammps, starting from an initial
@@ -3760,6 +3783,10 @@ namespace HMM
 				replica_data[imd*nrepl+irep].rho = 0;
 
 				// Load replica orientation (normal to flake plane if composite)
+
+				// Set the rotation matrix from the replica orientation to common
+				// ground FE/MD orientation (arbitrary choose x-direction)
+
 			}
 
 	}

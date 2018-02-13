@@ -92,6 +92,17 @@ namespace HMM
 	using namespace LAMMPS_NS;
 
 	template <int dim>
+	struct ReplicaData
+	{
+		// Characteristics
+		double rho;
+		std::string mat;
+		Tensor<1,dim> nvec;
+		SymmetricTensor<2,dim> init_stress;
+		SymmetricTensor<4,dim> init_stiffness;
+	};
+
+	template <int dim>
 	struct PointHistory
 	{
 		// History
@@ -111,7 +122,6 @@ namespace HMM
 		double rho;
 		std::string mat;
 		Tensor<1,dim> nvec;
-		Tensor<2,dim> rotam;
 	};
 
 	bool file_exists(const char* file) {
@@ -1237,12 +1247,6 @@ namespace HMM
 		quadrature_point_history.resize (n_local_cells *
 				quadrature_formula.size());
 
-		// Set materials densities
-		std::vector<double>	matdensities;
-		matdensities.push_back(1000.);
-		matdensities.push_back(1200.);
-		matdensities.push_back(1200.);
-
 		char filename[1024];
 
 		// Set materials initial stiffness tensors
@@ -1331,7 +1335,7 @@ namespace HMM
 								rotate_tensor(stiffness_tensors[imat],
 									transpose(local_quadrature_points_history[q].rotam));
 
-							// Apply composite density
+							// Apply composite density (by averaging over replicas of given material)
 							local_quadrature_points_history[q].rho = matdensities[imat];
 						}
 				}
@@ -3124,6 +3128,8 @@ namespace HMM
 		void do_timestep (FEProblem<dim> &fe_problem);
 		void solve_timestep (FEProblem<dim> &fe_problem);
 
+		void setup_replica_data ();
+
 		void run_single_md(char* ctime, char* ccell, const char* cmat, unsigned int repl);
 		void update_cells_with_molecular_dynamics ();
 
@@ -3159,6 +3165,7 @@ namespace HMM
 
 		std::vector<std::string>			mdtype;
 		unsigned int						nrepl;
+		std::vector<ReplicaData<dim> > 		replica_data;
 
 		char                                macrostateloc[1024];
 		char                                macrostatelocin[1024];
@@ -3739,6 +3746,29 @@ namespace HMM
 
 
 	template <int dim>
+	void HMMProblem<dim>::setup_replica_data ()
+	{
+
+		replica_data.resize(nrepl * mdtype.size());
+		for(unsigned int imd=0; imd<mdtype.size(); imd++)
+			for(unsigned int irep=0; irep<nrepl; irep++){
+				replica_data[imd*nrepl+irep].mat=mdtype[imd];
+				replica_data[imd*nrepl+irep].init_stress = 0;
+				replica_data[imd*nrepl+irep].init_stiffness = 0;
+
+				// Load density of given replica of given material
+				replica_data[imd*nrepl+irep].rho = 0;
+
+				// Load replica orientation (normal to flake plane if composite)
+			}
+
+	}
+
+
+
+
+
+	template <int dim>
 	void HMMProblem<dim>::set_repositories ()
 	{
 		sprintf(macrostateloc, "./macroscale_state"); mkdir(macrostateloc, ACCESSPERMS);
@@ -3805,6 +3835,9 @@ namespace HMM
 
 		// Number of replicas in MD-ensemble
 		nrepl=1;
+
+		// Setup replicas information vector
+		setup_replica_data();
 
 		// Since LAMMPS is highly scalable, the initiation number of processes NI
 		// can basically be equal to the maximum number of available processes NT which

@@ -3334,6 +3334,14 @@ namespace HMM
 					sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout, cell_id[c], numrepl);
 					write_tensor<dim>(filename, loc_rep_strain);
 
+					// Debug...
+					/*SymmetricTensor<2,dim> orig_loc_rep_strain;
+					orig_loc_rep_strain = rotate_tensor(loc_rep_strain, replica_data[imd*nrepl+repl].rotam);
+					sprintf(filename, "%s/last.%s.%d.upstrain_orig", macrostatelocout, cell_id[c], numrepl);
+					write_tensor<dim>(filename, orig_loc_rep_strain);
+					sprintf(filename, "%s/last.%s.%d.upstrain_cg", macrostatelocout, cell_id[c], numrepl);
+					write_tensor<dim>(filename, cg_loc_rep_strain);*/
+
 					// Allocation of a MD run to a batch of processes
 					if (lammps_pcolor == (imdrun%n_lammps_batch)) run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), numrepl);
 				}
@@ -3673,6 +3681,7 @@ namespace HMM
 
 					SymmetricTensor<4,dim> 				initial_rep_stiffness_tensor;
 					SymmetricTensor<4,dim> 				cg_initial_rep_stiffness_tensor;
+
 					read_tensor<dim>(macrofilenamein, initial_rep_stiffness_tensor);
 
 					// Rotate tensor from replica orientation to common ground
@@ -3682,6 +3691,15 @@ namespace HMM
 					// Averaging tensors in the common ground referential
 					initial_stiffness_tensor += cg_initial_rep_stiffness_tensor;
 
+					// Debugs...
+					/*SymmetricTensor<4,dim> 				orig_cg_initial_rep_stiffness_tensor;
+					orig_cg_initial_rep_stiffness_tensor =
+												rotate_tensor(cg_initial_rep_stiffness_tensor, transpose(replica_data[imd*nrepl+repl].rotam));
+					char macrofilenameout[1024];
+					sprintf(macrofilenameout, "%s/init.%s_%d.stiff_cg", macrostatelocout, mdt.c_str(), repl+1);
+					write_tensor<dim>(macrofilenameout, cg_initial_rep_stiffness_tensor);
+					sprintf(macrofilenameout, "%s/init.%s_%d.stiff_cg_orig", macrostatelocout, mdt.c_str(), repl+1);
+					write_tensor<dim>(macrofilenameout, orig_cg_initial_rep_stiffness_tensor);*/
 				}
 
 				initial_stiffness_tensor /= nrepl;
@@ -3896,8 +3914,8 @@ namespace HMM
 					//hcout << fvcoorx << " " << fvcoory << " " << fvcoorz <<std::endl;
 					Tensor<1,dim> nvrep;
 					nvrep[0]=std::stod(fvcoorx);
-					nvrep[1]=std::stod(fvcoorx);
-					nvrep[2]=std::stod(fvcoorx);
+					nvrep[1]=std::stod(fvcoory);
+					nvrep[2]=std::stod(fvcoorz);
 					// Set the rotation matrix from the replica orientation to common
 					// ground FE/MD orientation (arbitrary choose x-direction)
 					replica_data[imd*nrepl+irep].rotam=compute_rotation_tensor(nvrep,cg_dir);

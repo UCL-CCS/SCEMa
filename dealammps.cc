@@ -33,6 +33,8 @@
 
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
+#include "boost/property_tree/ptree.hpp"
+#include "boost/property_tree/json_parser.hpp"
 //#include "boost/filesystem.hpp"
 
 // To avoid conflicts...
@@ -97,6 +99,9 @@ namespace HMM
 		// Characteristics
 		double rho;
 		std::string mat;
+		int repl;
+		int nflakes;
+		Tensor<1,dim> length;
 		Tensor<2,dim> rotam;
 		SymmetricTensor<2,dim> init_stress;
 		SymmetricTensor<4,dim> init_stiffness;
@@ -123,6 +128,54 @@ namespace HMM
 		std::string mat;
 		Tensor<2,dim> rotam;
 	};
+
+    void bptree_print(boost::property_tree::ptree const& pt)
+    {
+        using boost::property_tree::ptree;
+        ptree::const_iterator end = pt.end();
+        for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
+            std::cout << it->first << ": " << it->second.get_value<std::string>() << std::endl;
+            bptree_print(it->second);
+        }
+    }
+
+    std::string bptree_read(boost::property_tree::ptree const& pt, std::string key)
+    {
+    	std::string value = "NULL";
+        using boost::property_tree::ptree;
+        ptree::const_iterator end = pt.end();
+        for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
+            if(it->first==key)
+            	value = it->second.get_value<std::string>();
+        }
+        return value;
+    }
+
+    std::string bptree_read(boost::property_tree::ptree const& pt, std::string key1, std::string key2)
+    {
+    	std::string value = "NULL";
+        using boost::property_tree::ptree;
+        ptree::const_iterator end = pt.end();
+        for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
+            if(it->first==key1){
+            	value = bptree_read(it->second, key2);
+            }
+        }
+        return value;
+    }
+
+    std::string bptree_read(boost::property_tree::ptree const& pt, std::string key1, std::string key2, std::string key3)
+    {
+    	std::string value = "NULL";
+        using boost::property_tree::ptree;
+        ptree::const_iterator end = pt.end();
+        for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
+            if(it->first==key1){
+            	value = bptree_read(it->second, key2, key3);
+            }
+        }
+        return value;
+    }
 
 	bool file_exists(const char* file) {
 		struct stat buf;
@@ -252,6 +305,35 @@ namespace HMM
 			ofile.close();
 		}
 		else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
+	}
+
+	template <int dim>
+	inline
+	Tensor<2,dim>
+	compute_rotation_tensor (Tensor<1,dim> vorig, Tensor<1,dim> vdest)
+	{
+		Tensor<2,dim> rotam;
+
+		// Filling identity matrix
+		Tensor<2,dim> idmat;
+		idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
+
+		// Decalaration variables rotation matrix computation
+		double ccos;
+		Tensor<2,dim> skew_rot;
+
+		// Compute the scalar product of the local and global vectors
+		ccos = scalar_product(vorig, vdest);
+
+		// Filling the skew-symmetric cross product matrix (a^Tb-b^Ta)
+		for (unsigned int i=0; i<dim; ++i)
+			for (unsigned int j=0; j<dim; ++j)
+				skew_rot[i][j] = vorig[j]*vdest[i] - vorig[i]*vdest[j];
+
+		// Assembling the rotation matrix
+		rotam = idmat + skew_rot + (1/(1+ccos))*skew_rot*skew_rot;
+
+		return rotam;
 	}
 
 	template <int dim>
@@ -906,7 +988,7 @@ namespace HMM
 	public:
 		FEProblem (MPI_Comm dcomm, int pcolor,
 				char* mslocin, char* mslocout, char* mslocres, char* mlogloc,
-				std::vector<std::string> mdtype);
+				std::vector<std::string> mdtype, Tensor<1,dim> cg_dir);
 		~FEProblem ();
 
 		void restart_system (char* nanostatelocin, char* nanostatelocout, unsigned int nrepl);
@@ -930,7 +1012,7 @@ namespace HMM
 				std::string &mat, Tensor<2,dim> &rotam);
 		void assign_flakes (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
 				std::string &mat, Tensor<2,dim> &rotam, double thick_cell);
-		void setup_quadrature_point_history ();
+		void setup_quadrature_point_history (unsigned int nrepl, std::vector<ReplicaData<dim> >);
 
 		void update_strain_quadrature_point_history
 		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no, const bool updated_stiffnesses);
@@ -984,7 +1066,8 @@ namespace HMM
 		double 								hh;
 		double 								bb;
 
-		std::vector<std::string> 			mattype;
+		std::vector<std::string> 			mdtype;
+		Tensor<1,dim> 						cg_dir;
 
 		char*                               macrostatelocin;
 		char*                               macrostatelocout;
@@ -1000,7 +1083,7 @@ namespace HMM
 	template <int dim>
 	FEProblem<dim>::FEProblem (MPI_Comm dcomm, int pcolor,
 			char* mslocin, char* mslocout, char* mslocres, char* mlogloc,
-			std::vector<std::string> mdtype)
+			std::vector<std::string> mdtype, Tensor<1,dim> cg_dir)
 	:
 		FE_communicator (dcomm),
 		n_FE_processes (Utilities::MPI::n_mpi_processes(FE_communicator)),
@@ -1011,7 +1094,8 @@ namespace HMM
 		dof_handler (triangulation),
 		fe (FE_Q<dim>(1), dim),
 		quadrature_formula (2),
-		mattype(mdtype),
+		mdtype(mdtype),
+		cg_dir(cg_dir),
 		macrostatelocin (mslocin),
 		macrostatelocout (mslocout),
 		macrostatelocres (mslocres),
@@ -1104,7 +1188,7 @@ namespace HMM
 		idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
 
 		// Standard properties of cell (pure epoxy)
-		mat = mattype[0];
+		mat = mdtype[0];
 
 		// Default orientation of cell
 		rotam = idmat;
@@ -1118,33 +1202,17 @@ namespace HMM
 			Tensor<1,dim> nglo; nglo[0]=structure_data[n][4]; nglo[1]=structure_data[n][5]; nglo[2]=structure_data[n][6];
 
 			if(cell->point_inside(fpos)){
-
 				// Setting composite box material
-				for (int imat=1; imat<int(mattype.size()); imat++)
+				for (int imat=1; imat<int(mdtype.size()); imat++)
 					if(imat == int(structure_data[n][0]))
-						mat = mattype[imat];
+						mat = mdtype[imat];
 
 				//std::cout << " box number: " << n << " is in cell " << cell->active_cell_index()
 				//  		  << " of material " << mat << std::endl;
 
-				// Decalaration variables rotation matrix computation
-				Tensor<1,dim> nloc;
-				double ccos;
-				Tensor<2,dim> skew_rot;
-
-				// Write the rotation tensor to the MD box flakes referential (0,1,0)
-				nloc[0]=0.0; nloc[1]=1.0; nloc[2]=0.0;
-
-				// Compute the scalar product of the local and global vectors
-				ccos = scalar_product(nglo, nloc);
-
-				// Filling the skew-symmetric cross product matrix (a^Tb-b^Ta)
-				for (unsigned int i=0; i<dim; ++i)
-					for (unsigned int j=0; j<dim; ++j)
-						skew_rot[i][j] = nglo[j]*nloc[i] - nglo[i]*nloc[j];
-
-				// Assembling the rotation matrix
-				rotam = idmat + skew_rot + (1/(1+ccos))*skew_rot*skew_rot;
+				// Assembling the rotation matrix from the global orientation of the cell given by the
+				// microstructure to the common ground direction
+				rotam = compute_rotation_tensor(nglo, cg_dir);
 
 				// Stop the for loop since a cell can only be in one flake at a time...
 				break;
@@ -1167,7 +1235,7 @@ namespace HMM
 		idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
 
 		// Standard properties of cell (pure epoxy)
-		mat = mattype[0];
+		mat = mdtype[0];
 
 		// Default orientation of cell
 		rotam = idmat;
@@ -1201,7 +1269,7 @@ namespace HMM
 //						  << "  --- cell position: " << cpos[0] << " " << cpos[1] << " " << cpos[2] << " " << std::endl;
 
 				// Setting composite box status
-				mat = mattype[1];
+				mat = mdtype[1];
 
 				// Decalaration variables rotation matrix computation
 				Tensor<1,dim> nloc;
@@ -1237,7 +1305,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::setup_quadrature_point_history ()
+	void FEProblem<dim>::setup_quadrature_point_history (unsigned int nrepl, std::vector<ReplicaData<dim> > replica_data)
 	{
 		triangulation.clear_user_data();
 		{
@@ -1250,16 +1318,11 @@ namespace HMM
 		char filename[1024];
 
 		// Set materials initial stiffness tensors
-		std::vector<SymmetricTensor<4,dim> > stiffness_tensors (mattype.size());
+		std::vector<SymmetricTensor<4,dim> > stiffness_tensors (mdtype.size());
 
-		for(unsigned int imd=0;imd<mattype.size();imd++){
-			sprintf(filename, "%s/init.%s.stiff", macrostatelocout, mattype[imd].c_str());
+		for(unsigned int imd=0;imd<mdtype.size();imd++){
+			sprintf(filename, "%s/init.%s.stiff", macrostatelocout, mdtype[imd].c_str());
 			read_tensor<dim>(filename, stiffness_tensors[imd]);
-
-			if(imd==1){
-				stiffness_tensors[imd][0][0][0][0] = stiffness_tensors[imd][0][0][0][0]*3.;
-				stiffness_tensors[imd][2][2][2][2] = stiffness_tensors[imd][2][2][2][2]*3.;
-			}
 
 			if (imd==0)
 				if(this_FE_process==0){
@@ -1272,12 +1335,12 @@ namespace HMM
 					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][1][2][0][0], stiffness_tensors[imd][1][2][1][1], stiffness_tensors[imd][1][2][2][2], stiffness_tensors[imd][1][2][0][1], stiffness_tensors[imd][1][2][0][2], stiffness_tensors[imd][1][2][1][2]);
 				}
 
-			sprintf(filename, "%s/last.%s.stiff", macrostatelocout, mattype[imd].c_str());
+			sprintf(filename, "%s/last.%s.stiff", macrostatelocout, mdtype[imd].c_str());
 				write_tensor<dim>(filename, stiffness_tensors[imd]);
 
 		}
 
-		// Application of the microstructure on each cell
+		// Setting up distributed quadrature point local history
 		unsigned int history_index = 0;
 		for (typename Triangulation<dim>::active_cell_iterator
 				cell = triangulation.begin_active();
@@ -1295,7 +1358,7 @@ namespace HMM
 		std::vector<Vector<double> > structure_data;
 		structure_data = get_microstructure();
 
-		// History data at integration points initialization
+		// Quadrature points data initialization and assigning material properties
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1317,8 +1380,8 @@ namespace HMM
 					local_quadrature_points_history[q].to_be_updated = false;
 					local_quadrature_points_history[q].new_stress = 0;
 
-					// Assign microstructure to the current cell (so far, mdtype (?)
-					// and rotation from global to local referential of the flake plane
+					// Assign microstructure to the current cell (so far, mdtype
+					// and rotation from global to common ground direction)
 					if (q==0) assign_microstructure(cell, structure_data,
 								local_quadrature_points_history[q].mat,
 								local_quadrature_points_history[q].rotam);
@@ -1329,42 +1392,19 @@ namespace HMM
 
 					// Apply stiffness and rotating it from the local sheet orientation (MD) to
 					// global orientation (microstructure)
-					for (int imat = 0; imat<int(mattype.size()); imat++)
-						if(local_quadrature_points_history[q].mat==mattype[imat]){
+					for (int imd = 0; imd<int(mdtype.size()); imd++)
+						if(local_quadrature_points_history[q].mat==mdtype[imd]){
 							local_quadrature_points_history[q].new_stiff =
-								rotate_tensor(stiffness_tensors[imat],
+								rotate_tensor(stiffness_tensors[imd],
 									transpose(local_quadrature_points_history[q].rotam));
 
 							// Apply composite density (by averaging over replicas of given material)
-							local_quadrature_points_history[q].rho = matdensities[imat];
+							for (unsigned int irep = 0; irep<nrepl; irep++)
+								local_quadrature_points_history[q].rho += replica_data[imd*nrepl+irep].rho;
+							local_quadrature_points_history[q].rho /= nrepl;
 						}
 				}
-
-				/*std::cout << "   cell " << cell->active_cell_index()
-						  << "   mat "  << local_quadrature_points_history[5].mat
-						  << "   dens " << local_quadrature_points_history[6].rho
-						  << std::endl;*/
 			}
-
-		/*for (typename DoFHandler<dim>::active_cell_iterator
-				cell = dof_handler.begin_active();
-				cell != dof_handler.end(); ++cell)
-			if (cell->is_locally_owned())
-			{
-				PointHistory<dim> *local_quadrature_points_history
-				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
-				Assert (local_quadrature_points_history >=
-						&quadrature_point_history.front(),
-						ExcInternalError());
-				Assert (local_quadrature_points_history <
-						&quadrature_point_history.back(),
-						ExcInternalError());
-
-				std::cout << " cell: " << cell->active_cell_index() << " - mat: "
-						<< local_quadrature_points_history[0].mat << " "
-						<< local_quadrature_points_history[1].mat
-						<< std::endl;
-			}*/
 	}
 
 
@@ -1475,7 +1515,7 @@ namespace HMM
 		sprintf(update_local_filename, "%s/last.%d.qpupdates", macrostatelocout, this_FE_process);
 		ofile.open (update_local_filename);
 
-		// Create file with mattype of qptid to update at timeid
+		// Create file with mdtype of qptid to update at timeid
 		std::ofstream omatfile;
 		char mat_update_local_filename[1024];
 		sprintf(mat_update_local_filename, "%s/last.%d.matqpupdates", macrostatelocout, this_FE_process);
@@ -1570,7 +1610,7 @@ namespace HMM
 
 								SymmetricTensor<2,dim> rot_avg_upd_strain_tensor;
 
-								if(local_quadrature_points_history[0].mat==mattype[1])
+								if(local_quadrature_points_history[0].mat==mdtype[1])
 									// Rotation of the strain update tensor wrt to the flake angle
 									rot_avg_upd_strain_tensor =
 											rotate_tensor(avg_upd_strain_tensor, local_quadrature_points_history[0].rotam);
@@ -1682,7 +1722,7 @@ namespace HMM
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					// For debug...
-					/*if (local_quadrature_points_history[q].mat==mattype[1]
+					/*if (local_quadrature_points_history[q].mat==mdtype[1]
 							and q==0){
 
 						SymmetricTensor<2,dim> tmp_stress = local_quadrature_points_history[q].new_stress;
@@ -1709,7 +1749,7 @@ namespace HMM
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stiff);
 
-						if(local_quadrature_points_history[q].mat==mattype[1])
+						if(local_quadrature_points_history[q].mat==mdtype[1])
 							// Rotate the output stiffness wrt the flake angles
 							local_quadrature_points_history[q].new_stiff =
 									rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
@@ -1721,7 +1761,7 @@ namespace HMM
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stress);
 
-						if (local_quadrature_points_history[q].mat==mattype[1]){
+						if (local_quadrature_points_history[q].mat==mdtype[1]){
 							// Rotate the output stress wrt the flake angles
 							local_quadrature_points_history[q].new_stress =
 									rotate_tensor(stmp_stress, transpose(local_quadrature_points_history[q].rotam));
@@ -3170,6 +3210,7 @@ namespace HMM
 		std::vector<std::string>			mdtype;
 		unsigned int						nrepl;
 		std::vector<ReplicaData<dim> > 		replica_data;
+		Tensor<1,dim> 						cg_dir;
 
 		char                                macrostateloc[1024];
 		char                                macrostatelocin[1024];
@@ -3264,27 +3305,36 @@ namespace HMM
 			hcout << "        " << "...cells and replicas completed: " << std::flush;
 			for (int c=0; c<ncupd; ++c)
 			{
-				for(unsigned int repl=1;repl<nrepl+1;repl++)
-				{
-					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
-					int imdrun=c*nrepl + (repl-1);
+				int imd = 0;
+				for(unsigned int i=0; i<mdtype.size(); i++)
+					if(matcellupd[c]==mdtype[i])
+						imd=i;
 
-					SymmetricTensor<2,dim> loc_strain;
+				for(unsigned int repl=0;repl<nrepl;repl++)
+				{
+					// Offset replica number because in filenames, replicas start at 1
+					int numrepl = repl+1;
+
+					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
+					int imdrun=c*nrepl + (repl);
+
+					SymmetricTensor<2,dim> loc_rep_strain, cg_loc_rep_strain;
 
 					char filename[1024];
 
 					// Argument of the MD simulation: strain to apply
 					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
-					read_tensor<dim>(filename, loc_strain);
+					read_tensor<dim>(filename, cg_loc_rep_strain);
 
 					// Rotate strain tensor from common ground to replica orientation
+					loc_rep_strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[imd*nrepl+repl].rotam));
 
 					// Write tensor to replica specific file
-					sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout, cell_id[c], repl);
-					write_tensor<dim>(filename, loc_strain);
+					sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout, cell_id[c], numrepl);
+					write_tensor<dim>(filename, loc_rep_strain);
 
 					// Allocation of a MD run to a batch of processes
-					if (lammps_pcolor == (imdrun%n_lammps_batch)) run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), repl);
+					if (lammps_pcolor == (imdrun%n_lammps_batch)) run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), numrepl);
 				}
 			}
 			hcout << std::endl;
@@ -3339,41 +3389,51 @@ namespace HMM
 			// Averaging stiffness and stress per cell over replicas
 			for (int c=0; c<ncupd; ++c)
 			{
+				int imd = 0;
+				for(unsigned int i=0; i<mdtype.size(); i++)
+					if(matcellupd[c]==mdtype[i])
+						imd=i;
+
 				if (lammps_pcolor == (c%n_lammps_batch))
 				{
 					// Write the new stress and stiffness tensors into two files, respectively
 					// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
 					if(this_lammps_batch_process == 0)
 					{
-						//SymmetricTensor<4,dim> loc_stiffness;
-						SymmetricTensor<2,dim> loc_stress;
+						//SymmetricTensor<4,dim> cg_loc_stiffness;
+						SymmetricTensor<2,dim> cg_loc_stress;
 						char filename[1024];
 
 						for(unsigned int repl=1;repl<nrepl+1;repl++)
 						{
 							// Rotate stress and stiffness tensor from replica orientation to common ground
 
-							/*SymmetricTensor<4,dim> loc_rep_stiffness;
+							/*SymmetricTensor<4,dim> cg_loc_stiffness, loc_rep_stiffness;
 							sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, cell_id[c], repl);
 							read_tensor<dim>(filename, loc_rep_stiffness);
 
-							loc_stiffness += loc_rep_stiffness;*/
+							cg_loc_stiffness = rotate_tensor(loc_stiffness, replica_data[imd*nrepl+repl].rotam);
 
-							SymmetricTensor<2,dim> loc_rep_stress;
+							cg_loc_stiffness += cg_loc_rep_stiffness;*/
+
+							SymmetricTensor<2,dim> cg_loc_rep_stress, loc_rep_stress;
 							sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id[c], repl);
 							read_tensor<dim>(filename, loc_rep_stress);
 
-							loc_stress += loc_rep_stress;
+							// Rotation of the stress tensor to common ground direction before averaging
+							cg_loc_rep_stress = rotate_tensor(loc_rep_stress, replica_data[imd*nrepl+repl].rotam);
+
+							cg_loc_stress += cg_loc_rep_stress;
 						}
 
-						//loc_stiffness /= nrepl;
-						loc_stress /= nrepl;
+						//cg_loc_stiffness /= nrepl;
+						cg_loc_stress /= nrepl;
 
 						/*sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id[c]);
-						write_tensor<dim>(filename, loc_stiffness);*/
+						write_tensor<dim>(filename, cg_loc_stiffness);*/
 
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id[c]);
-						write_tensor<dim>(filename, loc_stress);
+						write_tensor<dim>(filename, cg_loc_stress);
 
 					}
 				}
@@ -3510,51 +3570,61 @@ namespace HMM
 			// type of MD box (so far PE or PNC)
 			std::string mdt = mdtype[imdt];
 
-			for(unsigned int repl=1;repl<nrepl+1;repl++)
+			for(unsigned int repl=0;repl<nrepl;repl++)
 			{
-				int imdrun=imdt*nrepl + (repl-1);
+				int imdrun=imdt*nrepl + (repl);
 				if (lammps_pcolor == (imdrun%n_lammps_batch))
 				{
+					// Offset replica number because in filenames, replicas start at 1
+					int numrepl = repl+1;
+
 					std::vector<double> 				initial_length (dim);
 					SymmetricTensor<2,dim> 				initial_stress_tensor;
 					SymmetricTensor<4,dim> 				initial_stiffness_tensor;
 
 					char macrofilenamein[1024];
-					sprintf(macrofilenamein, "%s/init.%s_%d.stiff", macrostatelocin, mdt.c_str(), repl);
+					sprintf(macrofilenamein, "%s/init.%s_%d.stiff", macrostatelocin, mdt.c_str(), numrepl);
 					char macrofilenameout[1024];
-					sprintf(macrofilenameout, "%s/init.%s_%d.stiff", macrostatelocout, mdt.c_str(), repl);
+					sprintf(macrofilenameout, "%s/init.%s_%d.stiff", macrostatelocout, mdt.c_str(), numrepl);
 					bool macrostate_exists = file_exists(macrofilenamein);
 
 					char macrofilenameinstress[1024];
-					sprintf(macrofilenameinstress, "%s/init.%s_%d.stress", macrostatelocin, mdt.c_str(), repl);
+					sprintf(macrofilenameinstress, "%s/init.%s_%d.stress", macrostatelocin, mdt.c_str(), numrepl);
 					char macrofilenameoutstress[1024];
-					sprintf(macrofilenameoutstress, "%s/init.%s_%d.stress", macrostatelocout, mdt.c_str(), repl);
+					sprintf(macrofilenameoutstress, "%s/init.%s_%d.stress", macrostatelocout, mdt.c_str(), numrepl);
 					bool macrostatestress_exists = file_exists(macrofilenameinstress);
 
 					char macrofilenameinlength[1024];
-					sprintf(macrofilenameinlength, "%s/init.%s_%d.length", macrostatelocin, mdt.c_str(), repl);
+					sprintf(macrofilenameinlength, "%s/init.%s_%d.length", macrostatelocin, mdt.c_str(), numrepl);
 					char macrofilenameoutlength[1024];
-					sprintf(macrofilenameoutlength, "%s/init.%s_%d.length", macrostatelocout, mdt.c_str(), repl);
+					sprintf(macrofilenameoutlength, "%s/init.%s_%d.length", macrostatelocout, mdt.c_str(), numrepl);
 					bool macrostatelength_exists = file_exists(macrofilenameinlength);
 
 					char nanofilenamein[1024];
-					sprintf(nanofilenamein, "%s/init.%s_%d.bin", nanostatelocin, mdt.c_str(), repl);
+					sprintf(nanofilenamein, "%s/init.%s_%d.bin", nanostatelocin, mdt.c_str(), numrepl);
 					char nanofilenameout[1024];
-					sprintf(nanofilenameout, "%s/init.%s_%d.bin", nanostatelocout, mdt.c_str(), repl);
+					sprintf(nanofilenameout, "%s/init.%s_%d.bin", nanostatelocout, mdt.c_str(), numrepl);
 					bool nanostate_exists = file_exists(nanofilenamein);
 
 					if(!macrostate_exists || !macrostatestress_exists || !macrostatelength_exists || !nanostate_exists){
-						if(this_lammps_batch_process == 0) std::cout << "        (type " << mdt << " - repl "<< repl << ") ...from a molecular dynamics simulation       " << std::endl;
+						if(this_lammps_batch_process == 0) std::cout << "        (type " << mdt << " - repl "<< numrepl << ") ...from a molecular dynamics simulation       " << std::endl;
 						lammps_initiation<dim> (initial_stress_tensor, initial_stiffness_tensor, initial_length, lammps_batch_communicator,
-								nanostatelocin, nanostatelocout, nanologloc, mdt, repl);
+								nanostatelocin, nanostatelocout, nanologloc, mdt, numrepl);
 
 						if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameout, initial_stiffness_tensor);
 						if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameoutstress, initial_stress_tensor);
 						if(this_lammps_batch_process == 0) write_tensor<dim>(macrofilenameoutlength, initial_length);
+
+//						for(unsigned int id=0; id<dim; id++)
+//							replica_data[imdt*nrepl+repl].length[id] = 0;
+//						replica_data[imdt*nrepl+repl].length = initial_length;
+//						replica_data[imdt*nrepl+repl].init_stress = initial_stress_tensor;
+//						replica_data[imdt*nrepl+repl].init_stiffness = initial_stiffness_tensor;
+
 					}
 					else{
 						if(this_lammps_batch_process == 0){
-							std::cout << " (repl "<< repl << ")  ...from an existing stiffness tensor       " << std::endl;
+							std::cout << " (repl "<< numrepl << ")  ...from an existing stiffness tensor       " << std::endl;
 							std::ifstream  macroin(macrofilenamein, std::ios::binary);
 							std::ofstream  macroout(macrofilenameout,   std::ios::binary);
 							macroout << macroin.rdbuf();
@@ -3595,18 +3665,21 @@ namespace HMM
 				// type of MD box (so far PE or PNC)
 				std::string mdt = mdtype[imd];
 
-				for(unsigned int repl=1;repl<nrepl+1;repl++)
+				for(unsigned int repl=0;repl<nrepl;repl++)
 				{
 					char macrofilenamein[1024];
-					sprintf(macrofilenamein, "%s/init.%s_%d.stiff", macrostatelocout, mdt.c_str(), repl);
+					sprintf(macrofilenamein, "%s/init.%s_%d.stiff", macrostatelocout, mdt.c_str(), repl+1);
 
 					SymmetricTensor<4,dim> 				initial_stiffness_tensor;
+					SymmetricTensor<4,dim> 				cg_initial_stiffness_tensor;
 					read_tensor<dim>(macrofilenamein, initial_stiffness_tensor);
 
 					// Rotate tensor from replica orientation to common ground
+					cg_initial_stiffness_tensor =
+							rotate_tensor(initial_stiffness_tensor, replica_data[imd*nrepl+repl].rotam);
 
-					// Averaging tensors
-					initial_ensemble_stiffness_tensor += initial_stiffness_tensor;
+					// Averaging tensors in the common ground referential
+					initial_ensemble_stiffness_tensor += cg_initial_stiffness_tensor;
 
 				}
 
@@ -3755,6 +3828,7 @@ namespace HMM
 
 		if(this_lammps_batch_process == 0)
 		{
+			char filename[1024];
 			std::cout << " \t" << ccell <<"-"<< repl << " \t" << std::flush;
 
 			/*sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, ccell, repl);
@@ -3771,24 +3845,69 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::setup_replica_data ()
 	{
+		// Direction to which all MD data are rotated to, to later ease rotation in the FE problem
+		cg_dir[0]=0.0; cg_dir[1]=1.0; cg_dir[2]=0.0;
+
+	    using boost::property_tree::ptree;
+
+	    char filename[1024];
 
 		replica_data.resize(nrepl * mdtype.size());
 		for(unsigned int imd=0; imd<mdtype.size(); imd++)
 			for(unsigned int irep=0; irep<nrepl; irep++){
+				// Setting material name and replica number
 				replica_data[imd*nrepl+irep].mat=mdtype[imd];
+				replica_data[imd*nrepl+irep].repl=irep+1;
+
+				// Initializing mechanical characteristics after equilibration
+				replica_data[imd*nrepl+irep].length = 0;
 				replica_data[imd*nrepl+irep].init_stress = 0;
 				replica_data[imd*nrepl+irep].init_stiffness = 0;
 
+				// Parse JSON data file
+			    sprintf(filename, "%s/data/%s_%d.json", nanostatelocin,
+			    		replica_data[imd*nrepl+irep].mat.c_str(), replica_data[imd*nrepl+irep].repl);
+			    std::ifstream jsonFile(filename);
+			    ptree pt;
+			    read_json(jsonFile, pt);
+
+			    // Printing the whole tree of the JSON file
+			    bptree_print(pt);
+
 				// Load density of given replica of given material
-				replica_data[imd*nrepl+irep].rho = 0;
+			    std::string rdensity = bptree_read(pt, "relative_density");
+				replica_data[imd*nrepl+irep].rho = std::stod(rdensity)*1000.;
+
+				// Load number of flakes in box
+			    std::string numflakes = bptree_read(pt, "Nsheets");
+				replica_data[imd*nrepl+irep].nflakes = std::stoi(numflakes);
+
+				hcout << "Hi repl: " << replica_data[imd*nrepl+irep].repl
+					  << " - mat: " << replica_data[imd*nrepl+irep].mat
+					  << " - rho: " << replica_data[imd*nrepl+irep].rho
+					  << std::endl;
 
 				// Load replica orientation (normal to flake plane if composite)
-
-				// Set the rotation matrix from the replica orientation to common
-				// ground FE/MD orientation (arbitrary choose x-direction)
-
+				if(replica_data[imd*nrepl+irep].nflakes==1){
+					std::string fvcoorx = bptree_read(pt, "normal_vector","1","x");
+					std::string fvcoory = bptree_read(pt, "normal_vector","1","y");
+					std::string fvcoorz = bptree_read(pt, "normal_vector","1","z");
+					hcout << fvcoorx << " " << fvcoory << " " << fvcoorz <<std::endl;
+					Tensor<1,dim> nvrep;
+					nvrep[0]=std::stod(fvcoorx);
+					nvrep[1]=std::stod(fvcoorx);
+					nvrep[2]=std::stod(fvcoorx);
+					// Set the rotation matrix from the replica orientation to common
+					// ground FE/MD orientation (arbitrary choose x-direction)
+					replica_data[imd*nrepl+irep].rotam=compute_rotation_tensor(nvrep,cg_dir);
+				}
+				else{
+					Tensor<2,dim> idmat;
+					idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
+					// Simply fill the rotation matrix with the identity matrix
+					replica_data[imd*nrepl+irep].rotam=idmat;
+				}
 			}
-
 	}
 
 
@@ -3856,9 +3975,9 @@ namespace HMM
 		hcout << "Building the HMM problem:       " << std::endl;
 
 		// List of name of MD box types
-		mdtype.push_back("g0");
+		//mdtype.push_back("g0");
 		mdtype.push_back("g1");
-		mdtype.push_back("g2");
+		//mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble
 		nrepl=1;
@@ -3876,14 +3995,14 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 200;
+		end_time = 200; //200
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;
 		FEProblem<dim> fe_problem (dealii_communicator, dealii_pcolor,
 				                    macrostatelocin, macrostatelocout, macrostatelocres, macrologloc,
-									mdtype);
+									mdtype, cg_dir);
 		MPI_Barrier(world_communicator);
 
 		hcout << " Initiation of the Mesh...       " << std::endl;
@@ -3893,7 +4012,7 @@ namespace HMM
 		if(dealii_pcolor==0) fe_problem.setup_system ();
 
 		hcout << " Initiation of the local tensors...       " << std::endl;
-		if(dealii_pcolor==0) fe_problem.setup_quadrature_point_history ();
+		if(dealii_pcolor==0) fe_problem.setup_quadrature_point_history (nrepl, replica_data);
 
 		hcout << " Loading previous simulation data...       " << std::endl;
 		if(dealii_pcolor==0) fe_problem.restart_system (nanostatelocin, nanostatelocout, nrepl);

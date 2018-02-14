@@ -822,7 +822,7 @@ namespace HMM
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
 		// Setting dumping of atom positions for post analysis of the MD simulation
-		sprintf(cline, "dump atom_dump all atom %d %s/%s xs ys zs vx vy vz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
+		sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
@@ -1138,29 +1138,29 @@ namespace HMM
 				if(getline(iss, ival, ',')) npoints = std::stoi(ival);
 				if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
 			}
-			dcout << "Nboxes " << npoints << " - Nchar " << nfchar << std::endl;
+			dcout << "      Nboxes " << npoints << " - Nchar " << nfchar << std::endl;
 
-			dcout << "Char names: " << std::flush;
+			//dcout << "Char names: " << std::flush;
 			if(getline(ifile, iline)){
 				std::istringstream iss(iline);
 				for(unsigned int k=0;k<nfchar;k++){
 					getline(iss, ival, ',');
-					dcout << ival << " " << std::flush;
+					//dcout << ival << " " << std::flush;
 				}
 			}
-			dcout << std::endl;
+			//dcout << std::endl;
 
 			structure_data.resize(npoints, Vector<double>(nfchar));
 			for(unsigned int n=0;n<npoints;n++)
 				if(getline(ifile, iline)){
-					dcout << "box: " << n << std::flush;
+					//dcout << "box: " << n << std::flush;
 					std::istringstream iss(iline);
 					for(unsigned int k=0;k<nfchar;k++){
 						getline(iss, ival, ',');
 						structure_data[n][k] = std::stof(ival);
-						dcout << " - " << structure_data[n][k] << std::flush;
+						//dcout << " - " << structure_data[n][k] << std::flush;
 					}
-					dcout << std::endl;
+					//dcout << std::endl;
 				}
 
 			ifile.close();
@@ -1320,24 +1320,23 @@ namespace HMM
 		// Set materials initial stiffness tensors
 		std::vector<SymmetricTensor<4,dim> > stiffness_tensors (mdtype.size());
 
+		dcout << "    Importing initial stiffnesses..." << std::endl;
 		for(unsigned int imd=0;imd<mdtype.size();imd++){
 			sprintf(filename, "%s/init.%s.stiff", macrostatelocout, mdtype[imd].c_str());
 			read_tensor<dim>(filename, stiffness_tensors[imd]);
 
-			if (imd==0)
-				if(this_FE_process==0){
-					std::cout << "    Imported initial stiffness..." << std::endl;
-					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][0][0][0], stiffness_tensors[0][0][0][1][1], stiffness_tensors[imd][0][0][2][2], stiffness_tensors[imd][0][0][0][1], stiffness_tensors[imd][0][0][0][2], stiffness_tensors[imd][0][0][1][2]);
-					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][1][1][0][0], stiffness_tensors[imd][1][1][1][1], stiffness_tensors[imd][1][1][2][2], stiffness_tensors[imd][1][1][0][1], stiffness_tensors[imd][1][1][0][2], stiffness_tensors[imd][1][1][1][2]);
-					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][2][2][0][0], stiffness_tensors[imd][2][2][1][1], stiffness_tensors[imd][2][2][2][2], stiffness_tensors[imd][2][2][0][1], stiffness_tensors[imd][2][2][0][2], stiffness_tensors[imd][2][2][1][2]);
-					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][1][0][0], stiffness_tensors[imd][0][1][1][1], stiffness_tensors[imd][0][1][2][2], stiffness_tensors[imd][0][1][0][1], stiffness_tensors[imd][0][1][0][2], stiffness_tensors[imd][0][1][1][2]);
-					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][2][0][0], stiffness_tensors[imd][0][2][1][1], stiffness_tensors[imd][0][2][2][2], stiffness_tensors[imd][0][2][0][1], stiffness_tensors[imd][0][2][0][2], stiffness_tensors[imd][0][2][1][2]);
-					printf("     %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][1][2][0][0], stiffness_tensors[imd][1][2][1][1], stiffness_tensors[imd][1][2][2][2], stiffness_tensors[imd][1][2][0][1], stiffness_tensors[imd][1][2][0][2], stiffness_tensors[imd][1][2][1][2]);
-				}
+			if(this_FE_process==0){
+				std::cout << "       material: " << mdtype[imd].c_str() << std::endl;
+				printf("           %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][0][0][0], stiffness_tensors[imd][0][0][1][1], stiffness_tensors[imd][0][0][2][2], stiffness_tensors[imd][0][0][0][1], stiffness_tensors[imd][0][0][0][2], stiffness_tensors[imd][0][0][1][2]);
+				printf("           %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][1][1][0][0], stiffness_tensors[imd][1][1][1][1], stiffness_tensors[imd][1][1][2][2], stiffness_tensors[imd][1][1][0][1], stiffness_tensors[imd][1][1][0][2], stiffness_tensors[imd][1][1][1][2]);
+				printf("           %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][2][2][0][0], stiffness_tensors[imd][2][2][1][1], stiffness_tensors[imd][2][2][2][2], stiffness_tensors[imd][2][2][0][1], stiffness_tensors[imd][2][2][0][2], stiffness_tensors[imd][2][2][1][2]);
+				printf("           %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][1][0][0], stiffness_tensors[imd][0][1][1][1], stiffness_tensors[imd][0][1][2][2], stiffness_tensors[imd][0][1][0][1], stiffness_tensors[imd][0][1][0][2], stiffness_tensors[imd][0][1][1][2]);
+				printf("           %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][2][0][0], stiffness_tensors[imd][0][2][1][1], stiffness_tensors[imd][0][2][2][2], stiffness_tensors[imd][0][2][0][1], stiffness_tensors[imd][0][2][0][2], stiffness_tensors[imd][0][2][1][2]);
+				printf("           %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][1][2][0][0], stiffness_tensors[imd][1][2][1][1], stiffness_tensors[imd][1][2][2][2], stiffness_tensors[imd][1][2][0][1], stiffness_tensors[imd][1][2][0][2], stiffness_tensors[imd][1][2][1][2]);
+			}
 
 			sprintf(filename, "%s/last.%s.stiff", macrostatelocout, mdtype[imd].c_str());
 				write_tensor<dim>(filename, stiffness_tensors[imd]);
-
 		}
 
 		// Setting up distributed quadrature point local history
@@ -1355,10 +1354,12 @@ namespace HMM
 				ExcInternalError());
 
 		// Load the microstructure
+		dcout << "    Loading microstructure..." << std::endl;
 		std::vector<Vector<double> > structure_data;
 		structure_data = get_microstructure();
 
 		// Quadrature points data initialization and assigning material properties
+		dcout << "    Assigning microstructure..." << std::endl;
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -3624,7 +3625,7 @@ namespace HMM
 					}
 					else{
 						if(this_lammps_batch_process == 0){
-							std::cout << " (repl "<< numrepl << ")  ...from an existing stiffness tensor       " << std::endl;
+							std::cout << " (type " << mdt << " - repl "<< numrepl << ")  ...from an existing stiffness tensor       " << std::endl;
 							std::ifstream  macroin(macrofilenamein, std::ios::binary);
 							std::ofstream  macroout(macrofilenameout,   std::ios::binary);
 							macroout << macroin.rdbuf();
@@ -3659,8 +3660,8 @@ namespace HMM
 		if(this_lammps_batch_process == 0){
 			for(unsigned int imd=0;imd<mdtype.size();imd++)
 			{
-				SymmetricTensor<4,dim> 				initial_ensemble_stiffness_tensor;
-				initial_ensemble_stiffness_tensor = 0.;
+				SymmetricTensor<4,dim> 				initial_stiffness_tensor;
+				initial_stiffness_tensor = 0.;
 
 				// type of MD box (so far PE or PNC)
 				std::string mdt = mdtype[imd];
@@ -3670,20 +3671,20 @@ namespace HMM
 					char macrofilenamein[1024];
 					sprintf(macrofilenamein, "%s/init.%s_%d.stiff", macrostatelocout, mdt.c_str(), repl+1);
 
-					SymmetricTensor<4,dim> 				initial_stiffness_tensor;
-					SymmetricTensor<4,dim> 				cg_initial_stiffness_tensor;
-					read_tensor<dim>(macrofilenamein, initial_stiffness_tensor);
+					SymmetricTensor<4,dim> 				initial_rep_stiffness_tensor;
+					SymmetricTensor<4,dim> 				cg_initial_rep_stiffness_tensor;
+					read_tensor<dim>(macrofilenamein, initial_rep_stiffness_tensor);
 
 					// Rotate tensor from replica orientation to common ground
-					cg_initial_stiffness_tensor =
-							rotate_tensor(initial_stiffness_tensor, replica_data[imd*nrepl+repl].rotam);
+					cg_initial_rep_stiffness_tensor =
+							rotate_tensor(initial_rep_stiffness_tensor, replica_data[imd*nrepl+repl].rotam);
 
 					// Averaging tensors in the common ground referential
-					initial_ensemble_stiffness_tensor += cg_initial_stiffness_tensor;
+					initial_stiffness_tensor += cg_initial_rep_stiffness_tensor;
 
 				}
 
-				initial_ensemble_stiffness_tensor /= nrepl;
+				initial_stiffness_tensor /= nrepl;
 
 				// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
 				for(unsigned int k=0;k<dim;k++)
@@ -3692,7 +3693,7 @@ namespace HMM
 							for(unsigned int n=m;n<dim;n++)
 								if(!((k==l && m==n) || (k==m && l==n))){
 									//std::cout << "       ... removal of shear coupling terms" << std::endl;
-									initial_ensemble_stiffness_tensor[k][l][m][n] *= 1.0;
+									initial_stiffness_tensor[k][l][m][n] *= 1.0;
 								}
 								// Does not make any sense for tangent stiffness...
 								//else if(initial_ensemble_stiffness_tensor[k][l][m][n]<0.0) initial_ensemble_stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
@@ -3700,7 +3701,7 @@ namespace HMM
 				char macrofilenameout[1024];
 				sprintf(macrofilenameout, "%s/init.%s.stiff", macrostatelocout, mdt.c_str());
 
-				write_tensor<dim>(macrofilenameout, initial_ensemble_stiffness_tensor);
+				write_tensor<dim>(macrofilenameout, initial_stiffness_tensor);
 			}
 		}
 	}
@@ -3872,7 +3873,7 @@ namespace HMM
 			    read_json(jsonFile, pt);
 
 			    // Printing the whole tree of the JSON file
-			    bptree_print(pt);
+			    //bptree_print(pt);
 
 				// Load density of given replica of given material
 			    std::string rdensity = bptree_read(pt, "relative_density");
@@ -3882,17 +3883,17 @@ namespace HMM
 			    std::string numflakes = bptree_read(pt, "Nsheets");
 				replica_data[imd*nrepl+irep].nflakes = std::stoi(numflakes);
 
-				hcout << "Hi repl: " << replica_data[imd*nrepl+irep].repl
+				/*hcout << "Hi repl: " << replica_data[imd*nrepl+irep].repl
 					  << " - mat: " << replica_data[imd*nrepl+irep].mat
 					  << " - rho: " << replica_data[imd*nrepl+irep].rho
-					  << std::endl;
+					  << std::endl;*/
 
 				// Load replica orientation (normal to flake plane if composite)
 				if(replica_data[imd*nrepl+irep].nflakes==1){
 					std::string fvcoorx = bptree_read(pt, "normal_vector","1","x");
 					std::string fvcoory = bptree_read(pt, "normal_vector","1","y");
 					std::string fvcoorz = bptree_read(pt, "normal_vector","1","z");
-					hcout << fvcoorx << " " << fvcoory << " " << fvcoorz <<std::endl;
+					//hcout << fvcoorx << " " << fvcoory << " " << fvcoorz <<std::endl;
 					Tensor<1,dim> nvrep;
 					nvrep[0]=std::stod(fvcoorx);
 					nvrep[1]=std::stod(fvcoorx);
@@ -3975,9 +3976,9 @@ namespace HMM
 		hcout << "Building the HMM problem:       " << std::endl;
 
 		// List of name of MD box types
-		//mdtype.push_back("g0");
+		mdtype.push_back("g0");
 		mdtype.push_back("g1");
-		//mdtype.push_back("g2");
+		mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble
 		nrepl=1;

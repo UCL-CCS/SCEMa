@@ -903,11 +903,6 @@ namespace HMM
 			sprintf(filename, "%s/init.%s.stiff", macrostatelocout, mdtype[imd].c_str());
 			read_tensor<dim>(filename, stiffness_tensors[imd]);
 
-			if(imd==1){
-				stiffness_tensors[imd][0][0][0][0] = stiffness_tensors[imd][0][0][0][0]*3.;
-				stiffness_tensors[imd][2][2][2][2] = stiffness_tensors[imd][2][2][2][2]*3.;
-			}
-
 			if (imd==0)
 				if(this_world_process==0){
 					std::cout << "    Imported initial stiffness..." << std::endl;

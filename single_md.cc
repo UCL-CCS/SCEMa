@@ -389,7 +389,7 @@ namespace MD
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
 		// Setting dumping of atom positions for post analysis of the MD simulation
-		sprintf(cline, "dump atom_dump all atom %d %s/%s xs ys zs vx vy vz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
+		sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.

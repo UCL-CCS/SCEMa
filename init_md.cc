@@ -307,9 +307,9 @@ namespace MD
 		bool init = true;
 
 		// Timestep length in fs
-		double dts = 2.0;
+		double dts = 1.0;
 		// Number of timesteps factor
-		int nsinit = 10000;
+		int nsinit = 20000;
 		// Temperature
 		double tempt = 300.0;
 

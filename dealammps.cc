@@ -1206,8 +1206,9 @@ namespace HMM
 			if(cell->point_inside(fpos)){
 				// Setting composite box material
 				for (int imat=1; imat<int(mdtype.size()); imat++)
-					if(imat == int(structure_data[n][0]))
+					if(imat == int(structure_data[n][0])){
 						mat = mdtype[imat];
+					}
 
 				//std::cout << " box number: " << n << " is in cell " << cell->active_cell_index()
 				//  		  << " of material " << mat << std::endl;
@@ -2409,67 +2410,77 @@ namespace HMM
 		// Number of cells to skip of each selection
 		int nskip = 3;
 
-		// Maximum number of cells of each material to select
-		int ncmat = 30;
+		// Maximum number of cells of each material to select per process
+		int ncmat = std::max(1, int(30/n_FE_processes));
 
-		// Build lists of cells for output
-		dcout << "    Cells with detailed output: " << std::endl;
+		// Build vector of ids of central bottom and central top cells
+		dcout << "    Cells for global measurements: " << std::endl;
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
 		{
 			double eps = (cell->minimum_vertex_distance());
 
-			const PointHistory<dim> *local_quadrature_points_history
-			= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
-
-			// Build vector of ids of cells of special interest 'lcis'
-			// with cells in central cross section
-			if (cell->barycenter()(1) <  (hh)/2. && cell->barycenter()(1) >  -((hh)/2.)
-					&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
-					&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
-				yccells++;
-				if(yccells%nskip==0){
-					lcis.push_back(cell->active_cell_index());
-					dcout << "       specific cell - cross section: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
-				}
-			}
-			if (fabs(cell->barycenter()(0) - eps/2.) >= eps/3.
-					&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
-					&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
-				xccells++;
-				if(xccells%nskip==0){
-					lcis.push_back(cell->active_cell_index());
-					dcout << "       specific cell - cross section: " << cell->active_cell_index() << " x: " << cell->barycenter()(0) << std::endl;
-				}
-			}
-			if (fabs(cell->barycenter()(2) - eps/2.) >= eps/3.
-					&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
-					&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.){
-				zccells++;
-				if(zccells%nskip==0){
-					lcis.push_back(cell->active_cell_index());
-					dcout << "       specific cell - cross section: " << cell->active_cell_index() << " z: " << cell->barycenter()(2) << std::endl;
-				}
-			}
-
-			// Create a list of each cell material type for later selection of small number of cells
-			// of each material type
-			for (int imd = 0; imd<int(mdtype.size()); imd++){
-				if (local_quadrature_points_history[0].mat==mdtype[imd]){
-					lcmd[imd].push_back(cell->active_cell_index());
-				}
-			}
-
-			// Build vector of ids of central bottom and central top cells
 			if ((fabs(cell->barycenter()(1) - hh/2.) < 2.*eps/3. || fabs(cell->barycenter()(1) - -hh/2.) < 2.*eps/3.)
 					&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
 					&& fabs(cell->barycenter()(2) - eps/2.) < eps/3.)
 			{
 				lcga.push_back(cell->active_cell_index());
-				dcout << "       gauge cell: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
+				dcout << "       force vs. displacement measure cell: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
 			}
 		}
+
+
+		// Build vector of ids of cells of special interest 'lcis'
+		dcout << "    Cells with detailed output (MD dump): " << std::endl;
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned()){
+
+				double eps = (cell->minimum_vertex_distance());
+
+				const PointHistory<dim> *local_quadrature_points_history
+							= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
+
+				// with cells in central cross section
+				if (cell->barycenter()(1) <  (hh)/2. && cell->barycenter()(1) >  -((hh)/2.)
+						&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
+						&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
+					yccells++;
+					if(yccells%nskip==0){
+						lcis.push_back(cell->active_cell_index());
+						std::cout << "       specific cell - cross section: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
+					}
+				}
+				else if (fabs(cell->barycenter()(0) - eps/2.) >= eps/3.
+						&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
+						&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
+					xccells++;
+					if(xccells%nskip==0){
+						lcis.push_back(cell->active_cell_index());
+						std::cout << "       specific cell - cross section: " << cell->active_cell_index() << " x: " << cell->barycenter()(0) << std::endl;
+					}
+				}
+				else if (fabs(cell->barycenter()(2) - eps/2.) >= eps/3.
+						&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
+						&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.){
+					zccells++;
+					if(zccells%nskip==0){
+						lcis.push_back(cell->active_cell_index());
+						std::cout << "       specific cell - cross section: " << cell->active_cell_index() << " z: " << cell->barycenter()(2) << std::endl;
+					}
+				}
+
+				// Create a list of each cell material type for later selection of small number of cells
+				// of each material type
+				for (int imd = 0; imd<int(mdtype.size()); imd++){
+					if (local_quadrature_points_history[0].mat==mdtype[imd]){
+						lcmd[imd].push_back(cell->active_cell_index());
+					}
+				}
+
+			}
 
 		// Shuffling the list of cells of each material type and selecting a reduced number
 		// of each material to add to the list of cells of specific interest 'lcis'
@@ -2478,13 +2489,10 @@ namespace HMM
 			for (int icl = 0; icl<int(lcmd[imd].size()); icl++){
 				if(icl<ncmat){
 					lcis.push_back(lcmd[imd][icl]);
-					dcout << "       specific cell - material " << mdtype[imd] << " : " << lcmd[imd][icl] << " " << std::endl;
+					std::cout << "       specific cell - material " << mdtype[imd] << " : " << lcmd[imd][icl] << " " << std::endl;
 				}
 			}
 		}
-
-		// Printing total number of specific cells
-		dcout << "    Total number of specific cells: " << lcis.size() << std::endl;
 	}
 
 
@@ -2578,15 +2586,16 @@ namespace HMM
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
 		{
-			bool cell_is_of_special_interest = false;
-			for (unsigned int i=0; i<lcis.size(); i++)
-				if(cell->active_cell_index() == lcis[i]) cell_is_of_special_interest = true;
+			if (cell->is_locally_owned()){
 
-			if (cell_is_of_special_interest)
-				if (cell->is_locally_owned())
+				bool cell_is_of_special_interest = false;
+				for (unsigned int i=0; i<lcis.size(); i++)
+					if(cell->active_cell_index() == lcis[i]) cell_is_of_special_interest = true;
+
+				if (cell_is_of_special_interest)
 				{
 					PointHistory<dim> *local_quadrature_points_history
-							= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+					= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
 
 					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
 					char filename[1024];
@@ -2607,21 +2616,15 @@ namespace HMM
 							nanoout.close();
 						}
 					}
-				}
-			// Remove all dump atom files in the out folder
-			if (cell->is_locally_owned()){
-				PointHistory<dim> *local_quadrature_points_history
-						= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
 
-				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-				char filename[1024];
-
-				for(unsigned int repl=1;repl<nrepl+1;repl++)
-				{
-					// Removing atom dump for all replicas of all cells (
-					sprintf(filename, "%s/last.%s.%s_%d.atom", nanostatelocout, cell_id,
+					// Remove all dump atom files in the out folder
+					for(unsigned int repl=1;repl<nrepl+1;repl++)
+					{
+						// Removing atom dump for all replicas of all cells (
+						sprintf(filename, "%s/last.%s.%s_%d.atom", nanostatelocout, cell_id,
 								local_quadrature_points_history[0].mat.c_str(), repl);
-					remove(filename);
+						remove(filename);
+					}
 				}
 			}
 		}
@@ -4084,9 +4087,11 @@ namespace HMM
 
 		hcout << " Initiation of the local tensors...       " << std::endl;
 		if(dealii_pcolor==0) fe_problem.setup_quadrature_point_history (nrepl, replica_data);
+		MPI_Barrier(world_communicator);
 
 		hcout << " Loading previous simulation data...       " << std::endl;
 		if(dealii_pcolor==0) fe_problem.restart_system (nanostatelocin, nanostatelocout, nrepl);
+		MPI_Barrier(world_communicator);
 
 		hcout << " Selecting cells for specific output...       " << std::endl;
 		if(dealii_pcolor==0) fe_problem.select_specific();

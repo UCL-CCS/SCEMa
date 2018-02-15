@@ -595,9 +595,9 @@ namespace HMM
 		bool init = true;
 
 		// Timestep length in fs
-		double dts = 2.0;
+		double dts = 1.0;
 		// Number of timesteps factor
-		int nsinit = 10000;
+		int nsinit = 20000;
 		// Temperature
 		double tempt = 300.0;
 
@@ -2411,7 +2411,7 @@ namespace HMM
 		int nskip = 3;
 
 		// Maximum number of cells of each material to select per process
-		int ncmat = std::max(1, int(30/n_FE_processes));
+		int ncmat = std::max(1, int(60/n_FE_processes));
 
 		// Build vector of ids of central bottom and central top cells
 		dcout << "    Cells for global measurements: " << std::endl;
@@ -3398,57 +3398,13 @@ namespace HMM
 					write_tensor<dim>(filename, cg_loc_rep_strain);*/
 
 					// Allocation of a MD run to a batch of processes
-					if (lammps_pcolor == (imdrun%n_lammps_batch)) run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), numrepl);
+					if (lammps_pcolor == (imdrun%n_lammps_batch))
+						run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), numrepl);
 				}
 			}
 			hcout << std::endl;
 
 			MPI_Barrier(world_communicator);
-
-			// Verify the integrity of the stiffness tensor (constraint C_upd>stol*C_ini)
-			/*double stol = 0.001;
-
-			for (int c=0; c<ncupd; ++c)
-			{
-				if (lammps_pcolor == (c%n_lammps_batch))
-				{
-					if(this_lammps_batch_process == 0)
-					{
-						SymmetricTensor<4,dim> loc_stiffness;
-						char filename[1024];
-
-						for(unsigned int repl=1;repl<nrepl+1;repl++)
-						{
-							SymmetricTensor<4,dim> loc_upd_rep_stiffness;
-							sprintf(filename, "%s/last.%s.%s_%d.stiff", macrostatelocout, cell_id[c], matcellupd[c].c_str(), repl);
-							read_tensor<dim>(filename, loc_upd_rep_stiffness);
-
-							SymmetricTensor<4,dim> loc_ini_rep_stiffness;
-							sprintf(filename, "%s/init.%s_%d.stiff", macrostatelocout, matcellupd[c].c_str(), repl);
-							read_tensor<dim>(filename, loc_ini_rep_stiffness);
-
-							for(unsigned int k=0;k<dim;k++)
-								for(unsigned int l=k;l<dim;l++)
-									for(unsigned int m=0;m<dim;m++)
-										for(unsigned int n=m;n<dim;n++)
-											if(fabs(loc_upd_rep_stiffness[k][l][m][n]) < stol*loc_ini_rep_stiffness[k][l][m][n])
-											{
-												//std::cout << "               "
-												//		  << "Cell: " << cell_id[c] << " Replica: " << repl
-												//		  << " required stiffness correction !!"
-												//		  << std::endl;
-												loc_upd_rep_stiffness[k][l][m][n] *= stol*
-														loc_ini_rep_stiffness[k][l][m][n]/fabs(loc_upd_rep_stiffness[k][l][m][n]);
-											}
-
-							sprintf(filename, "%s/last.%s.%s_%d.stiff", macrostatelocout, cell_id[c], matcellupd[c].c_str(), repl);
-							write_tensor<dim>(filename, loc_upd_rep_stiffness);
-						}
-					}
-				}
-			}
-
-			MPI_Barrier(world_communicator);*/
 
 			// Averaging stiffness and stress per cell over replicas
 			for (int c=0; c<ncupd; ++c)
@@ -3759,18 +3715,6 @@ namespace HMM
 
 				initial_stiffness_tensor /= nrepl;
 
-				// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
-				for(unsigned int k=0;k<dim;k++)
-					for(unsigned int l=k;l<dim;l++)
-						for(unsigned int m=0;m<dim;m++)
-							for(unsigned int n=m;n<dim;n++)
-								if(!((k==l && m==n) || (k==m && l==n))){
-									//std::cout << "       ... removal of shear coupling terms" << std::endl;
-									initial_stiffness_tensor[k][l][m][n] *= 1.0;
-								}
-								// Does not make any sense for tangent stiffness...
-								//else if(initial_ensemble_stiffness_tensor[k][l][m][n]<0.0) initial_ensemble_stiffness_tensor[k][l][m][n] *= +1.0; // correction -> *= -1.0
-
 				char macrofilenameout[1024];
 				sprintf(macrofilenameout, "%s/init.%s.stiff", macrostatelocout, mdt.c_str());
 
@@ -4054,7 +3998,7 @@ namespace HMM
 		mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble
-		nrepl=1;
+		nrepl=2;
 
 		// Setup replicas information vector
 		setup_replica_data();

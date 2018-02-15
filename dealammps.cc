@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <iomanip>
 #include <string>
 #include <sys/stat.h>
@@ -1019,6 +1020,7 @@ namespace HMM
 		void update_stress_quadrature_point_history
 		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no);
 
+		void select_specific ();
 		void output_lhistory (const double present_time);
 		void output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
 		void output_visualisation (const double present_time, const int timestep_no);
@@ -2396,64 +2398,86 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::output_lhistory (const double present_time)
+	void FEProblem<dim>::select_specific ()
 	{
-		char filename[1024];
+		// Some counts
+		int xccells = 0;
+		int yccells = 0;
+		int zccells = 0;
+		std::vector< std::vector<int> > lcmd (mdtype.size());
 
-		// Initialization of the processor local history data file
-		sprintf(filename, "%s/pr_%d.lhistory.csv", macrologloc, this_FE_process);
-		std::ofstream  lhprocout(filename, std::ios_base::app);
-		long cursor_position = lhprocout.tellp();
+		// Number of cells to skip of each selection
+		int nskip = 3;
 
-		if (cursor_position == 0)
-		{
-			lhprocout << "timestep,cell,qpoint,material";
-			for(unsigned int k=0;k<dim;k++)
-				for(unsigned int l=k;l<dim;l++)
-					lhprocout << "," << "strain_" << k << l;
-			for(unsigned int k=0;k<dim;k++)
-				for(unsigned int l=k;l<dim;l++)
-					lhprocout  << "," << "updstrain_" << k << l;
-			for(unsigned int k=0;k<dim;k++)
-				for(unsigned int l=k;l<dim;l++)
-					lhprocout << "," << "stress_" << k << l;
-			lhprocout << std::endl;
-		}
+		// Maximum number of cells of each material to select
+		int ncmat = 30;
 
-		// Output of complete local history in a single file per processor
+		// Build lists of cells for output
+		dcout << "Cells with detailed output: " << std::endl;
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
-			if (cell->is_locally_owned())
-			{
-				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+		{
+			double eps = (cell->minimum_vertex_distance());
 
-				PointHistory<dim> *local_qp_hist
-				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+			const PointHistory<dim> *local_quadrature_points_history
+			= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
 
-				// Save strain, updstrain, stress history in one file per proc
-				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-				{
-					lhprocout << present_time
-							<< "," << cell->active_cell_index()
-							<< "," << q
-							<< "," << local_qp_hist[q].mat.c_str();
-					for(unsigned int k=0;k<dim;k++)
-						for(unsigned int l=k;l<dim;l++){
-							lhprocout << "," << std::setprecision(16) << local_qp_hist[q].new_strain[k][l];
-						}
-					for(unsigned int k=0;k<dim;k++)
-						for(unsigned int l=k;l<dim;l++){
-							lhprocout << "," << std::setprecision(16) << local_qp_hist[q].upd_strain[k][l];
-						}
-					for(unsigned int k=0;k<dim;k++)
-						for(unsigned int l=k;l<dim;l++){
-							lhprocout << "," << std::setprecision(16) << local_qp_hist[q].new_stress[k][l];
-						}
-					lhprocout << std::endl;
+			// Build vector of ids of cells of special interest 'lcis'
+			//    Pick a small amount of cells randomly located of each material type
+			for (int imd = 0; imd<int(mdtype.size()); imd++){
+				if (local_quadrature_points_history[0].mat==mdtype[imd]){
+					lcmd[imd].push_back(cell->active_cell_index());
 				}
 			}
-		lhprocout.close();
+			//    Cells that are in the central "cross" of the structure
+			if (cell->barycenter()(1) <  (hh)/2. && cell->barycenter()(1) >  -((hh)/2.)
+					&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
+					&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
+				yccells++;
+				if(yccells%nskip==0){
+					lcis.push_back(cell->active_cell_index());
+					dcout << " specific cell - cross section: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
+				}
+			}
+			if (fabs(cell->barycenter()(0) - eps/2.) >= eps/3.
+					&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
+					&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
+				xccells++;
+				if(xccells%nskip==0){
+					lcis.push_back(cell->active_cell_index());
+					dcout << " specific cell - cross section: " << cell->active_cell_index() << " x: " << cell->barycenter()(0) << std::endl;
+				}
+			}
+			if (fabs(cell->barycenter()(2) - eps/2.) >= eps/3.
+					&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
+					&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.){
+				zccells++;
+				if(zccells%nskip==0){
+					lcis.push_back(cell->active_cell_index());
+					dcout << " specific cell - cross section: " << cell->active_cell_index() << " z: " << cell->barycenter()(2) << std::endl;
+				}
+			}
+
+			// Build vector of ids of central bottom and central top cells
+			if ((fabs(cell->barycenter()(1) - hh/2.) < 2.*eps/3. || fabs(cell->barycenter()(1) - -hh/2.) < 2.*eps/3.)
+					&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
+					&& fabs(cell->barycenter()(2) - eps/2.) < eps/3.)
+			{
+				lcga.push_back(cell->active_cell_index());
+				dcout << " gauge cell: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
+			}
+		}
+		for (int imd = 0; imd<int(mdtype.size()); imd++){
+			std::random_shuffle (lcmd[imd].begin(), lcmd[imd].end());
+			for (int icl = 0; icl<int(lcmd[imd].size()); icl++){
+				if(icl<ncmat){
+					lcis.push_back(lcmd[imd][icl]);
+					dcout << " specific cell - material " << mdtype[imd] << " : " << lcmd[imd][icl] << " " << std::endl;
+				}
+			}
+		}
+		dcout << " number of specific cells: " << lcis.size() << std::endl;
 	}
 
 
@@ -2461,49 +2485,6 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanologlocsi)
 	{
-		// Build lists of cells for output
-		if(timestep_no==1){
-			dcout << "Cells with detailed output: " << std::endl;
-			for (typename DoFHandler<dim>::active_cell_iterator
-					cell = dof_handler.begin_active();
-					cell != dof_handler.end(); ++cell)
-			{
-				double eps = (cell->minimum_vertex_distance());
-
-				// Build vector of ids of cells of special interest 'lcis'
-				//for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
-					if (cell->barycenter()(1) <  (hh)/2. && cell->barycenter()(1) >  -((hh)/2.)
-							&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
-							&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
-						lcis.push_back(cell->active_cell_index());
-						dcout << " specific cell: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
-					}
-					if (fabs(cell->barycenter()(0) - eps/2.) >= eps/3.
-							&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
-							&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
-						lcis.push_back(cell->active_cell_index());
-						dcout << " specific cell: " << cell->active_cell_index() << " x: " << cell->barycenter()(0) << std::endl;
-					}
-					if (fabs(cell->barycenter()(2) - eps/2.) >= eps/3.
-							&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
-							&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.){
-						lcis.push_back(cell->active_cell_index());
-						dcout << " specific cell: " << cell->active_cell_index() << " z: " << cell->barycenter()(2) << std::endl;
-					}
-				//}
-				// Build vector of ids of cells for measuring gauge displacement 'lcga'
-				//for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
-					if ((fabs(cell->barycenter()(1) - hh/2.) < 2.*eps/3. || fabs(cell->barycenter()(1) - -hh/2.) < 2.*eps/3.)
-						&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
-						&& fabs(cell->barycenter()(2) - eps/2.) < eps/3.)
-					{
-						lcga.push_back(cell->active_cell_index());
-						dcout << " gauge cell: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
-					}
-				//}
-			}
-		}
-
 		// Compute applied force vector
 		Vector<double> local_residual (dof_handler.n_dofs());
 		local_residual = compute_internal_forces();
@@ -2519,7 +2500,7 @@ namespace HMM
 				aforce += local_residual[i];
 			}
 
-		// Compute displacement of the gauge
+		// Compute the total length of the sample after straining
 		double idisp = 0.;
 		double ytop = 0.;
 		double ybot = 0.;
@@ -2638,6 +2619,70 @@ namespace HMM
 			}
 		}
 	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::output_lhistory (const double present_time)
+	{
+		char filename[1024];
+
+		// Initialization of the processor local history data file
+		sprintf(filename, "%s/pr_%d.lhistory.csv", macrologloc, this_FE_process);
+		std::ofstream  lhprocout(filename, std::ios_base::app);
+		long cursor_position = lhprocout.tellp();
+
+		if (cursor_position == 0)
+		{
+			lhprocout << "timestep,cell,qpoint,material";
+			for(unsigned int k=0;k<dim;k++)
+				for(unsigned int l=k;l<dim;l++)
+					lhprocout << "," << "strain_" << k << l;
+			for(unsigned int k=0;k<dim;k++)
+				for(unsigned int l=k;l<dim;l++)
+					lhprocout  << "," << "updstrain_" << k << l;
+			for(unsigned int k=0;k<dim;k++)
+				for(unsigned int l=k;l<dim;l++)
+					lhprocout << "," << "stress_" << k << l;
+			lhprocout << std::endl;
+		}
+
+		// Output of complete local history in a single file per processor
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+
+				PointHistory<dim> *local_qp_hist
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+
+				// Save strain, updstrain, stress history in one file per proc
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+				{
+					lhprocout << present_time
+							<< "," << cell->active_cell_index()
+							<< "," << q
+							<< "," << local_qp_hist[q].mat.c_str();
+					for(unsigned int k=0;k<dim;k++)
+						for(unsigned int l=k;l<dim;l++){
+							lhprocout << "," << std::setprecision(16) << local_qp_hist[q].new_strain[k][l];
+						}
+					for(unsigned int k=0;k<dim;k++)
+						for(unsigned int l=k;l<dim;l++){
+							lhprocout << "," << std::setprecision(16) << local_qp_hist[q].upd_strain[k][l];
+						}
+					for(unsigned int k=0;k<dim;k++)
+						for(unsigned int l=k;l<dim;l++){
+							lhprocout << "," << std::setprecision(16) << local_qp_hist[q].new_stress[k][l];
+						}
+					lhprocout << std::endl;
+				}
+			}
+		lhprocout.close();
+	}
+
 
 
 
@@ -4035,6 +4080,9 @@ namespace HMM
 
 		hcout << " Loading previous simulation data...       " << std::endl;
 		if(dealii_pcolor==0) fe_problem.restart_system (nanostatelocin, nanostatelocout, nrepl);
+
+		hcout << " Selecting cells for specific output...       " << std::endl;
+		if(dealii_pcolor==0) fe_problem.select_specific();
 
 		MPI_Barrier(world_communicator);
 

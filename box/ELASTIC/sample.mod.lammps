@@ -62,7 +62,7 @@ print "dir: ${dir} - orientation: ${ori}"
 #  Setting a Verlet time solution algorithm/integrator
 run_style       verlet
 #  Setting 2fs timesteps for a Verlet time solution algorithm/integrator
-timestep        2.0 # 2fs - when used with SHAKE
+timestep        ${dts} # 2fs - when used with SHAKE
 
 #  Apply fixed NVT and let the system fluctuate during MD
 #fix             3 all nvt temp 200.0 200.0 100.0

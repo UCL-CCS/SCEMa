@@ -3356,9 +3356,7 @@ namespace HMM
 
 			MPI_Barrier(world_communicator);
 
-			// Computing cell state update running one simulation per MD replica (basic job scheduling and executing)
-			hcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
-			hcout << "        " << "...cells and replicas completed: " << std::flush;
+			// Preparing strain input file for each replica
 			for (int c=0; c<ncupd; ++c)
 			{
 				int imd = 0;
@@ -3374,28 +3372,51 @@ namespace HMM
 					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
 					int imdrun=c*nrepl + (repl);
 
-					SymmetricTensor<2,dim> loc_rep_strain, cg_loc_rep_strain;
+					// Allocation of a MD run to a batch of processes
+					if (lammps_pcolor == (imdrun%n_lammps_batch))
+						if(this_lammps_batch_process == 0){
 
-					char filename[1024];
+							SymmetricTensor<2,dim> loc_rep_strain, cg_loc_rep_strain;
 
-					// Argument of the MD simulation: strain to apply
-					sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
-					read_tensor<dim>(filename, cg_loc_rep_strain);
+							char filename[1024];
 
-					// Rotate strain tensor from common ground to replica orientation
-					loc_rep_strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[imd*nrepl+repl].rotam));
+							// Argument of the MD simulation: strain to apply
+							sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id[c]);
+							read_tensor<dim>(filename, cg_loc_rep_strain);
 
-					// Write tensor to replica specific file
-					sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout, cell_id[c], numrepl);
-					write_tensor<dim>(filename, loc_rep_strain);
+							// Rotate strain tensor from common ground to replica orientation
+							loc_rep_strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[imd*nrepl+repl].rotam));
 
-					// Debug...
-					/*SymmetricTensor<2,dim> orig_loc_rep_strain;
-					orig_loc_rep_strain = rotate_tensor(loc_rep_strain, replica_data[imd*nrepl+repl].rotam);
-					sprintf(filename, "%s/last.%s.%d.upstrain_orig", macrostatelocout, cell_id[c], numrepl);
-					write_tensor<dim>(filename, orig_loc_rep_strain);
-					sprintf(filename, "%s/last.%s.%d.upstrain_cg", macrostatelocout, cell_id[c], numrepl);
-					write_tensor<dim>(filename, cg_loc_rep_strain);*/
+							// Write tensor to replica specific file
+							sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout, cell_id[c], numrepl);
+							write_tensor<dim>(filename, loc_rep_strain);
+
+							// Debug...
+							/*SymmetricTensor<2,dim> orig_loc_rep_strain;
+								orig_loc_rep_strain = rotate_tensor(loc_rep_strain, replica_data[imd*nrepl+repl].rotam);
+								sprintf(filename, "%s/last.%s.%d.upstrain_orig", macrostatelocout, cell_id[c], numrepl);
+								write_tensor<dim>(filename, orig_loc_rep_strain);
+								sprintf(filename, "%s/last.%s.%d.upstrain_cg", macrostatelocout, cell_id[c], numrepl);
+								write_tensor<dim>(filename, cg_loc_rep_strain);*/
+
+						}
+				}
+			}
+
+			MPI_Barrier(world_communicator);
+
+			// Computing cell state update running one simulation per MD replica (basic job scheduling and executing)
+			hcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
+			hcout << "        " << "...cells and replicas completed: " << std::flush;
+			for (int c=0; c<ncupd; ++c)
+			{
+				for(unsigned int repl=0;repl<nrepl;repl++)
+				{
+					// Offset replica number because in filenames, replicas start at 1
+					int numrepl = repl+1;
+
+					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
+					int imdrun=c*nrepl + (repl);
 
 					// Allocation of a MD run to a batch of processes
 					if (lammps_pcolor == (imdrun%n_lammps_batch))

@@ -997,7 +997,7 @@ namespace HMM
 
 		void make_grid ();
 		void setup_system ();
-		void set_boundary_values ();
+		void set_boundary_values (int timestep_no);
 		double assemble_system ();
 		void solve_linear_problem_CG ();
 		void solve_linear_problem_GMRES ();
@@ -1593,7 +1593,7 @@ namespace HMM
 
 				bool cell_to_be_updated = false;
 				//if ((cell->active_cell_index() == 240)) // For debug...
-				//if (false) // For debug...
+				if (false) // For debug...
 				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
@@ -1839,9 +1839,11 @@ namespace HMM
 	// with boundary conditions correction performed at the end of the
 	// assemble_system() function
 	template <int dim>
-	void FEProblem<dim>::set_boundary_values()
+	void FEProblem<dim>::set_boundary_values(int timestep_no)
 	{
-		inc_dsupport = +0.0000005;
+		if(timestep_no < 50) inc_dsupport = +0.0000005;
+		else if (timestep_no < 75) inc_dsupport = -0.0000005;
+		else if (timestep_no < 100) inc_dsupport = +0.0000005;
 
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);
@@ -1870,20 +1872,17 @@ namespace HMM
 
 				if (fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
 				{
-					if (fabs(cell->vertex(v)(0) - 0.) < eps/3.
-							and fabs(cell->vertex(v)(2) - 0.) < eps/3.){
-						value = 0.;
-						component = 0;
-						botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-						(cell->vertex_dof_index (v, component), value));
+					value = 0.;
+					component = 0;
+					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
 
-						value = 0.;
-						component = 2;
-						botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-						(cell->vertex_dof_index (v, component), value));
-					}
+					value = 0.;
+					component = 2;
+					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
 
 					value = 0.;
 					component = 1;
@@ -1899,20 +1898,17 @@ namespace HMM
 
 				if (fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
 				{
-					if (fabs(cell->vertex(v)(0) - 0.) < eps/3.
-							and fabs(cell->vertex(v)(2) - 0.) < eps/3.){
-						value = 0.;
-						component = 0;
-						topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-						(cell->vertex_dof_index (v, component), value));
+					value = 0.;
+					component = 0;
+					topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
 
-						value = 0.;
-						component = 2;
-						topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-						boundary_values.insert(std::pair<types::global_dof_index, double>
-						(cell->vertex_dof_index (v, component), value));
-					}
+					value = 0.;
+					component = 2;
+					topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
+					boundary_values.insert(std::pair<types::global_dof_index, double>
+					(cell->vertex_dof_index (v, component), value));
 
 					value = inc_dsupport;
 					component = 1;
@@ -3567,7 +3563,7 @@ namespace HMM
 		if(dealii_pcolor==0) fe_problem.incremental_displacement = 0;
 
 		// Setting boudary conditions for current timestep
-		if(dealii_pcolor==0) fe_problem.set_boundary_values ();
+		if(dealii_pcolor==0) fe_problem.set_boundary_values (timestep_no);
 
 		// Updating current strains and stresses with the boundary conditions information
 		if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no, updated_md);
@@ -4015,11 +4011,11 @@ namespace HMM
 
 		// List of name of MD box types
 		mdtype.push_back("g0");
-		mdtype.push_back("g1");
-		mdtype.push_back("g2");
+		//mdtype.push_back("g1");
+		//mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble
-		nrepl=2;
+		nrepl=1;
 
 		// Setup replicas information vector
 		setup_replica_data();

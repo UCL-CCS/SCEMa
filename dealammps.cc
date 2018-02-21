@@ -351,7 +351,9 @@ namespace HMM
 
 		tmp = rotam*tmp_tensor*transpose(rotam);
 
-		stmp = 0.5*(tmp + transpose(tmp));
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+				stmp[k][l] = 0.5*(tmp[k][l] + tmp[l][k]);
 
 		return stmp;
 	}

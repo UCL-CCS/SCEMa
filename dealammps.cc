@@ -1616,11 +1616,8 @@ namespace HMM
 
 								SymmetricTensor<2,dim> rot_avg_upd_strain_tensor;
 
-								if(local_quadrature_points_history[0].mat==mdtype[1])
-									// Rotation of the strain update tensor wrt to the flake angle
-									rot_avg_upd_strain_tensor =
+								rot_avg_upd_strain_tensor =
 											rotate_tensor(avg_upd_strain_tensor, local_quadrature_points_history[0].rotam);
-								else rot_avg_upd_strain_tensor = avg_upd_strain_tensor;
 
 								sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
 								write_tensor<dim>(filename, rot_avg_upd_strain_tensor);
@@ -1755,24 +1752,19 @@ namespace HMM
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stiff);
 
-						if(local_quadrature_points_history[q].mat==mdtype[1])
-							// Rotate the output stiffness wrt the flake angles
-							local_quadrature_points_history[q].new_stiff =
-									rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
-
-						else local_quadrature_points_history[q].new_stiff = stmp_stiff;*/
+						// Rotate the output stiffness wrt the flake angles
+						local_quadrature_points_history[q].new_stiff =
+								rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
+						 */
 
 						// Updating stress tensor
 						SymmetricTensor<2,dim> stmp_stress;
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stress);
 
-						if (local_quadrature_points_history[q].mat==mdtype[1]){
-							// Rotate the output stress wrt the flake angles
-							local_quadrature_points_history[q].new_stress =
+						// Rotate the output stress wrt the flake angles
+						local_quadrature_points_history[q].new_stress =
 									rotate_tensor(stmp_stress, transpose(local_quadrature_points_history[q].rotam));
-						}
-						else local_quadrature_points_history[q].new_stress = stmp_stress;
 
 						// Resetting the update strain tensor
 						local_quadrature_points_history[q].upd_strain = 0;

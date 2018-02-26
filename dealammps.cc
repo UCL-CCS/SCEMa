@@ -3438,8 +3438,11 @@ namespace HMM
 						SymmetricTensor<2,dim> cg_loc_stress;
 						char filename[1024];
 
-						for(unsigned int repl=1;repl<nrepl+1;repl++)
+						for(unsigned int repl=0;repl<nrepl;repl++)
 						{
+							// Offset replica number because in filenames, replicas start at 1
+							int numrepl = repl+1;
+
 							// Rotate stress and stiffness tensor from replica orientation to common ground
 
 							/*SymmetricTensor<4,dim> cg_loc_stiffness, loc_rep_stiffness;
@@ -3451,7 +3454,7 @@ namespace HMM
 							cg_loc_stiffness += cg_loc_rep_stiffness;*/
 
 							SymmetricTensor<2,dim> cg_loc_rep_stress, loc_rep_stress;
-							sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id[c], repl);
+							sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id[c], numrepl);
 							read_tensor<dim>(filename, loc_rep_stress);
 
 							// Rotation of the stress tensor to common ground direction before averaging

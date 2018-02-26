@@ -1872,7 +1872,7 @@ namespace HMM
 					topsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
 				}
 
-				if (fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
+				if (fabs(cell->vertex(v)(0) - -ll/2.) < eps/3.)
 				{
 					value = 0.;
 					component = 0;
@@ -1880,12 +1880,19 @@ namespace HMM
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
 
+				}
+
+				if (fabs(cell->vertex(v)(2) - -bb/2.) < eps/3.)
+				{
 					value = 0.;
 					component = 2;
 					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
 					boundary_values.insert(std::pair<types::global_dof_index, double>
 					(cell->vertex_dof_index (v, component), value));
+				}
 
+				if (fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
+				{
 					value = 0.;
 					component = 1;
 					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
@@ -1900,18 +1907,6 @@ namespace HMM
 
 				if (fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
 				{
-					value = 0.;
-					component = 0;
-					topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-
-					value = 0.;
-					component = 2;
-					topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-
 					value = inc_dsupport;
 					component = 1;
 					topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;

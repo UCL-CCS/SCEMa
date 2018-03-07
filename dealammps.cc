@@ -1063,12 +1063,16 @@ namespace HMM
 		unsigned int 						n_local_cells;
 
 		double 								inc_dsupport;
-		std::vector<bool> 					topsupport_boundary_dofs;
-		std::vector<bool> 					botsupport_boundary_dofs;
+		std::vector<bool> 					symysupport_boundary_dofs;
+		std::vector<bool> 					symzsupport_boundary_dofs;
+		std::vector<bool> 					loadsupport_boundary_dofs;
 
-		double 								ll;
-		double 								hh;
 		double 								bb;
+		double 								aa;
+		double 								ww;
+		double 								gg;
+		double 								hh;
+		double 								tt;
 
 		std::vector<std::string> 			mdtype;
 		Tensor<1,dim> 						cg_dir;
@@ -1330,6 +1334,17 @@ namespace HMM
 			sprintf(filename, "%s/init.%s.stiff", macrostatelocout, mdtype[imd].c_str());
 			read_tensor<dim>(filename, stiffness_tensors[imd]);
 
+			// For debug...
+			// Cleaning the stiffness tensor to remove negative diagonal terms and shear coupling terms...
+			/*for(unsigned int k=0;k<dim;k++)
+				for(unsigned int l=k;l<dim;l++)
+					for(unsigned int m=0;m<dim;m++)
+						for(unsigned int n=m;n<dim;n++)
+							if(!((k==l && m==n) || (k==m && l==n))){
+								//std::cout << "       ... removal of shear coupling terms" << std::endl;
+								stiffness_tensors[imd][k][l][m][n] *= 0.0; // correction -> *= 0.0
+							}*/
+
 			if(this_FE_process==0){
 				std::cout << "       material: " << mdtype[imd].c_str() << std::endl;
 				printf("           %+.4e %+.4e %+.4e %+.4e %+.4e %+.4e \n",stiffness_tensors[imd][0][0][0][0], stiffness_tensors[imd][0][0][1][1], stiffness_tensors[imd][0][0][2][2], stiffness_tensors[imd][0][0][0][1], stiffness_tensors[imd][0][0][0][2], stiffness_tensors[imd][0][0][1][2]);
@@ -1419,9 +1434,12 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::make_grid ()
 	{
-		ll=0.000050;
-		hh=0.000150;
-		bb=0.000050;
+		bb = 0.020;
+		aa = 0.0205;
+		ww = 2.0*bb;
+		gg = 1.25*ww;
+		hh = 1.20*ww;
+		tt = 0.002;
 
 		char filename[1024];
 		sprintf(filename, "%s/mesh.tria", macrostatelocin);
@@ -1434,20 +1452,15 @@ namespace HMM
 			triangulation.load(ia, 0);
 		}
 		else{
-			dcout << "    Creation of triangulation..." << std::endl;
-			Point<dim> pp1 (-ll/2.,-hh/2.,-bb/2.);
-			Point<dim> pp2 (ll/2.,hh/2.,bb/2.);
-			std::vector< unsigned int > reps (dim);
-			reps[0] = 10; reps[1] = 30; reps[2] = 10;
-			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
-
-			//triangulation.refine_global (1);
-
-			// Saving triangulation, not usefull now and costly...
-			/*sprintf(filename, "%s/mesh.tria", macrostatelocout);
-			std::ofstream oss(filename);
-			boost::archive::text_oarchive oa(oss, boost::archive::no_header);
-			triangulation.save(oa, 0);*/
+			char meshfile[1024];
+			sprintf(meshfile, "%s/ct.msh", macrostatelocin);
+			GridIn<dim> gridin;
+			gridin.attach_triangulation(triangulation);
+			std::ifstream fmesh(meshfile);
+			if (fmesh.is_open()){
+				gridin.read_msh(fmesh);
+			}
+			else dcout << "    Cannot find external mesh file... " << std::endl;
 		}
 
 		dcout << "    Number of active cells:       "
@@ -1835,9 +1848,7 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::set_boundary_values(int timestep_no)
 	{
-		if(timestep_no < 50) inc_dsupport = +0.0000005;
-		else if (timestep_no < 75) inc_dsupport = -0.0000005;
-		else if (timestep_no < 100) inc_dsupport = +0.0000005;
+		inc_dsupport = +0.00005;
 
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);
@@ -1845,69 +1856,55 @@ namespace HMM
 		std::map<types::global_dof_index,double> boundary_values;
 
 
-		topsupport_boundary_dofs.resize(dof_handler.n_dofs());
-		botsupport_boundary_dofs.resize(dof_handler.n_dofs());
+		symzsupport_boundary_dofs.resize(dof_handler.n_dofs());
+		symysupport_boundary_dofs.resize(dof_handler.n_dofs());
+		loadsupport_boundary_dofs.resize(dof_handler.n_dofs());
 
 		typename DoFHandler<dim>::active_cell_iterator
 		cell = dof_handler.begin_active(),
 		endc = dof_handler.end();
 
 		for ( ; cell != endc; ++cell) {
-			double eps = (cell->minimum_vertex_distance());
-			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
-
+			for (unsigned int face = 0; face < GeometryInfo<3>::faces_per_cell; ++face){
 				unsigned int component;
 				double value;
 
-				for (unsigned int c = 0; c < dim; ++c) {
-					botsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
-					topsupport_boundary_dofs[cell->vertex_dof_index (v, c)] = false;
-				}
+				for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_face; ++v) {
+					for (unsigned int c = 0; c < dim; ++c) {
+						symzsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
+						symysupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
+						loadsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
+					}
 
-				if (fabs(cell->vertex(v)(0) - -ll/2.) < eps/3.)
-				{
-					value = 0.;
-					component = 0;
-					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
+					if (cell->at_boundary(face)){
+						if((int) cell->face(face)->boundary_id() == 102){
+							value = inc_dsupport;
+							component = 1;
+							loadsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+							boundary_values.insert(std::pair<types::global_dof_index, double>
+								(cell->face(face)->vertex_dof_index (v, component), value));
+						}
+					}
 
-				}
+					if (cell->at_boundary(face)){
+						if((int) cell->face(face)->boundary_id() == 101){
+							value = 0.;
+							component = 2;
+							symzsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+							boundary_values.insert(std::pair<types::global_dof_index, double>
+								(cell->face(face)->vertex_dof_index (v, component), value));
+						}
+					}
 
-				if (fabs(cell->vertex(v)(2) - -bb/2.) < eps/3.)
-				{
-					value = 0.;
-					component = 2;
-					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-				}
-
-				if (fabs(cell->vertex(v)(1) - -hh/2.) < eps/3.)
-				{
-					value = 0.;
-					component = 1;
-					botsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-
-//					dcout << "bot support type"
-//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
-//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
-				}
-
-
-				if (fabs(cell->vertex(v)(1) - +hh/2.) < eps/3.)
-				{
-					value = inc_dsupport;
-					component = 1;
-					topsupport_boundary_dofs[cell->vertex_dof_index (v, component)] = true;
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-
-//					dcout << "top support type"
-//						  << " -- dof id: " << cell->vertex_dof_index (v, component)
-//						  << " -- position: " << cell->vertex(v)(0) << " - " << cell->vertex(v)(1) << " - " << cell->vertex(v)(2) << " - " << std::endl;
+					if (cell->at_boundary(face)){
+						if((int) cell->face(face)->boundary_id() == 100){
+							value = 0.;
+							component = 1;
+							symysupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+							boundary_values.insert(std::pair<types::global_dof_index, double>
+								(cell->face(face)->vertex_dof_index (v, component), value));
+						}
+					}
 				}
 			}
 		}
@@ -2030,56 +2027,81 @@ namespace HMM
 
 		// Apply velocity boundary conditions
 		for ( ; cell != endc; ++cell) {
-			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
-				unsigned int component;
-				double value;
+			for (unsigned int face = 0; face < GeometryInfo<3>::faces_per_cell; ++face){
+				for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_face; ++v) {
+					unsigned int component;
+					double value;
 
-				value = 0.;
-				component = 0;
-				if (botsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-				{
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-				}
+					value = 0.;
+					component = 0;
+					if (loadsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
+					}
 
-				value = 0.;
-				component = 1;
-				if (botsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-				{
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-				}
+					value = 0.;
+					component = 1;
+					if (loadsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
+					}
 
-				value = 0.;
-				component = 2;
-				if (botsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-				{
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-				}
+					value = 0.;
+					component = 2;
+					if (loadsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
+					}
 
-				value = 0.;
-				component = 0;
-				if (topsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-				{
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-				}
+					value = 0.;
+					component = 0;
+					if (symzsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
+					}
 
-				value = 0.;
-				component = 1;
-				if (topsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-				{
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
-				}
+					value = 0.;
+					component = 1;
+					if (symzsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
+					}
 
-				value = 0.;
-				component = 2;
-				if (topsupport_boundary_dofs[cell->vertex_dof_index (v, component)])
-				{
-					boundary_values.insert(std::pair<types::global_dof_index, double>
-					(cell->vertex_dof_index (v, component), value));
+					value = 0.;
+					component = 2;
+					if (symzsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
+					}
+					value = 0.;
+					component = 0;
+					if (symysupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
+					}
+
+					value = 0.;
+					component = 1;
+					if (symysupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
+					}
+
+					value = 0.;
+					component = 2;
+					if (symysupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
+					{
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
+					}
 				}
 			}
 		}
@@ -2387,13 +2409,11 @@ namespace HMM
 	void FEProblem<dim>::select_specific ()
 	{
 		// Some counts
-		int xccells = 0;
 		int yccells = 0;
-		int zccells = 0;
 		std::vector< std::vector<int> > lcmd (mdtype.size());
 
 		// Number of cells to skip of each selection
-		int nskip = 3;
+		int nskip = 1;
 
 		// Maximum number of cells of each material to select per process
 		int ncmat = std::max(1, int(60/n_FE_processes));
@@ -2406,12 +2426,15 @@ namespace HMM
 		{
 			double eps = (cell->minimum_vertex_distance());
 
-			if ((fabs(cell->barycenter()(1) - hh/2.) < 2.*eps/3. || fabs(cell->barycenter()(1) - -hh/2.) < 2.*eps/3.)
-					&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
-					&& fabs(cell->barycenter()(2) - eps/2.) < eps/3.)
+			if (fabs(cell->barycenter()(1) - tt) < 4.*eps/3.
+					&& fabs(cell->barycenter()(0) - gg) < 4.*eps/3
+					&& fabs(cell->barycenter()(2) - bb/4) < 4.*eps/3)
 			{
 				lcga.push_back(cell->active_cell_index());
-				dcout << "       force vs. displacement measure cell: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
+				dcout << "       force vs. displacement measure cell: " << cell->active_cell_index()
+								<< " x: " << cell->barycenter()(0)
+								<< " y: " << cell->barycenter()(1)
+								<< " z: " << cell->barycenter()(2) << std::endl;
 			}
 		}
 
@@ -2423,37 +2446,15 @@ namespace HMM
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned()){
 
-				double eps = (cell->minimum_vertex_distance());
-
 				const PointHistory<dim> *local_quadrature_points_history
 							= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
 
-				// with cells in central cross section
-				if (cell->barycenter()(1) <  (hh)/2. && cell->barycenter()(1) >  -((hh)/2.)
-						&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.
-						&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
+				// with cells coarsely in the crack tip...
+				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.30*(ww - aa)){
 					yccells++;
 					if(yccells%nskip==0){
 						lcis.push_back(cell->active_cell_index());
-						std::cout << "       specific cell - cross section: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
-					}
-				}
-				else if (fabs(cell->barycenter()(0) - eps/2.) >= eps/3.
-						&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
-						&& fabs(cell->barycenter()(2) - 0.0) < 2.*eps/3.){
-					xccells++;
-					if(xccells%nskip==0){
-						lcis.push_back(cell->active_cell_index());
-						std::cout << "       specific cell - cross section: " << cell->active_cell_index() << " x: " << cell->barycenter()(0) << std::endl;
-					}
-				}
-				else if (fabs(cell->barycenter()(2) - eps/2.) >= eps/3.
-						&& fabs(cell->barycenter()(1) - eps/2.) < eps/3.
-						&& fabs(cell->barycenter()(0) - eps/2.) < eps/3.){
-					zccells++;
-					if(zccells%nskip==0){
-						lcis.push_back(cell->active_cell_index());
-						std::cout << "       specific cell - cross section: " << cell->active_cell_index() << " z: " << cell->barycenter()(2) << std::endl;
+						std::cout << "       specific cell - around cracks plane: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
 					}
 				}
 
@@ -2464,7 +2465,6 @@ namespace HMM
 						lcmd[imd].push_back(cell->active_cell_index());
 					}
 				}
-
 			}
 
 		// Shuffling the list of cells of each material type and selecting a reduced number
@@ -2493,7 +2493,7 @@ namespace HMM
 		double aforce = 0.;
 		//dcout << "hello Y force ------ " << std::endl;
 		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-			if (topsupport_boundary_dofs[i] == true)
+			if (loadsupport_boundary_dofs[i] == true)
 			{
 				// For Debug...
 				//dcout << "   force on loaded nodes: " << local_residual[i] << std::endl;
@@ -2502,8 +2502,7 @@ namespace HMM
 
 		// Compute the total length of the sample after straining
 		double idisp = 0.;
-		double ytop = 0.;
-		double ybot = 0.;
+		double ypos = 0.;
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -2511,13 +2510,11 @@ namespace HMM
 			for(unsigned int ii=0;ii<lcga.size();ii++){
 				if (cell->active_cell_index()==lcga[ii])
 				{
-					double ypos = cell->vertex(0)(1)+displacement[cell->vertex_dof_index (0, 1)];
-					if(ypos > 0.0) ytop = ypos;
-					else ybot = ypos;
+					ypos = cell->vertex(0)(1)+displacement[cell->vertex_dof_index (0, 1)];
 				}
 			}
 		}
-		idisp = ytop-ybot;
+		idisp = ypos;
 		dcout << "Timestep: " << timestep_no << " - Time: " << present_time << " - Gauge Length: " << idisp << " - App. Force: " << aforce << std::endl;
 
 		// Write specific outputs to file
@@ -2535,8 +2532,7 @@ namespace HMM
 
 					// writing the initial length of the gauge
 					double ilength = 0.;
-					double ytop = 0.;
-					double ybot = 0.;
+					double yinit = 0.;
 					for (typename DoFHandler<dim>::active_cell_iterator
 							cell = dof_handler.begin_active();
 							cell != dof_handler.end(); ++cell)
@@ -2544,13 +2540,11 @@ namespace HMM
 						for(unsigned int ii=0;ii<lcga.size();ii++){
 							if (cell->active_cell_index()==lcga[ii])
 							{
-								double ypos = cell->vertex(0)(1);
-								if(ypos > 0.0) ytop = ypos;
-								else ybot = ypos;
+								yinit = cell->vertex(0)(1);
 							}
 						}
 					}
-					ilength = ytop-ybot;
+					ilength = yinit;
 					ofile << 0 << ", " << 0 << ", " << std::setprecision(16) << ilength << ", " << 0.0 << std::endl;
 					ofile.close();
 				}

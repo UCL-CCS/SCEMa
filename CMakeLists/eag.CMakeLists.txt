@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.5 QUIET
-  HINTS /home/plgrid/plgvassaux/opt/dealii-8.5.1/
+  HINTS /home/plgrid/plgvassaux/opt/dealii-8.5.1_real/
   )
 IF(NOT ${deal.II_FOUND})
   MESSAGE(FATAL_ERROR "\n"

@@ -35,17 +35,12 @@ INCLUDE_DIRECTORIES(
 #FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
 #INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
-
-## Include LAMMPS library shared (or static)
-SET(CMAKE_CXX_FLAGS "/home/plgrid/plgvassaux/source/lammps/src/liblammps.so") # /home/plgrid-groups/plggcompat/HMC/BLACS/lib/libblacs_MPI-LINUX-0.a /home/plgrid-groups/plggcompat/HMC/petsc/lib/libpetsc.so.3.8.3 /home/plgrid-groups/plggcompat/HMC/BLACS/lib/libblacsCinit_MPI-LINUX-0.a")
-#SET(CMAKE_CXX_FLAGS "/net/people/plgvassaux/source/lammps/src/liblammps.a")
-
 ## Include LAMMPS library shared .so (or static .a)
-TARGET_LINK_LIBRARIES(dealammps /home/plgrid/plgvassaux/source/lammps/src/liblammps.a)
-TARGET_LINK_LIBRARIES(single_md /home/plgrid/plgvassaux/source/lammps/src/liblammps.a)
-TARGET_LINK_LIBRARIES(init_md /home/plgrid/plgvassaux/source/lammps/src/liblammps.a)
+TARGET_LINK_LIBRARIES(dealammps /home/plgrid/plgvassaux/source/lammps/src/liblammps.so)
+TARGET_LINK_LIBRARIES(single_md /home/plgrid/plgvassaux/source/lammps/src/liblammps.so)
+TARGET_LINK_LIBRARIES(init_md /home/plgrid/plgvassaux/source/lammps/src/liblammps.so)
 
-TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
+#TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
 
 ## Create additional targets to the standard DEAL.II targets
 ## Use "aprun" as follow: e.g "make aprun NTHR=24"

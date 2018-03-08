@@ -32,8 +32,8 @@ INCLUDE_DIRECTORIES(
  )
 
 ## Include BOOST sources repository
-FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
-INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+#FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
+#INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
 
 ## Include LAMMPS library shared (or static)

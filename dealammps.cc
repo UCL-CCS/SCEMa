@@ -29,7 +29,7 @@
 
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
-#include "boost/filesystem.hpp"
+//#include "boost/filesystem.hpp"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -2972,8 +2972,10 @@ namespace HMM
 			// Clean "nanoscale_logs" of the finished timestep
 			for(unsigned int repl=1;repl<nrepl+1;repl++)
 			{
-				sprintf(command, "%s/R%d/*", nanologloc, repl);
-				boost::filesystem::remove_all(command);
+				sprintf(command, "rm -rf %s/R%d/*", nanologloc, repl);
+				system(command);
+				//sprintf(command, "%s/R%d/*", nanologloc, repl);
+				//boost::filesystem::remove_all(command);
 			}
 		}
 	}

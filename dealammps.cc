@@ -573,6 +573,13 @@ namespace HMM
 		double determine_step_length () const;
 		void move_mesh ();
 
+		std::vector<Vector<double> > get_microstructure ();
+		void assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > flakes_data,
+				std::string &mat, Tensor<2,dim> &rotam);
+		void assign_flakes (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
+				std::string &mat, Tensor<2,dim> &rotam, double thick_cell);
+		void setup_quadrature_point_history (unsigned int nrepl, std::vector<ReplicaData<dim> >);
+
 		void update_strain_quadrature_point_history
 		(const Vector<double>& displacement_update);
 		void update_stress_quadrature_point_history
@@ -976,7 +983,117 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::assign_microstructure (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
+	std::vector<Vector<double> > FEProblem<dim>::get_microstructure ()
+	{
+		// Generation of nanostructure based on size, weight ratio
+		//generate_nanostructure();
+
+		// Load flakes data (center position, angles, density)
+		unsigned int npoints = 0;
+		unsigned int nfchar = 0;
+		std::vector<Vector<double> > structure_data (npoints, Vector<double>(nfchar));
+
+		char filename[1024];
+		sprintf(filename, "%s/structure_data.csv", macrostatelocin);
+
+		std::ifstream ifile;
+		ifile.open (filename);
+
+		if (ifile.is_open())
+		{
+			std::string iline, ival;
+
+			if(getline(ifile, iline)){
+				std::istringstream iss(iline);
+				if(getline(iss, ival, ',')) npoints = std::stoi(ival);
+				if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
+			}
+			dcout << "      Nboxes " << npoints << " - Nchar " << nfchar << std::endl;
+
+			//dcout << "Char names: " << std::flush;
+			if(getline(ifile, iline)){
+				std::istringstream iss(iline);
+				for(unsigned int k=0;k<nfchar;k++){
+					getline(iss, ival, ',');
+					//dcout << ival << " " << std::flush;
+				}
+			}
+			//dcout << std::endl;
+
+			structure_data.resize(npoints, Vector<double>(nfchar));
+			for(unsigned int n=0;n<npoints;n++)
+				if(getline(ifile, iline)){
+					//dcout << "box: " << n << std::flush;
+					std::istringstream iss(iline);
+					for(unsigned int k=0;k<nfchar;k++){
+						getline(iss, ival, ',');
+						structure_data[n][k] = std::stof(ival);
+						//dcout << " - " << structure_data[n][k] << std::flush;
+					}
+					//dcout << std::endl;
+				}
+
+			ifile.close();
+		}
+		else{
+			dcout << "Unable to open" << filename << " to read it" << std::endl;
+			dcout << "No microstructure loaded!!" << std::endl;
+		}
+
+		return structure_data;
+	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > structure_data,
+			std::string &mat, Tensor<2,dim> &rotam)
+	{
+		// Number of flakes
+		unsigned int nboxes=structure_data.size();
+
+		// Filling identity matrix
+		Tensor<2,dim> idmat;
+		idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
+
+		// Standard properties of cell (pure epoxy)
+		mat = mdtype[0];
+
+		// Default orientation of cell
+		rotam = idmat;
+
+		// Check if the cell contains a graphene flake (composite)
+		for(unsigned int n=0;n<nboxes;n++){
+			// Load flake center
+			Point<dim> fpos (structure_data[n][1],structure_data[n][2],structure_data[n][3]);
+
+			// Load flake normal vector
+			Tensor<1,dim> nglo; nglo[0]=structure_data[n][4]; nglo[1]=structure_data[n][5]; nglo[2]=structure_data[n][6];
+
+			if(cell->point_inside(fpos)){
+				// Setting composite box material
+				for (int imat=1; imat<int(mdtype.size()); imat++)
+					if(imat == int(structure_data[n][0])){
+						mat = mdtype[imat];
+					}
+
+				//std::cout << " box number: " << n << " is in cell " << cell->active_cell_index()
+				//  		  << " of material " << mat << std::endl;
+
+				// Assembling the rotation matrix from the global orientation of the cell given by the
+				// microstructure to the common ground direction
+				rotam = compute_rotation_tensor(nglo, cg_dir);
+
+				// Stop the for loop since a cell can only be in one flake at a time...
+				break;
+			}
+		}
+	}
+
+
+
+	template <int dim>
+	void FEProblem<dim>::assign_flakes (Point<dim> cpos, std::vector<Vector<double> > flakes_data,
 			std::string &mat, Tensor<2,dim> &rotam, double thick_cell)
 	{
 		// Number of flakes
@@ -1105,61 +1222,13 @@ namespace HMM
 		Assert (history_index == quadrature_point_history.size(),
 				ExcInternalError());
 
-		// Generation of nanostructure based on size, weight ratio
-		//generate_nanostructure();
+		// Load the microstructure
+		dcout << "    Loading microstructure..." << std::endl;
+		std::vector<Vector<double> > structure_data;
+		structure_data = get_microstructure();
 
-		// Load flakes data (center position, angles, density)
-		unsigned int nflakes = 0;
-		unsigned int nfchar = 0;
-		std::vector<Vector<double> > flakes_data (nflakes, Vector<double>(nfchar));
-
-		sprintf(filename, "%s/flakes_data.csv", macrostatelocin);
-
-		std::ifstream ifile;
-		ifile.open (filename);
-
-		if (ifile.is_open())
-		{
-			std::string iline, ival;
-
-			if(getline(ifile, iline)){
-				std::istringstream iss(iline);
-				if(getline(iss, ival, ',')) nflakes = std::stoi(ival);
-				if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
-			}
-			dcout << "Nflakes " << nflakes << " - Nchar " << nfchar << std::endl;
-
-			dcout << "Char names: " << std::flush;
-			if(getline(ifile, iline)){
-				std::istringstream iss(iline);
-				for(unsigned int k=0;k<nfchar;k++){
-					getline(iss, ival, ',');
-					dcout << ival << " " << std::flush;
-				}
-			}
-			dcout << std::endl;
-
-			flakes_data.resize(nflakes, Vector<double>(nfchar));
-			for(unsigned int n=0;n<nflakes;n++)
-				if(getline(ifile, iline)){
-					dcout << "flake: " << n << std::flush;
-					std::istringstream iss(iline);
-					for(unsigned int k=0;k<nfchar;k++){
-						getline(iss, ival, ',');
-						flakes_data[n][k] = std::stof(ival);
-						dcout << " - " << flakes_data[n][k] << std::flush;
-					}
-					dcout << std::endl;
-				}
-
-			ifile.close();
-		}
-		else{
-			dcout << "Unable to open" << filename << " to read it" << std::endl;
-			dcout << "No microstructure loaded!!" << std::endl;
-		}
-
-		// History data at integration points initialization
+		// Quadrature points data initialization and assigning material properties
+		dcout << "    Assigning microstructure..." << std::endl;
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1181,12 +1250,11 @@ namespace HMM
 					local_quadrature_points_history[q].to_be_updated = false;
 					local_quadrature_points_history[q].new_stress = 0;
 
-					// Assign microstructure to the current cell (so far, mdtype (?)
-					// and rotation from global to local referential of the flake plane
-					if (q==0) assign_microstructure(cell->center(), flakes_data,
+					// Assign microstructure to the current cell (so far, mdtype
+					// and rotation from global to common ground direction)
+					if (q==0) assign_microstructure(cell, structure_data,
 								local_quadrature_points_history[q].mat,
-								local_quadrature_points_history[q].rotam,
-								cell->minimum_vertex_distance());
+								local_quadrature_points_history[q].rotam);
 					else{
 						local_quadrature_points_history[q].mat = local_quadrature_points_history[0].mat;
 						local_quadrature_points_history[q].rotam = local_quadrature_points_history[0].rotam;
@@ -1194,20 +1262,17 @@ namespace HMM
 
 					// Apply stiffness and rotating it from the local sheet orientation (MD) to
 					// global orientation (microstructure)
-					if (local_quadrature_points_history[q].mat==mdtype[1]){
-						// Apply and rotate the stiffness tensor measured in the flake referential (nloc)
-						//Tensor<2,dim> rotam = transpose(local_quadrature_points_history[q].rotam);
-						//local_quadrature_points_history[q].new_stiff = 0;
-						local_quadrature_points_history[q].new_stiff =
-								rotate_tensor(stiffness_tensors[1], transpose(local_quadrature_points_history[q].rotam));
+					for (int imd = 0; imd<int(mdtype.size()); imd++)
+						if(local_quadrature_points_history[q].mat==mdtype[imd]){
+							local_quadrature_points_history[q].new_stiff =
+								rotate_tensor(stiffness_tensors[imd],
+									transpose(local_quadrature_points_history[q].rotam));
 
-						// Apply composite density
-						local_quadrature_points_history[q].rho = 1200.;
-					}
-					else{
-						local_quadrature_points_history[q].new_stiff = stiffness_tensors[0];
-						local_quadrature_points_history[q].rho = 1000.;
-					}
+							// Apply composite density (by averaging over replicas of given material)
+							for (unsigned int irep = 0; irep<nrepl; irep++)
+								local_quadrature_points_history[q].rho += replica_data[imd*nrepl+irep].rho;
+							local_quadrature_points_history[q].rho /= nrepl;
+						}
 				}
 			}
 	}
@@ -1329,6 +1394,7 @@ namespace HMM
 				p != boundary_values.end(); ++p)
 			incremental_velocity(p->first) = p->second;
 	}
+
 
 
 
@@ -1683,11 +1749,8 @@ namespace HMM
 
 								SymmetricTensor<2,dim> rot_avg_upd_strain_tensor;
 
-								if(local_quadrature_points_history[0].mat==mdtype[1])
-									// Rotation of the strain update tensor wrt to the flake angle
-									rot_avg_upd_strain_tensor =
+								rot_avg_upd_strain_tensor =
 											rotate_tensor(avg_upd_strain_tensor, local_quadrature_points_history[0].rotam);
-								else rot_avg_upd_strain_tensor = avg_upd_strain_tensor;
 
 								sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
 								write_tensor<dim>(filename, rot_avg_upd_strain_tensor);
@@ -1975,24 +2038,19 @@ namespace HMM
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stiff);
 
-						if(local_quadrature_points_history[q].mat==mdtype[1])
-							// Rotate the output stiffness wrt the flake angles
-							local_quadrature_points_history[q].new_stiff =
-									rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
-
-						else local_quadrature_points_history[q].new_stiff = stmp_stiff;*/
+						// Rotate the output stiffness wrt the flake angles
+						local_quadrature_points_history[q].new_stiff =
+								rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
+						 */
 
 						// Updating stress tensor
 						SymmetricTensor<2,dim> stmp_stress;
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
 						read_tensor<dim>(filename, stmp_stress);
 
-						if (local_quadrature_points_history[q].mat==mdtype[1]){
-							// Rotate the output stress wrt the flake angles
-							local_quadrature_points_history[q].new_stress =
+						// Rotate the output stress wrt the flake angles
+						local_quadrature_points_history[q].new_stress =
 									rotate_tensor(stmp_stress, transpose(local_quadrature_points_history[q].rotam));
-						}
-						else local_quadrature_points_history[q].new_stress = stmp_stress;
 
 						// Resetting the update strain tensor
 						local_quadrature_points_history[q].upd_strain = 0;
@@ -3358,6 +3416,9 @@ namespace HMM
 
 		dcout << " Loading previous simulation data...       " << std::endl;
 		restart_system ();
+
+		dcout << " Selecting cells for specific output...       " << std::endl;
+		select_specific();
 
 		MPI_Barrier(world_communicator);
 

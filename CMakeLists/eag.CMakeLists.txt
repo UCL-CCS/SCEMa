@@ -1,0 +1,60 @@
+SET(TARGET "dealammps")
+
+SET(TARGET_SRC
+  ${TARGET}.cc
+  )
+
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
+
+FIND_PACKAGE(deal.II 8.5 QUIET
+  HINTS /home/plgrid/plgvassaux/opt/dealii-8.5.1/
+  )
+IF(NOT ${deal.II_FOUND})
+  MESSAGE(FATAL_ERROR "\n"
+    "*** Could not locate a (sufficiently recent) version of deal.II. ***\n\n"
+    "You may want to either pass a flag -DDEAL_II_DIR=/path/to/deal.II to cmake\n"
+    "or set an environment variable \"DEAL_II_DIR\" that contains this path."
+    )
+ENDIF()
+
+DEAL_II_INITIALIZE_CACHED_VARIABLES()
+
+PROJECT(${TARGET})
+
+DEAL_II_INVOKE_AUTOPILOT()
+
+## Include LAMMPS sources repository
+INCLUDE_DIRECTORIES(
+  /home/plgrid/plgvassaux/source/lammps/src/
+  /home/plgrid-groups/plggcompat/HMC/petsc/include/ 
+  /home/plgrid-groups/plggcompat/HMC/slepc/include/ 
+ )
+
+## Include LAMMPS library shared (or static)
+SET(CMAKE_CXX_FLAGS "/home/plgrid/plgvassaux/source/lammps/src/liblammps.so") # /home/plgrid-groups/plggcompat/HMC/BLACS/lib/libblacs_MPI-LINUX-0.a /home/plgrid-groups/plggcompat/HMC/petsc/lib/libpetsc.so.3.8.3 /home/plgrid-groups/plggcompat/HMC/BLACS/lib/libblacsCinit_MPI-LINUX-0.a")
+#SET(CMAKE_CXX_FLAGS "/net/people/plgvassaux/source/lammps/src/liblammps.a")
+
+## Create additional targets to the standard DEAL.II targets
+## Use "aprun" as follow: e.g "make aprun NTHR=24"
+ADD_CUSTOM_TARGET(aprun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
+                      DEPENDS ${TARGET}
+                      COMMAND @echo "... APRUN on $(NTHR) threads ..."
+                      COMMAND aprun -n $(NTHR) ${TARGET}
+  )
+
+ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
+                             DEPENDS buildclean
+                             COMMAND rm
+                             ARGS -rf CMakeFiles cmake_install.cmake CMakeCache.txt Makefile
+  )
+
+ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
+                             DEPENDS outclean
+                             COMMAND rm
+                             ARGS -rf ${TARGET}
+  )
+
+ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
+                           COMMAND rm
+                           ARGS -rf core output.* error.* log.* *_log *_state/out *_state/restart
+  )

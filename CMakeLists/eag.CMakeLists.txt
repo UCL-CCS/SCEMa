@@ -1,9 +1,3 @@
-SET(TARGET "dealammps")
-
-SET(TARGET_SRC
-  ${TARGET}.cc
-  )
-
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.5 QUIET
@@ -19,9 +13,16 @@ ENDIF()
 
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
-PROJECT(${TARGET})
+PROJECT(dealammps)
 
-DEAL_II_INVOKE_AUTOPILOT()
+ADD_EXECUTABLE(dealammps dealammps.cc)
+DEAL_II_SETUP_TARGET(dealammps)
+
+ADD_EXECUTABLE(single_md single_md.cc)
+DEAL_II_SETUP_TARGET(single_md)
+
+ADD_EXECUTABLE(init_md init_md.cc)
+DEAL_II_SETUP_TARGET(init_md)
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
@@ -30,18 +31,24 @@ INCLUDE_DIRECTORIES(
   /home/plgrid-groups/plggcompat/HMC/slepc/include/ 
  )
 
+## Include BOOST sources repository
+FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
+INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+
+
 ## Include LAMMPS library shared (or static)
 SET(CMAKE_CXX_FLAGS "/home/plgrid/plgvassaux/source/lammps/src/liblammps.so") # /home/plgrid-groups/plggcompat/HMC/BLACS/lib/libblacs_MPI-LINUX-0.a /home/plgrid-groups/plggcompat/HMC/petsc/lib/libpetsc.so.3.8.3 /home/plgrid-groups/plggcompat/HMC/BLACS/lib/libblacsCinit_MPI-LINUX-0.a")
 #SET(CMAKE_CXX_FLAGS "/net/people/plgvassaux/source/lammps/src/liblammps.a")
 
+## Include LAMMPS library shared .so (or static .a)
+TARGET_LINK_LIBRARIES(dealammps /home/plgrid/plgvassaux/source/lammps/src/liblammps.a)
+TARGET_LINK_LIBRARIES(single_md /home/plgrid/plgvassaux/source/lammps/src/liblammps.a)
+TARGET_LINK_LIBRARIES(init_md /home/plgrid/plgvassaux/source/lammps/src/liblammps.a)
+
+TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
+
 ## Create additional targets to the standard DEAL.II targets
 ## Use "aprun" as follow: e.g "make aprun NTHR=24"
-ADD_CUSTOM_TARGET(aprun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
-                      DEPENDS ${TARGET}
-                      COMMAND @echo "... APRUN on $(NTHR) threads ..."
-                      COMMAND aprun -n $(NTHR) ${TARGET}
-  )
-
 ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
                              DEPENDS buildclean
                              COMMAND rm
@@ -51,7 +58,7 @@ ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
 ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
                              DEPENDS outclean
                              COMMAND rm
-                             ARGS -rf ${TARGET}
+                             ARGS -rf dealammps single_md init_md
   )
 
 ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"

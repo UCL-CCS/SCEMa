@@ -20,6 +20,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 #include <iomanip>
 #include <string>
 #include <sys/stat.h>
@@ -29,6 +30,8 @@
 
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
+#include "boost/property_tree/ptree.hpp"
+#include "boost/property_tree/json_parser.hpp"
 //#include "boost/filesystem.hpp"
 
 // To avoid conflicts...
@@ -87,6 +90,20 @@ namespace HMM
 	using namespace dealii;
 
 	template <int dim>
+	struct ReplicaData
+	{
+		// Characteristics
+		double rho;
+		std::string mat;
+		int repl;
+		int nflakes;
+		Tensor<1,dim> length;
+		Tensor<2,dim> rotam;
+		SymmetricTensor<2,dim> init_stress;
+		SymmetricTensor<4,dim> init_stiffness;
+	};
+
+	template <int dim>
 	struct PointHistory
 	{
 		// History
@@ -105,9 +122,56 @@ namespace HMM
 		// Characteristics
 		double rho;
 		std::string mat;
-		Tensor<1,dim> nvec;
 		Tensor<2,dim> rotam;
 	};
+
+    void bptree_print(boost::property_tree::ptree const& pt)
+    {
+        using boost::property_tree::ptree;
+        ptree::const_iterator end = pt.end();
+        for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
+            std::cout << it->first << ": " << it->second.get_value<std::string>() << std::endl;
+            bptree_print(it->second);
+        }
+    }
+
+    std::string bptree_read(boost::property_tree::ptree const& pt, std::string key)
+    {
+    	std::string value = "NULL";
+        using boost::property_tree::ptree;
+        ptree::const_iterator end = pt.end();
+        for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
+            if(it->first==key)
+            	value = it->second.get_value<std::string>();
+        }
+        return value;
+    }
+
+    std::string bptree_read(boost::property_tree::ptree const& pt, std::string key1, std::string key2)
+    {
+    	std::string value = "NULL";
+        using boost::property_tree::ptree;
+        ptree::const_iterator end = pt.end();
+        for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
+            if(it->first==key1){
+            	value = bptree_read(it->second, key2);
+            }
+        }
+        return value;
+    }
+
+    std::string bptree_read(boost::property_tree::ptree const& pt, std::string key1, std::string key2, std::string key3)
+    {
+    	std::string value = "NULL";
+        using boost::property_tree::ptree;
+        ptree::const_iterator end = pt.end();
+        for (ptree::const_iterator it = pt.begin(); it != end; ++it) {
+            if(it->first==key1){
+            	value = bptree_read(it->second, key2, key3);
+            }
+        }
+        return value;
+    }
 
 	bool file_exists(const char* file) {
 		struct stat buf;
@@ -237,6 +301,35 @@ namespace HMM
 			ofile.close();
 		}
 		else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
+	}
+
+	template <int dim>
+	inline
+	Tensor<2,dim>
+	compute_rotation_tensor (Tensor<1,dim> vorig, Tensor<1,dim> vdest)
+	{
+		Tensor<2,dim> rotam;
+
+		// Filling identity matrix
+		Tensor<2,dim> idmat;
+		idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
+
+		// Decalaration variables rotation matrix computation
+		double ccos;
+		Tensor<2,dim> skew_rot;
+
+		// Compute the scalar product of the local and global vectors
+		ccos = scalar_product(vorig, vdest);
+
+		// Filling the skew-symmetric cross product matrix (a^Tb-b^Ta)
+		for (unsigned int i=0; i<dim; ++i)
+			for (unsigned int j=0; j<dim; ++j)
+				skew_rot[i][j] = vorig[j]*vdest[i] - vorig[i]*vdest[j];
+
+		// Assembling the rotation matrix
+		rotam = idmat + skew_rot + (1/(1+ccos))*skew_rot*skew_rot;
+
+		return rotam;
 	}
 
 	template <int dim>
@@ -487,6 +580,8 @@ namespace HMM
 		void update_incremental_variables ();
 		void update_cells_with_molecular_dynamics ();
 
+		void setup_replica_data ();
+
 		void set_repositories ();
 		void initialize_replicas ();
 		void make_grid ();
@@ -559,6 +654,8 @@ namespace HMM
 		// Types of materials, number of replica and number of procs per node
 		std::vector<std::string>			mdtype;
 		unsigned int						nrepl;
+		std::vector<ReplicaData<dim> > 		replica_data;
+		Tensor<1,dim> 						cg_dir;
 		unsigned int						machine_ppn;
 
 		// Finite Element dimensions and boundary conditions
@@ -617,6 +714,77 @@ namespace HMM
 		sprintf(nanostatelocres, "%s/restart", nanostateloc); mkdir(nanostatelocres, ACCESSPERMS);
 		sprintf(nanologloc, "./nanoscale_log"); mkdir(nanologloc, ACCESSPERMS);
 		sprintf(nanologlocsi, "%s/spec", nanologloc); mkdir(nanologlocsi, ACCESSPERMS);
+	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::setup_replica_data ()
+	{
+		// Direction to which all MD data are rotated to, to later ease rotation in the FE problem
+		cg_dir[0]=0.0; cg_dir[1]=1.0; cg_dir[2]=0.0;
+
+	    using boost::property_tree::ptree;
+
+	    char filename[1024];
+
+		replica_data.resize(nrepl * mdtype.size());
+		for(unsigned int imd=0; imd<mdtype.size(); imd++)
+			for(unsigned int irep=0; irep<nrepl; irep++){
+				// Setting material name and replica number
+				replica_data[imd*nrepl+irep].mat=mdtype[imd];
+				replica_data[imd*nrepl+irep].repl=irep+1;
+
+				// Initializing mechanical characteristics after equilibration
+				replica_data[imd*nrepl+irep].length = 0;
+				replica_data[imd*nrepl+irep].init_stress = 0;
+				replica_data[imd*nrepl+irep].init_stiffness = 0;
+
+				// Parse JSON data file
+			    sprintf(filename, "%s/data/%s_%d.json", nanostatelocin,
+			    		replica_data[imd*nrepl+irep].mat.c_str(), replica_data[imd*nrepl+irep].repl);
+			    std::ifstream jsonFile(filename);
+			    ptree pt;
+			    read_json(jsonFile, pt);
+
+			    // Printing the whole tree of the JSON file
+			    //bptree_print(pt);
+
+				// Load density of given replica of given material
+			    std::string rdensity = bptree_read(pt, "relative_density");
+				replica_data[imd*nrepl+irep].rho = std::stod(rdensity)*1000.;
+
+				// Load number of flakes in box
+			    std::string numflakes = bptree_read(pt, "Nsheets");
+				replica_data[imd*nrepl+irep].nflakes = std::stoi(numflakes);
+
+				/*hcout << "Hi repl: " << replica_data[imd*nrepl+irep].repl
+					  << " - mat: " << replica_data[imd*nrepl+irep].mat
+					  << " - rho: " << replica_data[imd*nrepl+irep].rho
+					  << std::endl;*/
+
+				// Load replica orientation (normal to flake plane if composite)
+				if(replica_data[imd*nrepl+irep].nflakes==1){
+					std::string fvcoorx = bptree_read(pt, "normal_vector","1","x");
+					std::string fvcoory = bptree_read(pt, "normal_vector","1","y");
+					std::string fvcoorz = bptree_read(pt, "normal_vector","1","z");
+					//hcout << fvcoorx << " " << fvcoory << " " << fvcoorz <<std::endl;
+					Tensor<1,dim> nvrep;
+					nvrep[0]=std::stod(fvcoorx);
+					nvrep[1]=std::stod(fvcoory);
+					nvrep[2]=std::stod(fvcoorz);
+					// Set the rotation matrix from the replica orientation to common
+					// ground FE/MD orientation (arbitrary choose x-direction)
+					replica_data[imd*nrepl+irep].rotam=compute_rotation_tensor(nvrep,cg_dir);
+				}
+				else{
+					Tensor<2,dim> idmat;
+					idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
+					// Simply fill the rotation matrix with the identity matrix
+					replica_data[imd*nrepl+irep].rotam=idmat;
+				}
+			}
 	}
 
 
@@ -3159,6 +3327,9 @@ namespace HMM
 
 		// Number of replicas in MD-ensemble
 		nrepl=5;
+
+		// Setup replicas information vector
+		setup_replica_data();
 
 		// Since LAMMPS is highly scalable, the initiation number of processes NI
 		// can basically be equal to the maximum number of available processes NT which

@@ -2722,6 +2722,23 @@ namespace HMM
 			}
 
 
+			// Output of the cell id
+			Vector<double> cell_ids (triangulation.n_active_cells());
+			{
+				typename Triangulation<dim>::active_cell_iterator
+				cell = triangulation.begin_active(),
+				endc = triangulation.end();
+				for (; cell!=endc; ++cell)
+					if (cell->is_locally_owned())
+					{
+						cell_ids(cell->active_cell_index())
+								= cell->active_cell_index();
+					}
+					else cell_ids(cell->active_cell_index()) = -1;
+			}
+			data_out.add_data_vector (cell_ids, "cellID");
+
+
 			// Output of the cell norm of the averaged strain tensor over quadrature
 			// points as a scalar
 			Vector<double> norm_of_strain (triangulation.n_active_cells());

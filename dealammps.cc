@@ -773,7 +773,7 @@ namespace HMM
 		sprintf(initdata, "init.%s", mdstate);
 
 		char atomstate[1024];
-		sprintf(atomstate, "%s_%d.atom", mdt.c_str(), repl);
+		sprintf(atomstate, "%s_%d.lammpstrj", mdt.c_str(), repl);
 
 		char replogloc[1024];
 		sprintf(replogloc, "%s/R%d", logloc, repl);
@@ -825,7 +825,8 @@ namespace HMM
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
 		// Setting dumping of atom positions for post analysis of the MD simulation
-		sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
+		//sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
+		sprintf(cline, "dump atom_dump all atom %d %s/%s", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.

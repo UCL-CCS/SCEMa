@@ -25,12 +25,12 @@
   
   ## Include LAMMPS sources repository
   INCLUDE_DIRECTORIES(
-    /usr/local/packages/lammps/lammps-17Nov16/lammps-17Nov16/src/
+    /work/e283/e283/vassaux/source/lammps-17Nov16/src/
     )
   
   ## Include LAMMPS library shared (or static)
-  SET(CMAKE_CXX_FLAGS "-dynamic /work/e283/e283/vassaux/lib/liblammps.so") 
-  #SET(CMAKE_CXX_FLAGS "/work/e283/e283/vassaux/lib/liblammps.a")
+  SET(CMAKE_CXX_FLAGS "-dynamic /work/e283/e283/vassaux/source/lammps-17Nov16/src/liblammps.so") 
+  #SET(CMAKE_CXX_FLAGS "/work/e283/e283/vassaux/source/lammps-17Nov16/src/liblammps.a")
   
   ## Create additional targets to the standard DEAL.II targets
   ## Use "aprun" as follow: e.g "make aprun NTHR=24"

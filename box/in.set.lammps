@@ -14,7 +14,7 @@ units           real            # default
 
 #  Setting variables/attributes associated with each atom: charge, bonds, angles,
 #  dihedrals, impropers (full)
-atom_style      full
+atom_style      charge
 
 #  Setting the dimension of the simulation
 dimension       3               # default
@@ -29,29 +29,10 @@ neighbor        2.0 bin
 #  Setting the building process to be done every 1 step after a delay of 5 steps has
 #  passed since the previous building process has been done and only if necessity of
 #  building has been checked (sufficient displacement of atoms)
-neigh_modify    every 1 delay 5 check yes
+neigh_modify    every 10 delay 0 check no
 
 #  Setting the solver for long-range Coulomb interacitons to a continuous mapping of
 #  charges on a mesh, and specifying a solving accuracy in temrs of RMS error in forces
-kspace_style    pppm 0.0001
+#kspace_style    pppm 0.0001
 
 #kspace_modify   order 4
-
-#  Setting the formula to compute pairwise interactions to a LJ potential within 12.0 cutoff
-#  Coulombic interaction within a 9.0 cutoff of each atom
-pair_style      lj/cut/coul/long 12.0 9.0
-
-#  Setting the formula for bond interactions (between precised pairs of atom) to a harmonic
-#  potential (linear axial spring)
-bond_style      harmonic
-
-#  Setting the formula for angle interactions (between precised triplets of atom) to a harmonic
-#  potential (linear angular spring)
-angle_style     harmonic
-
-#  Setting the formula for bond interactions (between precised quadruplets of atom) to a harmonic
-#  potential (linear torsional angular force)
-dihedral_style  opls
-
-#  Turning off improper bond interactions (between precised quadruplets of atom)
-improper_style  harmonic

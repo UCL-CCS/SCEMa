@@ -9,6 +9,12 @@
 #  Setting data input source for atoms initial positions, masses, bonds, and potential parameters
 read_data       ${locd}   # read LAMMPS data file
 
+#  Setting the formula to compute pairwise interactions to a LJ potential within 12.0 cutoff
+#  Coulombic interaction within a 9.0 cutoff of each atom
+pair_style      reax/c NULL
+pair_coeff      * * ${locf} H C N O #C F
+fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c
+
 #  Extending box volume by 2 in each direction
 #replicate       2 2 2
 
@@ -25,10 +31,6 @@ restart         150000 ${loco}/${mdt}_heatup_cooldown.restart1
 ##  the later simulations, restart command will automatically generate triclinic
 ##  box from the previous simulations.
 change_box      all triclinic
-
-#  Setting weights for pairwise direct, 1-intermediary, 2-intermediary LJ and Coul interactions
-#  potentials
-special_bonds   lj/coul 0.0 0.0 1.0
 
 #  Setting to display thermodynamical information on the system every 500 steps
 thermo          500
@@ -96,7 +98,7 @@ timestep        ${dts} # 2fs - when used with SHAKE
 #  Setting a displacement constraint on all atoms which mass is 1.0 (hydrogen), constraint consist in maintaining
 #  bond length or angles involving these atoms constant, the iterative solution algorithm to apply these constraint
 #  is terminated after error below 0.001 or 20 iterations, information printed every 1000 steps
-fix             4 all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixed
+#fix             4 all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixed
 
 #  Setting a global constraint of isobaric-isothermal ensemble on all atoms, the temperature is brought from 100K
 #  to 500K with a relaxation time of 100fs and the pressure from 1 bar to 1 bar (constant) with a relaxation time of
@@ -210,6 +212,6 @@ run             ${nsi}
 unfix           3
 
 #  Releasing fix constraints
-unfix 4
+#unfix 4
 
 undump            xyz_dump

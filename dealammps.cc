@@ -498,16 +498,16 @@ namespace HMM
 		lammps_command(lmp,cline);
 
 		// Timestep length in fs
-		double dts = 2.0;
+		double dts = 0.5;
 
 		// number of timesteps for averaging
-		int nssample = 200;
+		int nssample = 400;
 		// Set sampling and straining time-lengths
 		sprintf(cline, "variable nssample0 equal %d", nssample); lammps_command(lmp,cline);
 		sprintf(cline, "variable nssample  equal %d", nssample); lammps_command(lmp,cline);
 
 		// number of timesteps for straining
-		double strain_rate = 1.0e-5; // in fs^(-1)
+		double strain_rate = 1.0e-4; // in fs^(-1)
 		double strain_nrm = 0.005;
 		int nsstrain = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 		// For v_sound_PE = 2000 m/s, l_box=8nm, strain_perturbation=0.005, and dts=2.0fs
@@ -597,11 +597,11 @@ namespace HMM
 		bool init = true;
 
 		// Timestep length in fs
-		double dts = 1.0;
+		double dts = 0.5;
 		// Number of timesteps factor
-		int nsinit = 20000;
+		int nsinit = 2000;
 		// Temperature
-		double tempt = 300.0;
+		double tempt = 300;
 
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
@@ -609,7 +609,9 @@ namespace HMM
 
 		char locdata[1024];
 		sprintf(locdata, "%s/data/%s_%d.data", statelocin, mdt.c_str(), repl);
-
+		char locff[1024];
+		sprintf(locff, "%s/data/ffield.reax.2", statelocin);
+		
 		// Name of nanostate binary files
 		char mdstate[1024];
 		sprintf(mdstate, "%s_%d.bin", mdt.c_str(), repl);
@@ -653,6 +655,7 @@ namespace HMM
 		// Passing location for input and output as variables
 		sprintf(cline, "variable mdt string %s", mdt.c_str()); lammps_command(lmp,cline);
 		sprintf(cline, "variable locd string %s", locdata); lammps_command(lmp,cline);
+		sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline);
 		sprintf(cline, "variable loco string %s", inireplogloc); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
@@ -737,6 +740,7 @@ namespace HMM
 			char* cellid,
 			char* timeid,
 			MPI_Comm comm_lammps,
+			char* statelocin,
 			char* statelocout,
 			char* logloc,
 			std::string mdt,
@@ -752,7 +756,7 @@ namespace HMM
 		// timestep length in fs
 		double dts = 2.0;
 		// number of timesteps
-		double strain_rate = 1.0e-5; // in fs^(-1)
+		double strain_rate = 1.0e-4; // in fs^(-1)
 		double strain_nrm = strain.norm();
 		int nts = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 
@@ -765,6 +769,9 @@ namespace HMM
 		// Locations for finding reference LAMMPS files, to store nanostate binary data, and
 		// to place LAMMPS log/dump/temporary restart outputs
 		char location[1024] = "../box";
+
+                char locff[1024];
+                sprintf(locff, "%s/data/ffield.reax.2", statelocin);
 
 		// Name of nanostate binary files
 		char mdstate[1024];
@@ -820,7 +827,8 @@ namespace HMM
 		// Passing location for output as variable
 		sprintf(cline, "variable mdt string %s", mdt.c_str()); lammps_command(lmp,cline);
 		sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
-
+		sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline);
+		
 		// Setting testing temperature
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
@@ -3874,6 +3882,7 @@ namespace HMM
 				ccell,
 				ctime,
 				lammps_batch_communicator,
+				nanostatelocin,
 				nanostatelocout,
 				nanologloc,
 				cmat,

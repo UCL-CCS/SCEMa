@@ -31,26 +31,26 @@ variable deltaxy equal -1*(v_sign)*${up}*xy
 variable deltaxz equal -1*(v_sign)*${up}*xz
 variable deltayz equal -1*(v_sign)*${up}*yz
 
-fix   shak all shake 0.001 20 1000 m 1.0
-fix   tvol all nvt/sllod temp ${tempt} ${tempt} 100.0
+#fix   shak all shake 0.001 20 1000 m 1.0
+fix   tvol all nvt temp ${tempt} ${tempt} 100.0
 if "${dir} == 1" then &
    "variable sign equal ${seeps_00}" &
-   "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap v"
+   "fix infstrain all deform 1 x delta 0 ${delta} xy delta ${deltaxy} xz delta ${deltaxz} remap x"
 if "${dir} == 2" then &
    "variable sign equal ${seeps_11}" &
-   "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap v"
+   "fix infstrain all deform 1 y delta 0 ${delta} yz delta ${deltayz} remap x"
 if "${dir} == 3" then &
    "variable sign equal ${seeps_22}" &
-   "fix infstrain all deform 1 z delta 0 ${delta} remap v"
+   "fix infstrain all deform 1 z delta 0 ${delta} remap x"
 if "${dir} == 4" then &
    "variable sign equal ${seeps_12}" &
-   "fix infstrain all deform 1 yz delta ${delta} remap v"
+   "fix infstrain all deform 1 yz delta ${delta} remap x"
 if "${dir} == 5" then &
    "variable sign equal ${seeps_02}" &
-   "fix infstrain all deform 1 xz delta ${delta} remap v"
+   "fix infstrain all deform 1 xz delta ${delta} remap x"
 if "${dir} == 6" then &
    "variable sign equal ${seeps_01}" &
-   "fix infstrain all deform 1 xy delta ${delta} remap v"
+   "fix infstrain all deform 1 xy delta ${delta} remap x"
 
 # Apply infinitesimal strain
 variable nss equal ${nsstrain}
@@ -58,17 +58,17 @@ include ${locbe}/sample.mod.lammps
 
 unfix infstrain
 unfix tvol
-unfix shak
+#unfix shak
 
 # Sample stresses
 variable nss equal ${nssample}
 
-fix   shak all shake 0.001 20 1000 m 1.0
+#fix   shak all shake 0.001 20 1000 m 1.0
 fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
 include ${locbe}/sample.mod.lammps
 
 unfix wholevol
-unfix shak
+#unfix shak
 
 variable tmp equal f_stress[1]
 variable pxx1 equal ${tmp}

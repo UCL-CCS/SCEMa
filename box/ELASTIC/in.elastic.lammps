@@ -52,11 +52,11 @@ include ${locbe}/potential.mod.lammps
 # Sample initial state (if initialization only, otherwise
 # restore initial stress tensor)
 variable nss equal ${nssample0}
-fix   shak all shake 0.001 20 1000 m 1.0
+#fix   shak all shake 0.001 20 1000 m 1.0
 fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
 include ${locbe}/sample.mod.lammps
 unfix wholevol
-unfix shak
+#unfix shak
 
 variable tmp equal f_stress[1]
 variable pp11 equal ${tmp}

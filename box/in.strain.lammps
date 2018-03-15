@@ -5,6 +5,12 @@
 ## Should we optimize the lammps call depending on the computer setup?
 ## suffix OMP
 
+#  Setting the formula to compute pairwise interactions to a LJ potential within 12.0 cutoff
+#  Coulombic interaction within a 9.0 cutoff of each atom
+pair_style      reax/c NULL
+pair_coeff      * * ${locf} H C N O #C F
+fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c
+
 ##  -------------------------------------------
 #   Calculate the stress-strain curve for uniaxial extension in the x direction
 
@@ -59,7 +65,7 @@ variable ceeps_12 equal ${eeps_12}*${lxbox0}/${lx1}
 run_style       verlet
 
 #  Loading the same fix 4 as in the init.lammps set of commands.
-fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
+#fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
 
 #  Setting a global constraint of canonical ensemble on all atoms, the temperature is set constant at 200k
 #  with a relaxation time of 100fs
@@ -67,7 +73,8 @@ fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances
 #  on all the components of the strain tensor...
 #fix             3 all nvt temp 200.0 200.0 100
 #fix             3 all langevin 200.0 200.0 100.0 699483
-fix             3 all nvt/sllod temp ${tempt} ${tempt} 100.0
+#fix             3 all nvt/sllod temp ${tempt} ${tempt} 100.0
+fix             3 all nvt temp ${tempt} ${tempt} 100.0
 
 # Note: these computes are present by default in any input script when using thermo command
 #compute thermo_press all temp
@@ -87,7 +94,7 @@ fix             1 all deform 1  x erate ${ceeps_00} &
                                xy erate ${ceeps_01} &
                                xz erate ${ceeps_02} &
                                yz erate ${ceeps_12} &
-                               remap v
+                               remap x
 
 #  Setting 2fs timesteps
 #timestep        dts #2.0  #(in wrapper)
@@ -111,7 +118,7 @@ unfix 1
 
 #  Releasing fix constraints
 unfix 3
-unfix 4
+#unfix 4
 
 #  Stopping dump
 #undump            atom_dump

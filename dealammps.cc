@@ -1074,6 +1074,8 @@ namespace HMM
 		double 								gg;
 		double 								hh;
 		double 								tt;
+		double 								ss;
+		double 								dd;
 
 		std::vector<std::string> 			mdtype;
 		Tensor<1,dim> 						cg_dir;
@@ -1441,6 +1443,8 @@ namespace HMM
 		gg = 1.25*ww;
 		hh = 1.20*ww;
 		tt = 0.002;
+		ss = 0.55*ww;
+		dd = 0.25*ww;
 
 		char filename[1024];
 		sprintf(filename, "%s/mesh.tria", macrostatelocin);
@@ -1866,6 +1870,9 @@ namespace HMM
 		endc = dof_handler.end();
 
 		for ( ; cell != endc; ++cell) {
+
+			double eps = (cell->minimum_vertex_distance());
+
 			for (unsigned int face = 0; face < GeometryInfo<3>::faces_per_cell; ++face){
 				unsigned int component;
 				double value;
@@ -1877,34 +1884,31 @@ namespace HMM
 						loadsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
 					}
 
-					if (cell->at_boundary(face)){
-						if((int) cell->face(face)->boundary_id() == 102){
-							value = inc_dsupport;
-							component = 1;
-							loadsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
-							boundary_values.insert(std::pair<types::global_dof_index, double>
-								(cell->face(face)->vertex_dof_index (v, component), value));
-						}
+					double dchole=sqrt((cell->face(face)->vertex(v)(0) - ww)*(cell->face(face)->vertex(v)(0) - ww)
+							+ (cell->face(face)->vertex(v)(1) - ss/2.)*(cell->face(face)->vertex(v)(1) - ss/2.));
+
+					if (fabs(dchole - dd/2.) < eps/3. && cell->face(face)->vertex(v)(1) > ss/2.){
+						value = inc_dsupport;
+						component = 1;
+						loadsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
 					}
 
-					if (cell->at_boundary(face)){
-						if((int) cell->face(face)->boundary_id() == 101){
-							value = 0.;
-							component = 2;
-							symzsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
-							boundary_values.insert(std::pair<types::global_dof_index, double>
-								(cell->face(face)->vertex_dof_index (v, component), value));
-						}
+					if (fabs(cell->face(face)->vertex(v)(2) - 0.) < eps/3.){
+						value = 0.;
+						component = 2;
+						symzsupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
 					}
 
-					if (cell->at_boundary(face)){
-						if((int) cell->face(face)->boundary_id() == 100){
-							value = 0.;
-							component = 1;
-							symysupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
-							boundary_values.insert(std::pair<types::global_dof_index, double>
-								(cell->face(face)->vertex_dof_index (v, component), value));
-						}
+					if (fabs(cell->face(face)->vertex(v)(1) - 0.) < eps/3. && cell->face(face)->vertex(v)(0) < (ww - aa)){
+						value = 0.;
+						component = 1;
+						symysupport_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+						boundary_values.insert(std::pair<types::global_dof_index, double>
+						(cell->face(face)->vertex_dof_index (v, component), value));
 					}
 				}
 			}
@@ -2450,10 +2454,20 @@ namespace HMM
 				const PointHistory<dim> *local_quadrature_points_history
 							= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
 
-				// with cells coarsely in the crack tip...
-				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.30*(ww - aa)){
+				// with cells precisely in the crack tip...
+				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa)
+						&& cell->barycenter()(0) >  0.70*(ww - aa)){
 					yccells++;
 					if(yccells%nskip==0){
+						lcis.push_back(cell->active_cell_index());
+						std::cout << "       specific cell - around cracks plane: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
+					}
+				}
+
+				// with cells further back from the crack tip...
+				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <=  0.70*(ww - aa)){
+					yccells++;
+					if(yccells%nskip==3){
 						lcis.push_back(cell->active_cell_index());
 						std::cout << "       specific cell - around cracks plane: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
 					}
@@ -2516,7 +2530,7 @@ namespace HMM
 			}
 		}
 		idisp = ypos;
-		dcout << "Timestep: " << timestep_no << " - Time: " << present_time << " - Gauge Length: " << idisp << " - App. Force: " << aforce << std::endl;
+		dcout << "Timestep: " << timestep_no << " - Time: " << present_time << " - Hole Disp.: " << idisp << " - App. Force: " << aforce << std::endl;
 
 		// Write specific outputs to file
 		if (this_FE_process==0)
@@ -4019,7 +4033,7 @@ namespace HMM
 		//mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble
-		nrepl=1;
+		nrepl=5;
 
 		// Setup replicas information vector
 		setup_replica_data();

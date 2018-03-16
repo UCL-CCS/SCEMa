@@ -2475,7 +2475,7 @@ namespace HMM
 				// with cells further back from the crack tip...
 				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <=  0.70*(ww - aa)){
 					yccells++;
-					if(yccells%(3.*nskip)==0){
+					if(yccells%(3*nskip)==0){
 						lcis.push_back(cell->active_cell_index());
 						std::cout << "       specific cell - around cracks plane: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
 					}

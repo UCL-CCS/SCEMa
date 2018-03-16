@@ -754,7 +754,7 @@ namespace HMM
 
 		// Declaration of run parameters
 		// timestep length in fs
-		double dts = 2.0;
+		double dts = 0.2;
 		// number of timesteps
 		double strain_rate = 1.0e-4; // in fs^(-1)
 		double strain_nrm = strain.norm();

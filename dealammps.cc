@@ -1420,7 +1420,7 @@ namespace HMM
 			Point<dim> pp1 (-ll/2.,-hh/2.,-bb/2.);
 			Point<dim> pp2 (ll/2.,hh/2.,bb/2.);
 			std::vector< unsigned int > reps (dim);
-			reps[0] = 10; reps[1] = 30; reps[2] = 10;
+			reps[0] = 4; reps[1] = 10; reps[2] = 4;
 			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
 
 			//triangulation.refine_global (1);
@@ -3401,7 +3401,7 @@ namespace HMM
 		//mdtype.push_back("PNC");
 
 		// Number of replicas in MD-ensemble
-		nrepl=5;
+		nrepl=1;
 
 		// Setup replicas information vector
 		setup_replica_data();

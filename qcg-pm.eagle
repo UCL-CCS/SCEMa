@@ -1,0 +1,21 @@
+#QCG host=eagle
+#QCG note=QCG PM dealammps
+
+#QCG output=${JOB_ID}.output
+#QCG error=${JOB_ID}.error
+
+#QCG stage-in-file=nanoscale_state/out/list_md_jobs.json
+#QCG stage-in-file=single_md
+#QCG stage-in-file=single_md-input.tgz
+
+#QCG stage-out-dir=.->out/eagle-pm-mdjobs-${JOB_ID}
+
+#QCG preprocess=tar --strip-components=1 -x -z -f single_md-input.tgz
+
+#QCG nodes=4:28
+#QCG queue=fast
+#QCG walltime=PT60M
+#QCG grant=compatpsnc2
+
+#QCG application=qcg-pm
+#QCG argument=nanoscale_state/out/list_md_jobs.json

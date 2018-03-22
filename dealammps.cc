@@ -2466,7 +2466,7 @@ namespace HMM
 				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa)
 						&& cell->barycenter()(0) >  0.70*(ww - aa)){
 					yccells++;
-					if(yccells%nskip==0){
+					if(yccells%(3*nskip)==0){
 						lcis.push_back(cell->active_cell_index());
 						std::cout << "       specific cell - around cracks plane: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
 					}
@@ -2475,7 +2475,7 @@ namespace HMM
 				// with cells further back from the crack tip...
 				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <=  0.70*(ww - aa)){
 					yccells++;
-					if(yccells%(3*nskip)==0){
+					if(yccells%(3*3*nskip)==0){
 						lcis.push_back(cell->active_cell_index());
 						std::cout << "       specific cell - around cracks plane: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
 					}
@@ -3779,7 +3779,7 @@ namespace HMM
 	{
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int npbtch_min = machine_ppn;
+		int npbtch_min = 4.*machine_ppn;
 		//int nbtch_max = int(n_world_processes/npbtch_min);
 
 		//int nrounds = int(nmdruns/nbtch_max)+1;

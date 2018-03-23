@@ -144,5 +144,3 @@ unfix 3
 #variable tmp equal f_stress[6]
 #variable pp23 equal ${tmp}
 
-# Remove reaxff constraint
-unfix 2

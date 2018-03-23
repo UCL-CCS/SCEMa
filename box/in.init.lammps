@@ -213,6 +213,5 @@ unfix           3
 
 #  Releasing fix constraints
 #unfix 4
-unfix 2
 
 undump            xyz_dump

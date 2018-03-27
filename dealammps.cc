@@ -611,7 +611,7 @@ namespace HMM
 		sprintf(locdata, "%s/data/%s_%d.data", statelocin, mdt.c_str(), repl);
 		char locff[1024];
 		sprintf(locff, "%s/data/ffield.reax.2", statelocin);
-		
+
 		// Name of nanostate binary files
 		char mdstate[1024];
 		sprintf(mdstate, "%s_%d.bin", mdt.c_str(), repl);
@@ -744,7 +744,7 @@ namespace HMM
 			char* statelocout,
 			char* logloc,
 			std::string mdt,
-		    unsigned int repl)
+		  unsigned int repl)
 	{
 		int me;
 		MPI_Comm_rank(comm_lammps, &me);
@@ -775,9 +775,9 @@ namespace HMM
 
 		// Name of nanostate binary files
 		char mdstate[1024];
-		sprintf(mdstate, "%s_%d.bin", mdt.c_str(), repl);
+		sprintf(mdstate, "%s_%d", mdt.c_str(), repl);
 		char initdata[1024];
-		sprintf(initdata, "init.%s", mdstate);
+		sprintf(initdata, "init.%s.bin", mdstate);
 
 		char atomstate[1024];
 		sprintf(atomstate, "%s_%d.lammpstrj", mdt.c_str(), repl);
@@ -790,10 +790,8 @@ namespace HMM
 		sprintf(qpreplogloc, "%s/%s.%s", replogloc, timeid, cellid);
 		mkdir(qpreplogloc, ACCESSPERMS);
 
-		char straindata[1024];
-		sprintf(straindata, "%s.%s.%s", timeid, cellid, mdstate);
 		char straindata_last[1024];
-		sprintf(straindata_last, "last.%s.%s", cellid, mdstate);
+		sprintf(straindata_last, "last.%s.%s.dump", cellid, mdstate);
 
 		char atomdata_last[1024];
 		sprintf(atomdata_last, "last.%s.%s", cellid, atomstate);
@@ -801,9 +799,6 @@ namespace HMM
 		char cline[1024];
 		char cfile[1024];
 		char mfile[1024];
-
-		// Compute from the initial state (true) or the previous state (false)
-		bool compute_finit = false;
 
 		// Specifying the command line options for screen and log output file
 		int nargs = 5;
@@ -828,7 +823,7 @@ namespace HMM
 		sprintf(cline, "variable mdt string %s", mdt.c_str()); lammps_command(lmp,cline);
 		sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
 		sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline);
-		
+
 		// Setting testing temperature
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
@@ -844,49 +839,32 @@ namespace HMM
 		/*if (me == 0) std::cout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Compute current state data...       " << std::endl;*/
-		// Set the state of the testing box at the beginning of the simulation
-		// (either from initial end state or from previous testing end state).
-		if(compute_finit)
-		{
-			// Use the initial state if history path in the phases space is to be
-			// discarded
-			/*if (me == 0) std::cout << "               "
-					<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
-					<< "   ... from init state data...       " << std::endl;*/
-			sprintf(mfile, "%s/%s", statelocout, initdata);
-		}
-		else
-		{
-			// Check if a previous state has already been computed specifically for
-			// this quadrature point, otherwise use the initial state (which is the
-			// last state of this quadrature point)
-			/*if (me == 0) std::cout << "               "
-					<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
-					<< "   ... from previous state data...   " << std::flush;*/
-			sprintf(mfile, "%s/%s", statelocout, straindata_last);
-			std::ifstream ifile(mfile);
-			if (ifile.good()){
-				/*if (me == 0) std::cout << "  specifically computed." << std::endl;*/
-				ifile.close();
 
-				sprintf(cline, "print 'specifically computed'"); lammps_command(lmp,cline);
-			}
-			else{
-				/*if (me == 0) std::cout << "  initially computed." << std::endl;*/
-				sprintf(mfile, "%s/%s", statelocout, initdata);
-
-				sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
-			}
-		}
-		std::ifstream ifile(mfile);
-		if (!ifile.good()){
-			/*if (me == 0) std::cout << "               "
-					<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
-					<< "Unable to open beginning state file to read" << std::endl;*/
-		}
-		else ifile.close();
-
+		// Check if a previous state has already been computed specifically for
+		// this quadrature point, otherwise use the initial state (which is the
+		// last state of this quadrature point)
+		/*if (me == 0) std::cout << "               "
+				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
+				<< "   ... from previous state data...   " << std::flush;*/
+		sprintf(mfile, "%s/%s", statelocout, initdata);
 		sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+		// Check the presence of a dump file to restart from
+		sprintf(mfile, "%s/%s", statelocout, straindata_last);
+		std::ifstream ifile(mfile);
+		if (ifile.good()){
+			/*if (me == 0) std::cout << "  specifically computed." << std::endl;*/
+			ifile.close();
+
+			sprintf(cline, "rerun %s dump x y z vx vy vz", mfile); lammps_command(lmp,cline);
+
+			sprintf(cline, "print 'specifically computed'"); lammps_command(lmp,cline);
+		}
+		else{
+			if (me == 0) std::cout << "  initially computed." << std::endl;
+
+			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
+		}
 
 		sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 		sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
@@ -912,22 +890,42 @@ namespace HMM
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Saving state data...       " << std::endl;*/
 		// Save data to specific file for this quadrature point
-		sprintf(cline, "write_restart %s/%s", statelocout, straindata_last); lammps_command(lmp,cline);
+		sprintf(cline, "write_dump all custom %s/%s id type x y z vx vy vz", statelocout, straindata_last); lammps_command(lmp,cline);
 
+		// close down LAMMPS
+		delete lmp;
 
 		/*if (me == 0) std::cout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
+
+		// Creating LAMMPS instance
+		sprintf(lmparg[4], "%s/log.%s_homogenization", qpreplogloc, mdt.c_str());
+		lmp = new LAMMPS(nargs,lmparg,comm_lammps);
+
+		sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline);
+
+		// Setting testing temperature
+		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
+
+		// Setting general parameters for LAMMPS independentely of what will be
+		// tested on the sample next.
+		sprintf(cfile, "%s/%s", location, "in.set.lammps");
+		lammps_file(lmp,cfile);
+
+		sprintf(mfile, "%s/%s", statelocout, initdata);
+		sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+		sprintf(mfile, "%s/%s", statelocout, straindata_last);
+		sprintf(cline, "rerun %s dump x y z vx vy vz", mfile); lammps_command(lmp,cline);
+
+		sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 
 		// Compute the secant stiffness tensor at the given stress/strain state
 		lammps_homogenization<dim>(lmp, location, stress, stiffness, init);
 
 		// Cleaning initial offset of stresses
 		stress -= init_stress;
-
-		// Save data to specific file for this quadrature point
-		// At the end of the homogenization the state after sampling the current stress is reread to prepare this write
-		//sprintf(cline, "write_restart %s/%s", statelocout, straindata_last); lammps_command(lmp,cline);
 
 		// close down LAMMPS
 		delete lmp;
@@ -2605,12 +2603,12 @@ namespace HMM
 					// Save box state at all timesteps
 					for(unsigned int repl=1;repl<nrepl+1;repl++)
 					{
-						sprintf(filename, "%s/last.%s.%s_%d.atom", nanostatelocout, cell_id,
+						sprintf(filename, "%s/last.%s.%s_%d.lammpstrj", nanostatelocout, cell_id,
 								local_quadrature_points_history[0].mat.c_str(), repl);
 						std::ifstream  nanoin(filename, std::ios::binary);
 						// Also check if file has changed since last timestep
 						if (nanoin.good()){
-							sprintf(filename, "%s/%d.%s.%s_%d.atom", nanologlocsi, timestep_no, cell_id,
+							sprintf(filename, "%s/%d.%s.%s_%d.lammpstrj", nanologlocsi, timestep_no, cell_id,
 									local_quadrature_points_history[0].mat.c_str(), repl);
 							std::ofstream  nanoout(filename,   std::ios::binary);
 							nanoout << nanoin.rdbuf();
@@ -2623,7 +2621,7 @@ namespace HMM
 					for(unsigned int repl=1;repl<nrepl+1;repl++)
 					{
 						// Removing atom dump for all replicas of all cells (
-						sprintf(filename, "%s/last.%s.%s_%d.atom", nanostatelocout, cell_id,
+						sprintf(filename, "%s/last.%s.%s_%d.lammpstrj", nanostatelocout, cell_id,
 								local_quadrature_points_history[0].mat.c_str(), repl);
 						remove(filename);
 					}
@@ -2987,11 +2985,11 @@ namespace HMM
 				// Save box state history
 				for(unsigned int repl=1;repl<nrepl+1;repl++)
 				{
-					sprintf(filename, "%s/last.%s.%s_%d.bin", nanostatelocout, cell_id,
+					sprintf(filename, "%s/last.%s.%s_%d.dump", nanostatelocout, cell_id,
 							local_quadrature_points_history[0].mat.c_str(), repl);
 					std::ifstream  nanoin(filename, std::ios::binary);
 					if (nanoin.good()){
-						sprintf(filename, "%s/lcts.%s.%s_%d.bin", nanostatelocres, cell_id,
+						sprintf(filename, "%s/lcts.%s.%s_%d.dump", nanostatelocres, cell_id,
 								local_quadrature_points_history[0].mat.c_str(), repl);
 						std::ofstream  nanoout(filename,   std::ios::binary);
 						nanoout << nanoin.rdbuf();
@@ -3157,11 +3155,11 @@ namespace HMM
 						// Restore box state history
 						for(unsigned int repl=1;repl<nrepl+1;repl++)
 						{
-							sprintf(filename, "%s/restart/lcts.%d.%s_%d.bin", nanostatelocin, cell->active_cell_index(),
+							sprintf(filename, "%s/restart/lcts.%d.%s_%d.dump", nanostatelocin, cell->active_cell_index(),
 									local_quadrature_points_history[0].mat.c_str(), repl);
 							std::ifstream  nanoin(filename, std::ios::binary);
 							if (nanoin.good()){
-								sprintf(filename, "%s/last.%d.%s_%d.bin", nanostatelocout, cell->active_cell_index(),
+								sprintf(filename, "%s/last.%d.%s_%d.dump", nanostatelocout, cell->active_cell_index(),
 										local_quadrature_points_history[0].mat.c_str(), repl);
 								std::ofstream  nanoout(filename,   std::ios::binary);
 								nanoout << nanoin.rdbuf();

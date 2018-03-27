@@ -143,4 +143,3 @@ unfix 3
 #variable pp13 equal ${tmp}
 #variable tmp equal f_stress[6]
 #variable pp23 equal ${tmp}
-

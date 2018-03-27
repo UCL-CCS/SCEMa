@@ -861,7 +861,7 @@ namespace HMM
 			sprintf(cline, "print 'specifically computed'"); lammps_command(lmp,cline);
 		}
 		else{
-			if (me == 0) std::cout << "  initially computed." << std::endl;
+			/*if (me == 0) std::cout << "  initially computed." << std::endl;*/
 
 			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
 		}

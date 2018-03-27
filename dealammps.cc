@@ -3777,7 +3777,7 @@ namespace HMM
 	{
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int npbtch_min = 4.*machine_ppn;
+		int npbtch_min = 4*machine_ppn;
 		//int nbtch_max = int(n_world_processes/npbtch_min);
 
 		//int nrounds = int(nmdruns/nbtch_max)+1;

@@ -508,7 +508,7 @@ namespace HMM
 
 		// number of timesteps for straining
 		double strain_rate = 1.0e-4; // in fs^(-1)
-		double strain_nrm = 0.005;
+		double strain_nrm = 0.25;
 		int nsstrain = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 		// For v_sound_PE = 2000 m/s, l_box=8nm, strain_perturbation=0.005, and dts=2.0fs
 		// the min number of straining steps is 10
@@ -1558,7 +1558,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		double strain_perturbation = 0.025;
+		double strain_perturbation = 0.25;
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
@@ -1859,7 +1859,7 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::set_boundary_values(int timestep_no)
 	{
-		inc_dsupport = +0.00005;
+		inc_dsupport = +0.0005;
 
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);
@@ -3777,7 +3777,7 @@ namespace HMM
 	{
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int npbtch_min = 4*machine_ppn;
+		int npbtch_min = 3*machine_ppn;
 		//int nbtch_max = int(n_world_processes/npbtch_min);
 
 		//int nrounds = int(nmdruns/nbtch_max)+1;
@@ -4055,7 +4055,7 @@ namespace HMM
 		// Initialization of time variables
 		present_time = 0;
 		present_timestep = 1;
-		end_time = 200; //200
+		end_time = 1000; //200
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem

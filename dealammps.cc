@@ -756,7 +756,7 @@ namespace HMM
 		// timestep length in fs
 		double dts = 0.2;
 		// number of timesteps
-		double strain_rate = 1.0e-4; // in fs^(-1)
+		double strain_rate = 10.0e-4; // in fs^(-1)
 		double strain_nrm = strain.norm();
 		int nts = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 
@@ -1618,6 +1618,7 @@ namespace HMM
 
 
 				bool cell_to_be_updated = false;
+				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa))
 				//if ((cell->active_cell_index() == 240)) // For debug...
 				//if (false) // For debug...
 				if (newtonstep_no > 0 && !updated_stiffnesses)
@@ -1672,6 +1673,15 @@ namespace HMM
 			}
 			outfile.close();
 
+                        char alltime_update_filename[1024];
+                        sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
+                        outfile.open (alltime_update_filename, std::ofstream::app);
+                        if(timestep_no==1 && newtonstep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
+                        infile.open (update_filename);
+                        while (getline(infile, iline)) outfile << timestep_no << "," << newtonstep_no << "," << iline << std::endl;
+                        infile.close();
+                        outfile.close();
+
 			sprintf(update_filename, "%s/last.matqpupdates", macrostatelocout);
 			outfile.open (update_filename);
 			for (int ip=0; ip<n_FE_processes; ip++){
@@ -1680,15 +1690,6 @@ namespace HMM
 				while (getline(infile, iline)) outfile << iline << std::endl;
 				infile.close();
 			}
-			outfile.close();
-
-			char alltime_update_filename[1024];
-			sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
-			outfile.open (alltime_update_filename, std::ofstream::app);
-			if(timestep_no==1 && newtonstep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
-			infile.open (update_filename);
-			while (getline(infile, iline)) outfile << timestep_no << "," << newtonstep_no << "," << iline << std::endl;
-			infile.close();
 			outfile.close();
 
 			// Save quadrature point updates history for later checking...

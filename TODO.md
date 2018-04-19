@@ -6,7 +6,7 @@
   - finite element cell number independence (location-based? else?)
 * Improve homogenization procedure
   - Enhanced stress homogenization, stiffness from fluctuations (Luding, S.)
-  - MercuryDPM (Luding, S.)
+  - MercuryDPM (Luding, S.), LIME (Leither, K., ARL)
 * Separate initialization of MD
   - For each replica, of each material type produce:  inital box stiffness, initial box stress, initial box dimensions and the init binary file
 * Complete separation of the different models and synchronisation relying on MUSCLE

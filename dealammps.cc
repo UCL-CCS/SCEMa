@@ -863,8 +863,8 @@ namespace HMM
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
 		// Setting dumping of atom positions for post analysis of the MD simulation
-    // DO NOT USE CUSTOM DUMP: WRONG ATOM POSITIONS...
-    //sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz ix iy iz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
+		// DO NOT USE CUSTOM DUMP: WRONG ATOM POSITIONS...
+		//sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz ix iy iz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
 		sprintf(cline, "dump atom_dump all atom %d %s/%s", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
@@ -892,18 +892,18 @@ namespace HMM
 			/*if (me == 0) std::cout << "  specifically computed." << std::endl;*/
 			ifile.close();
 
-      sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline);
+			sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline);
 
-      // sprintf(mfile, "%s/%s", statelocout, straindata_last);
-      // sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+			// sprintf(mfile, "%s/%s", statelocout, straindata_last);
+			// sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
 
 			sprintf(cline, "print 'specifically computed'"); lammps_command(lmp,cline);
 		}
 		else{
 			/*if (me == 0) std::cout << "  initially computed." << std::endl;*/
 
-      // sprintf(mfile, "%s/%s", statelocout, initdata);
-      // sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+			// sprintf(mfile, "%s/%s", statelocout, initdata);
+			// sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
 
 			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
 		}
@@ -932,7 +932,7 @@ namespace HMM
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Saving state data...       " << std::endl;*/
 		// Save data to specific file for this quadrature point
-    sprintf(cline, "write_dump all custom %s/%s id type xs ys zs vx vy vz ix iy iz", statelocout, straindata_last); lammps_command(lmp,cline);
+		sprintf(cline, "write_dump all custom %s/%s id type xs ys zs vx vy vz ix iy iz", statelocout, straindata_last); lammps_command(lmp,cline);
 
 		// close down LAMMPS
 		delete lmp;
@@ -946,7 +946,7 @@ namespace HMM
 		lmp = new LAMMPS(nargs,lmparg,comm_lammps);
 
 		sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline);
-                sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
+        sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
 
 		// Setting testing temperature
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
@@ -961,6 +961,7 @@ namespace HMM
 
 		sprintf(mfile, "%s/%s", statelocout, straindata_last);
 		sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline);
+		//sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
 
 		sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 

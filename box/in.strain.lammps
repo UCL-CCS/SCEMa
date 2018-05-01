@@ -7,9 +7,18 @@
 
 #  Setting the formula to compute pairwise interactions to a LJ potential within 12.0 cutoff
 #  Coulombic interaction within a 9.0 cutoff of each atom
-pair_style      reax/c NULL
+pair_style      reax/c NULL  safezone 50.0 mincap 100000
 pair_coeff      * * ${locf} H C N O #C F
 fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c
+
+compute reax all pair reax/c
+variable eb      equal c_reax[1]
+variable ea      equal c_reax[2]
+variable ev      equal c_reax[5]
+variable et      equal c_reax[9]
+variable ew      equal c_reax[11]
+variable ep      equal c_reax[12]
+
 
 ##  -------------------------------------------
 #   Calculate the stress-strain curve for uniaxial extension in the x direction
@@ -18,7 +27,7 @@ fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c
 thermo          500
 
 #  Setting the type of thermodynamical information to be printed: T, P, energies, dimesions, V, stress tensor
-thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz
+thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz v_eb v_ev v_et v_ew v_ep
 
 #  Setting the syntax of the printed thermodynamical information
 thermo_modify   flush yes line multi format float %g format 3 %15.8g
@@ -36,6 +45,9 @@ variable pp equal "press"
 variable p0 equal "pxx"
 variable p1 equal "pyy"
 variable p2 equal "pzz"
+variable p10 equal "pxy"
+variable p11 equal "pxz"
+variable p12 equal "pyz"
 variable p3 equal "pe"
 variable p4 equal "ke"
 variable p5 equal "temp"
@@ -43,6 +55,12 @@ variable p6 equal "lx"
 variable p7 equal "ly"
 variable p8 equal "lz"
 variable p9 equal "vol"
+variable evdwl equal v_ew
+variable ecoul equal v_ep
+variable eatom equal v_ea
+variable ebond equal v_eb
+variable eangle equal v_ev
+variable edihed equal v_et
 
 #  Storing initial dimensions of the box
 variable lx1 equal ${p6}
@@ -59,7 +77,8 @@ variable ceeps_02 equal ${eeps_02}*${lybox0}/${ly1}
 variable ceeps_12 equal ${eeps_12}*${lxbox0}/${lx1}
 
 #  Compute current stress using sampling over time and fixed NVT conditions
-#fix 1e all print 1 "${pt} ${pp} ${p0} ${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8} ${p9}" file ${loco}/${mdt}_strain_press_evol.dat screen no
+#fix 1e all print 1 "${pt} ${pp} ${p0} ${p1} ${p2} ${p10} ${p11} ${p12} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8} ${p9} ${evdwl} ${ecoul} ${eatom} ${ebond} ${eangle} ${edihed}" fi
+le ${loco}/${mdt}_strain_press_evol.dat screen no
 
 #  Setting a Verlet time solution algorithm/integrator
 run_style       verlet

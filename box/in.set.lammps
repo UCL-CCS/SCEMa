@@ -29,10 +29,12 @@ neighbor        2.0 bin
 #  Setting the building process to be done every 1 step after a delay of 5 steps has
 #  passed since the previous building process has been done and only if necessity of
 #  building has been checked (sufficient displacement of atoms)
-neigh_modify    every 10 delay 0 check no
+neigh_modify    every 1 delay 0 check no
 
 #  Setting the solver for long-range Coulomb interacitons to a continuous mapping of
 #  charges on a mesh, and specifying a solving accuracy in temrs of RMS error in forces
 #kspace_style    pppm 0.0001
 
 #kspace_modify   order 4
+
+box tilt large

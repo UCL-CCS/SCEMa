@@ -63,6 +63,11 @@ unfix tvol
 # Sample stresses
 variable nss equal ${nssample}
 
+#  Average stress tensor over the whole NVT run
+if "${nss} > 10000" then "variable nav equal ${nss}/1000" else "variable nav equal ${nss}/10"
+print ${nav}
+fix stress  all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
+
 #fix   shak all shake 0.001 20 1000 m 1.0
 fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
 include ${locbe}/sample.mod.lammps
@@ -85,6 +90,7 @@ variable pyz1 equal ${tmp}
 
 print "${pxx1} ${pyy1} ${pzz1} ${pxy1} ${pxz1} ${pyz1} "
 
+unfix stress
 
 # Combine positive and negative
 

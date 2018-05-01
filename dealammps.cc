@@ -484,10 +484,47 @@ namespace HMM
 	}
 
 
+
+        void extract_last_timestep_dump(char* dumpin,   char* dumpout)
+        {
+            std::ifstream ifile(dumpin);
+            std::string line;
+                        char str[1024] = "TIMESTEP";
+
+                        // Look for the line of the last occurence of "TIMESTEP" in the input
+                        // dump file
+            unsigned int currline = 0;
+            unsigned int lstart = 0;
+            while(getline(ifile, line)) {
+                currline++;
+                if (line.find(str, 0) != std::string::npos) {
+                    lstart = currline;
+                }
+            }
+            ifile.clear();
+            ifile.seekg(0, std::ios::beg);
+                       // Copy the content of the last timestep in the output dump file
+            std::ofstream ofile(dumpout);
+            currline = 0;
+            while(getline(ifile, line)) {
+                currline++;
+                if (currline>=lstart) {
+                    ofile << line << std::endl;
+                }
+            }
+
+                        ifile.close();
+                        ofile.close();
+        }
+
+
+
+
+
 	// Computes the stress tensor and the complete tanget elastic stiffness tensor
 	template <int dim>
 	void
-	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, bool init)
+	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, double dts, bool init)
 	{
 		SymmetricTensor<2,2*dim> tmp;
 
@@ -497,18 +534,15 @@ namespace HMM
 		sprintf(cline, "variable locbe string %s/%s", location, "ELASTIC");
 		lammps_command(lmp,cline);
 
-		// Timestep length in fs
-		double dts = 0.5;
-
 		// number of timesteps for averaging
-		int nssample = 400;
+		int nssample = 50;
 		// Set sampling and straining time-lengths
 		sprintf(cline, "variable nssample0 equal %d", nssample); lammps_command(lmp,cline);
 		sprintf(cline, "variable nssample  equal %d", nssample); lammps_command(lmp,cline);
 
 		// number of timesteps for straining
 		double strain_rate = 1.0e-4; // in fs^(-1)
-		double strain_nrm = 0.25;
+		double strain_nrm = 0.20;
 		int nsstrain = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 		// For v_sound_PE = 2000 m/s, l_box=8nm, strain_perturbation=0.005, and dts=2.0fs
 		// the min number of straining steps is 10
@@ -718,7 +752,7 @@ namespace HMM
 		if (me == 0) std::cout << "(MD - init - type " << mdt << " - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;
 		// Compute secant stiffness operator and initial stresses
-		lammps_homogenization<dim>(lmp, location, stress, stiffness, init);
+		lammps_homogenization<dim>(lmp, location, stress, stiffness, dts, init);
 
 		// close down LAMMPS
 		delete lmp;
@@ -754,9 +788,9 @@ namespace HMM
 
 		// Declaration of run parameters
 		// timestep length in fs
-		double dts = 0.2;
+		double dts = 0.5;
 		// number of timesteps
-		double strain_rate = 10.0e-4; // in fs^(-1)
+		double strain_rate = 1.0e-4; // in fs^(-1)
 		double strain_nrm = strain.norm();
 		int nts = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 
@@ -792,6 +826,7 @@ namespace HMM
 
 		char straindata_last[1024];
 		sprintf(straindata_last, "last.%s.%s.dump", cellid, mdstate);
+		// sprintf(straindata_last, "last.%s.%s.bin", cellid, mdstate);
 
 		char atomdata_last[1024];
 		sprintf(atomdata_last, "last.%s.%s", cellid, atomstate);
@@ -828,7 +863,8 @@ namespace HMM
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
 		// Setting dumping of atom positions for post analysis of the MD simulation
-		//sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
+    // DO NOT USE CUSTOM DUMP: WRONG ATOM POSITIONS...
+    //sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz ix iy iz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
 		sprintf(cline, "dump atom_dump all atom %d %s/%s", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
@@ -856,12 +892,18 @@ namespace HMM
 			/*if (me == 0) std::cout << "  specifically computed." << std::endl;*/
 			ifile.close();
 
-			sprintf(cline, "rerun %s dump x y z vx vy vz", mfile); lammps_command(lmp,cline);
+      sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline);
+
+      // sprintf(mfile, "%s/%s", statelocout, straindata_last);
+      // sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
 
 			sprintf(cline, "print 'specifically computed'"); lammps_command(lmp,cline);
 		}
 		else{
 			/*if (me == 0) std::cout << "  initially computed." << std::endl;*/
+
+      // sprintf(mfile, "%s/%s", statelocout, initdata);
+      // sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
 
 			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
 		}
@@ -890,7 +932,7 @@ namespace HMM
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Saving state data...       " << std::endl;*/
 		// Save data to specific file for this quadrature point
-		sprintf(cline, "write_dump all custom %s/%s id type x y z vx vy vz", statelocout, straindata_last); lammps_command(lmp,cline);
+    sprintf(cline, "write_dump all custom %s/%s id type xs ys zs vx vy vz ix iy iz", statelocout, straindata_last); lammps_command(lmp,cline);
 
 		// close down LAMMPS
 		delete lmp;
@@ -904,6 +946,7 @@ namespace HMM
 		lmp = new LAMMPS(nargs,lmparg,comm_lammps);
 
 		sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline);
+                sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
 
 		// Setting testing temperature
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
@@ -917,12 +960,12 @@ namespace HMM
 		sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
 
 		sprintf(mfile, "%s/%s", statelocout, straindata_last);
-		sprintf(cline, "rerun %s dump x y z vx vy vz", mfile); lammps_command(lmp,cline);
+		sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline);
 
 		sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 
 		// Compute the secant stiffness tensor at the given stress/strain state
-		lammps_homogenization<dim>(lmp, location, stress, stiffness, init);
+		lammps_homogenization<dim>(lmp, location, stress, stiffness, dts, init);
 
 		// Cleaning initial offset of stresses
 		stress -= init_stress;
@@ -1558,7 +1601,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		double strain_perturbation = 0.25;
+		double strain_perturbation = 0.20;
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
@@ -1569,7 +1612,7 @@ namespace HMM
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
 			{
-				SymmetricTensor<2,dim> newton_strain_tensor, avg_upd_strain_tensor;
+				SymmetricTensor<2,dim> newton_strain_tensor, avg_upd_strain_tensor, avg_new_strain_tensor;
 
 				PointHistory<dim> *local_quadrature_points_history
 				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
@@ -1587,6 +1630,7 @@ namespace HMM
 					local_quadrature_points_history[q].to_be_updated = false;
 
 				avg_upd_strain_tensor = 0.;
+				avg_new_strain_tensor = 0.;
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
@@ -1608,23 +1652,27 @@ namespace HMM
 					local_quadrature_points_history[q].upd_strain += local_quadrature_points_history[q].newton_strain;
 
 					for(unsigned int k=0;k<dim;k++)
-						for(unsigned int l=k;l<dim;l++)
+						for(unsigned int l=k;l<dim;l++){
 							avg_upd_strain_tensor[k][l] += local_quadrature_points_history[q].upd_strain[k][l];
+							avg_new_strain_tensor[k][l] += local_quadrature_points_history[q].new_strain[k][l];
+						}
 				}
 
 				for(unsigned int k=0;k<dim;k++)
-					for(unsigned int l=k;l<dim;l++)
+					for(unsigned int l=k;l<dim;l++){
 						avg_upd_strain_tensor[k][l] /= quadrature_formula.size();
+						avg_new_strain_tensor[k][l] /= quadrature_formula.size();
+					}
 
 
 				bool cell_to_be_updated = false;
-				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa))
-				//if ((cell->active_cell_index() == 240)) // For debug...
+                                if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
+                                //if ((cell->active_cell_index() == 1530)) // For debug...
 				//if (false) // For debug...
 				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
-							if (fabs(avg_upd_strain_tensor[k][l]) > strain_perturbation
+							if (fabs(avg_new_strain_tensor[k][l]) > strain_perturbation /*fabs(avg_upd_strain_tensor[k][l]) > strain_perturbation*/
 									&& cell_to_be_updated == false){
 								std::cout << "           "
 										<< " cell "<< cell->active_cell_index()

@@ -11,7 +11,7 @@ read_data       ${locd}   # read LAMMPS data file
 
 #  Setting the formula to compute pairwise interactions to a LJ potential within 12.0 cutoff
 #  Coulombic interaction within a 9.0 cutoff of each atom
-pair_style      reax/c NULL
+pair_style      reax/c NULL safezone 50.0 mincap 100000
 pair_coeff      * * ${locf} H C N O #C F
 fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c
 

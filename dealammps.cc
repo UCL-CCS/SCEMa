@@ -584,6 +584,7 @@ namespace HMM
 		(const Vector<double>& displacement_update);
 		void update_stress_quadrature_point_history
 		(const Vector<double>& displacement_update);
+		void update_incremental_variables ();
 
 		void write_proc_job_list_json(char* filename_out, char* time_id, int max_nodes_per_md);
 		bool concatenate_job_list(char* filename_out);

@@ -197,7 +197,7 @@ namespace MD
 	// Computes the stress tensor and the complete tanget elastic stiffness tensor
 	template <int dim>
 	void
-	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, bool init)
+	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, double dts, bool init)
 	{
 		SymmetricTensor<2,2*dim> tmp;
 
@@ -207,18 +207,15 @@ namespace MD
 		sprintf(cline, "variable locbe string %s/%s", location, "ELASTIC");
 		lammps_command(lmp,cline);
 
-		// Timestep length in fs
-		double dts = 2.0;
-
 		// number of timesteps for averaging
-		int nssample = 200;
+		int nssample = 50;
 		// Set sampling and straining time-lengths
 		sprintf(cline, "variable nssample0 equal %d", nssample); lammps_command(lmp,cline);
 		sprintf(cline, "variable nssample  equal %d", nssample); lammps_command(lmp,cline);
 
 		// number of timesteps for straining
-		double strain_rate = 1.0e-5; // in fs^(-1)
-		double strain_nrm = 0.005;
+		double strain_rate = 1.0e-4; // in fs^(-1)
+		double strain_nrm = 0.20;
 		int nsstrain = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 		// For v_sound_PE = 2000 m/s, l_box=8nm, strain_perturbation=0.005, and dts=2.0fs
 		// the min number of straining steps is 10
@@ -315,8 +312,9 @@ namespace MD
 		// Declaration of run parameters
 		// timestep length in fs
 		double dts = 2.0;
+
 		// number of timesteps
-		double strain_rate = 1.0e-5; // in fs^(-1)
+		double strain_rate = 1.0e-4; // in fs^(-1)
 		double strain_nrm = strain.norm();
 		int nts = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 
@@ -337,7 +335,7 @@ namespace MD
 		sprintf(initdata, "init.%s", mdstate);
 
 		char atomstate[1024];
-		sprintf(atomstate, "%s_%d.atom", mdt.c_str(), repl);
+		sprintf(atomstate, "%s_%d.lammpstrj", mdt.c_str(), repl);
 
 		char replogloc[1024];
 		sprintf(replogloc, "%s/R%d", logloc, repl);
@@ -389,7 +387,7 @@ namespace MD
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
 		// Setting dumping of atom positions for post analysis of the MD simulation
-		sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
+		sprintf(cline, "dump atom_dump all atom %d %s/%s", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
@@ -475,7 +473,7 @@ namespace MD
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
 
 		// Compute the secant stiffness tensor at the given stress/strain state
-		lammps_homogenization<dim>(lmp, location, stress, stiffness, init);
+		lammps_homogenization<dim>(lmp, location, stress, stiffness, dts, init);
 
 		// Cleaning initial offset of stresses
 		stress -= init_stress;
@@ -539,6 +537,8 @@ namespace MD
 	template <int dim>
 	void MDProblem<dim>::run (char* ctime, char* ccell, const char* cmat, unsigned int repl)
 	{
+		if(this_world_process == 0) std::cout << "Number of processes assigned: " << n_world_processes << std::endl;  
+
 		SymmetricTensor<2,dim> loc_strain;
 		SymmetricTensor<2,dim> loc_rep_stress;
 
@@ -606,11 +606,11 @@ int main (int argc, char **argv)
 		char* ctime= argv[1];
 		char* ccell= argv[2];
 		std::string cmat = argv[3];
-		unsigned int repl = int(*argv[4]);
+		unsigned int repl = atoi(argv[4]);
 		std::string mslocout = argv[5];
 		std::string nslocout = argv[6];
 		std::string nsloclog = argv[7];
-
+		//std::cout << ctime << " " << ccell << " " << cmat << " " << repl << " " << mslocout << " " << nslocout << " " << nsloclog << std::endl;
 		MDProblem<3> md_problem (mslocout.c_str(),nslocout.c_str(),nsloclog.c_str());
 
 		md_problem.run(ctime, ccell, cmat.c_str(), repl);

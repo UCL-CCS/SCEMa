@@ -197,7 +197,7 @@ namespace MD
 	// Computes the stress tensor and the complete tanget elastic stiffness tensor
 	template <int dim>
 	void
-	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, bool init)
+	lammps_homogenization (void *lmp, char *location, SymmetricTensor<2,dim>& stresses, SymmetricTensor<4,dim>& stiffnesses, double dts, bool init)
 	{
 		SymmetricTensor<2,2*dim> tmp;
 
@@ -207,18 +207,15 @@ namespace MD
 		sprintf(cline, "variable locbe string %s/%s", location, "ELASTIC");
 		lammps_command(lmp,cline);
 
-		// Timestep length in fs
-		double dts = 2.0;
-
 		// number of timesteps for averaging
-		int nssample = 200;
+		int nssample = 50;
 		// Set sampling and straining time-lengths
 		sprintf(cline, "variable nssample0 equal %d", nssample); lammps_command(lmp,cline);
 		sprintf(cline, "variable nssample  equal %d", nssample); lammps_command(lmp,cline);
 
 		// number of timesteps for straining
-		double strain_rate = 1.0e-5; // in fs^(-1)
-		double strain_nrm = 0.005;
+		double strain_rate = 1.0e-4; // in fs^(-1)
+		double strain_nrm = 0.20;
 		int nsstrain = std::ceil(strain_nrm/(dts*strain_rate)/10)*10;
 		// For v_sound_PE = 2000 m/s, l_box=8nm, strain_perturbation=0.005, and dts=2.0fs
 		// the min number of straining steps is 10
@@ -425,7 +422,7 @@ namespace MD
 		if (me == 0) std::cout << "(MD - init - type " << mdt << " - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;
 		// Compute secant stiffness operator and initial stresses
-		lammps_homogenization<dim>(lmp, location, stress, stiffness, init);
+		lammps_homogenization<dim>(lmp, location, stress, stiffness, dts, init);
 
 		// close down LAMMPS
 		delete lmp;

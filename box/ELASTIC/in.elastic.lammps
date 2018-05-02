@@ -52,6 +52,12 @@ include ${locbe}/potential.mod.lammps
 # Sample initial state (if initialization only, otherwise
 # restore initial stress tensor)
 variable nss equal ${nssample0}
+
+#  Average stress tensor over the whole NVT run
+if "${nss} > 10000" then "variable nav equal ${nss}/1000" else "variable nav equal ${nss}/10"
+print ${nav}
+fix stress  all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
+
 fix   shak all shake 0.001 20 1000 m 1.0
 fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
 include ${locbe}/sample.mod.lammps
@@ -70,6 +76,8 @@ variable tmp equal f_stress[5]
 variable pp13 equal ${tmp}
 variable tmp equal f_stress[6]
 variable pp23 equal ${tmp}
+
+unfix stress
 
 ## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
 ## simulation over sufficient time and get the initial stress (try to avoid doing it

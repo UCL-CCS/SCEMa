@@ -1,0 +1,11 @@
+#QCG note=pjm-client
+
+#QCG host=eagle
+#QCG walltime=PT10M
+#QCG nodes=1:4
+
+#QCG stage-in-file=api_ex.py
+#QCG stage-out-dir=.->eagle.wd.${JOB_ID}
+
+#QCG application=qcg-pm-client
+#QCG argument=api_ex.py

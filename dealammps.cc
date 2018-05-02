@@ -565,7 +565,7 @@ namespace HMM
 
 		void do_timestep ();
 		void solve_timestep ();
-		double assemble_system ();
+		double assemble_system (bool first_assemble);
 		void solve_linear_problem_CG ();
 		void solve_linear_problem_GMRES ();
 		void solve_linear_problem_BiCGStab ();
@@ -645,6 +645,7 @@ namespace HMM
 		//Vector<double> 		     		old_velocity;
 
 		// Finite Element linear system matrix and local data
+		PETScWrappers::MPI::SparseMatrix	mass_matrix;
 		PETScWrappers::MPI::SparseMatrix	system_matrix;
 		//PETScWrappers::MPI::SparseMatrix	system_inverse;
 		PETScWrappers::MPI::Vector      	system_rhs;
@@ -958,6 +959,10 @@ namespace HMM
 				world_communicator,
 				locally_relevant_dofs);
 
+		mass_matrix.reinit (locally_owned_dofs,
+						locally_owned_dofs,
+						sparsity_pattern,
+						world_communicator);
 		system_matrix.reinit (locally_owned_dofs,
 				locally_owned_dofs,
 				sparsity_pattern,
@@ -1454,7 +1459,7 @@ namespace HMM
 
 
 	template <int dim>
-	double FEProblem<dim>::assemble_system ()
+	double FEProblem<dim>::assemble_system (bool first_assemble)
 	{
 		double rhs_residual;
 
@@ -1501,29 +1506,30 @@ namespace HMM
 				= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
 
 				// Assembly of mass matrix
-				for (unsigned int i=0; i<dofs_per_cell; ++i)
-					for (unsigned int j=0; j<dofs_per_cell; ++j)
-						for (unsigned int q_point=0; q_point<n_q_points;
-								++q_point)
-						{
-							const double rho =
-									local_quadrature_points_history[q_point].rho;
+				if(first_assemble)
+					for (unsigned int i=0; i<dofs_per_cell; ++i)
+						for (unsigned int j=0; j<dofs_per_cell; ++j)
+							for (unsigned int q_point=0; q_point<n_q_points;
+									++q_point)
+							{
+								const double rho =
+										local_quadrature_points_history[q_point].rho;
 
-							const double
-							phi_i = fe_values.shape_value (i,q_point),
-							phi_j = fe_values.shape_value (j,q_point);
+								const double
+								phi_i = fe_values.shape_value (i,q_point),
+								phi_j = fe_values.shape_value (j,q_point);
 
-							// Non-zero value only if same dimension DOF, because
-							// this is normally a scalar product of the shape functions vector
-							int dcorr;
-							if(i%dim==j%dim) dcorr = 1;
-							else dcorr = 0;
+								// Non-zero value only if same dimension DOF, because
+								// this is normally a scalar product of the shape functions vector
+								int dcorr;
+								if(i%dim==j%dim) dcorr = 1;
+								else dcorr = 0;
 
-							// Lumped mass matrix because the consistent one doesnt work...
-							cell_mass(i,i) // cell_mass(i,j) instead...
-							+= (rho * dcorr * phi_i * phi_j
-									* fe_values.JxW (q_point));
-						}
+								// Lumped mass matrix because the consistent one doesnt work...
+								cell_mass(i,i) // cell_mass(i,j) instead...
+								+= (rho * dcorr * phi_i * phi_j
+										* fe_values.JxW (q_point));
+							}
 
 				// Assembly of external forces vector
 				for (unsigned int i=0; i<dofs_per_cell; ++i)
@@ -1566,7 +1572,7 @@ namespace HMM
 				cell->get_dof_indices (local_dof_indices);
 
 				// Assemble local matrices for v problem
-				cell_v_matrix = cell_mass;
+				if(first_assemble) cell_v_matrix = cell_mass;
 
 				//std::cout << "norm matrix " << cell_v_matrix.l1_norm() << " stiffness " << cell_stiffness.l1_norm() << std::endl;
 
@@ -1574,13 +1580,21 @@ namespace HMM
 				cell_v_rhs.add(present_timestep, cell_force);
 
 				// Local to global for u and v problems
-				hanging_node_constraints
-				.distribute_local_to_global(cell_v_matrix, cell_v_rhs,
-						local_dof_indices,
-						system_matrix, system_rhs);
+				if(first_assemble) hanging_node_constraints
+										.distribute_local_to_global(cell_v_matrix, cell_v_rhs,
+												local_dof_indices,
+												system_matrix, system_rhs);
+				else hanging_node_constraints
+						.distribute_local_to_global(cell_v_rhs,
+								local_dof_indices, system_rhs);
 			}
 
-		system_matrix.compress(VectorOperation::add);
+		if(first_assemble){
+			system_matrix.compress(VectorOperation::add);
+			mass_matrix.copy_from(system_matrix);
+		}
+		else system_matrix.copy_from(mass_matrix);
+
 		system_rhs.compress(VectorOperation::add);
 
 
@@ -3352,7 +3366,8 @@ namespace HMM
 		do
 		{
 			dcout << "  Initial assembling FE system..." << std::flush;
-			previous_res = assemble_system ();
+			if(timestep_no==1) previous_res = assemble_system (true);
+			else previous_res = assemble_system (false);
 			dcout << "  Initial residual: "
 					<< previous_res
 					<< std::endl;
@@ -3386,7 +3401,7 @@ namespace HMM
 						(newton_update_displacement);
 
 				dcout << "    Re-assembling FE system..." << std::flush;
-				previous_res = assemble_system ();
+				previous_res = assemble_system (false);
 				MPI_Barrier(world_communicator);
 
 				// Cleaning temporary files (nanoscale logs and FE/MD data transfer)

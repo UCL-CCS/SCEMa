@@ -1301,12 +1301,12 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values()
 	{
 
-		double tvel_vsupport=100.0; // target velocity of the boundary m/s-1
+		double tvel_vsupport=50.0; // target velocity of the boundary m/s-1
 
 		double acc_time=1.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
 		double acc_vsupport=tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
 
-		double tvel_time=200.0*present_timestep;
+		double tvel_time=400.0*present_timestep;
 
 		// acceleration of the loading support (reaching aimed velocity)
 		if (present_time<acc_time){
@@ -1932,8 +1932,8 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::update_cells_with_molecular_dynamics()
 	{
-		int max_nodes_per_md = 10;
-		int total_node_allocation = 50;
+		int max_nodes_per_md = 5;
+		int total_node_allocation = 100;
 
 		//char prev_time_id[1024]; sprintf(prev_time_id, "%d-%d", timestep_no, newtonstep_no-1);
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
@@ -3509,7 +3509,7 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		// Initialization of time variables
-		present_timestep = 5.0e-10;
+		present_timestep = 5.0e-9;
 		present_time = 0.0*present_timestep;
 		end_time = 1000.0*present_timestep; //1000.0*
 		timestep_no = 0;

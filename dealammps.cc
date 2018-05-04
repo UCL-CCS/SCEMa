@@ -1929,12 +1929,12 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values(const double present_time, const double present_timestep)
 	{
 
-		double tvel_vsupport=1000.0; // target velocity of the boundary m/s-1
+		double tvel_vsupport=100.0; // target velocity of the boundary m/s-1
 
 		double acc_time=1.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
 		double acc_vsupport=tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
 
-		double tvel_time=500.0*present_timestep;
+		double tvel_time=4000.0*present_timestep;
 
 		// acceleration of the loading support (reaching aimed velocity)
 		if (present_time<acc_time){
@@ -2602,7 +2602,7 @@ namespace HMM
 				// with cells further back from the crack tip...
 				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <=  0.80*(ww - aa)){
 					yccells2++;
-					if(yccells2%(6*3*nskip)==0){
+					if(yccells2%(20*3*nskip)==0){
 						lcis.push_back(cell->active_cell_index());
 						std::cout << "       specific cell - around cracks plane: " << cell->active_cell_index() << " y: " << cell->barycenter()(1) << std::endl;
 					}
@@ -3729,7 +3729,7 @@ namespace HMM
 	{
 		// Frequencies of output and save
 		int freq_restart_output = 10;
-		int freq_output_results = 1;
+		int freq_output_results = 20;
 
 		// Updating time variable
 		present_time += present_timestep;
@@ -4194,7 +4194,7 @@ namespace HMM
 		// Set the dealii communicator using a limited amount of available processors
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
-		set_dealii_procs(machine_ppn*20);
+		set_dealii_procs(machine_ppn*1);
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();
@@ -4223,7 +4223,7 @@ namespace HMM
 		// Initialization of time variables
 		present_timestep = 1.0e-7;
 		present_time = 0.0*present_timestep;
-		end_time = 1000.0*present_timestep; //4000.0 > 66% final strain
+		end_time = 6000.0*present_timestep; //4000.0 > 66% final strain
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem

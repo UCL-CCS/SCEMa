@@ -1,6 +1,8 @@
 ### Things to be done
 * Sort things to be done (duh...)
 * Sort the content of READMEs
+* Write a Python wrapper around the c++ functions found in dealammps.cc or single_md.cc compiled as a shared library
+  - the Python wrapper would only execute the higher-level functions such as `do_timestep` (and the other ones in the HMMProblem class)
 * Improve restarting process
   - continuity of timesteps
   - finite element cell number independence (location-based? else?)

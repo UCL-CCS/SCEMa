@@ -13,6 +13,9 @@
   - base the work on pre-separated models in version *standalone_md*
 * Insert decision workflow to choose between MD simulation and Kriging estimation
 * Use Pilotjob as a scheduler
+* Avoid updating multiple cells that have the same mechanical history at the current time-step by fitting spline to the strain history, and measuring the distance in between
+  - if two cells have the same history, run the atomic model for only one of them, and for the other copy the stress and the final state of the atomic model
+  - later use GP regression, to relax the constraint on the similarity of the strain history down to "close enough".
 * Write documentation
 * Pass common features from all forks to master
 * Reflect on more than two scales

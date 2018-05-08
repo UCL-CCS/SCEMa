@@ -1076,7 +1076,8 @@ namespace HMM
 
 		void select_specific ();
 		void output_lhistory (const double present_time);
-		void output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
+		void output_loaddisp (const double present_time, const int timestep_no);
+		void output_specific (const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
 		void output_visualisation (const double present_time, const int timestep_no);
 		void output_results (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
 		void clean_transfer(unsigned int nrepl);
@@ -2633,7 +2634,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::output_specific (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanologlocsi)
+	void FEProblem<dim>::output_loaddisp (const double present_time, const int timestep_no)
 	{
 		// Compute applied force vector
 		Vector<double> local_residual (dof_handler.n_dofs());
@@ -2709,7 +2710,13 @@ namespace HMM
 			}
 			else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
 		}
+	}
 
+
+
+	template <int dim>
+	void FEProblem<dim>::output_specific (const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanologlocsi)
+	{
 		// Cells of special interest (store atom dump of every update of each replica of each cell)
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
@@ -3043,14 +3050,22 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::output_results (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanologlocsi)
 	{
+		int freq_output_lhist = 10;
+		int freq_output_lddsp = 10;
+		int freq_output_spec = 30;
+		int freq_output_visu = 20;
+
 		// Output local history by processor
-		output_lhistory (present_time);
+		if(timestep_no%freq_output_lhist==0) output_lhistory (present_time);
+
+		// Macroscopic load-displacement to the current test
+		if(timestep_no%freq_output_lddsp==0 or timestep_no==1) output_loaddisp(present_time, timestep_no);
 
 		// Specific outputs to the current test
-		output_specific (present_time, timestep_no, nrepl, nanostatelocout, nanologlocsi);
+		if(timestep_no%freq_output_spec==0) output_specific (timestep_no, nrepl, nanostatelocout, nanologlocsi);
 
 		// Output visualisation files for paraview
-		output_visualisation(present_time, timestep_no);
+		if(timestep_no%freq_output_visu==0) output_visualisation(present_time, timestep_no);
 	}
 
 
@@ -3729,7 +3744,6 @@ namespace HMM
 	{
 		// Frequencies of output and save
 		int freq_restart_output = 10;
-		int freq_output_results = 20;
 
 		// Updating time variable
 		present_time += present_timestep;
@@ -3771,7 +3785,7 @@ namespace HMM
 		//if(dealii_pcolor==0) fe_problem.error_estimation ();
 
 		// Outputs
-		if(dealii_pcolor==0) if(timestep_no%freq_output_results==0)  fe_problem.output_results (present_time, timestep_no, nrepl, nanostatelocout, nanologlocsi);
+		if(dealii_pcolor==0) fe_problem.output_results (present_time, timestep_no, nrepl, nanostatelocout, nanologlocsi);
 
 		// Saving files for restart
 		if(dealii_pcolor==0) if(timestep_no%freq_restart_output==0) fe_problem.restart_save (present_time, nanostatelocout, nanostatelocres, nrepl);

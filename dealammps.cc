@@ -1832,13 +1832,13 @@ namespace HMM
 				if(local_quadrature_points_history[0].to_be_updated)
 				{
 					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-					for(unsigned int repl=1;repl<nrepl+1;repl++){
+					/*for(unsigned int repl=1;repl<nrepl+1;repl++){
 						char replogloc[1024];
 						sprintf(replogloc, "%s/R%d", nanologloc, repl);
 						char qpreplogloc[1024];
 						sprintf(qpreplogloc, "%s/%s.%s", replogloc, time_id, cell_id);
 						mkdir(qpreplogloc, ACCESSPERMS);
-					}
+					}*/
 					// Write json file containing each simulation and its parameters
 					// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
 					output_file<<"   { " <<std::endl;
@@ -1847,7 +1847,7 @@ namespace HMM
 					output_file<<"      \"execution\": { " <<std::endl;
 					output_file<<"         \"exec\": \"mpirun\", " <<std::endl;
 					output_file<<"         \"args\": [ \"./single_md\", \"" << time_id
-							<< " \", \"" << cell_id << "\", \""
+							<< "\", \"" << cell_id << "\", \""
 							<< local_quadrature_points_history[0].mat << "\", \"${it}\", \""
 							<< macrostatelocout << "\", \""
 							<< nanostatelocout << "\", \""
@@ -3492,7 +3492,7 @@ namespace HMM
 		//mdtype.push_back("PNC");
 
 		// Number of replicas in MD-ensemble
-		nrepl=2;
+		nrepl=1;
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();

@@ -1647,8 +1647,8 @@ namespace HMM
 				fe_values.get_function_gradients (displacement_update,
 						displacement_update_grads);
 
-				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-					local_quadrature_points_history[q].to_be_updated = false;
+				/*for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+					local_quadrature_points_history[q].to_be_updated = false;*/
 
 				avg_upd_strain_tensor = 0.;
 				avg_new_strain_tensor = 0.;
@@ -1693,12 +1693,16 @@ namespace HMM
 				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
-							if (fabs(avg_new_strain_tensor[k][l]) > strain_perturbation /*fabs(avg_upd_strain_tensor[k][l]) > strain_perturbation*/
-									&& cell_to_be_updated == false){
+							if ((fabs(avg_new_strain_tensor[k][l]) > strain_perturbation
+										|| local_quadrature_points_history[0].to_be_updated)
+									&& cell_to_be_updated == false)
+								{
 								std::cout << "           "
 										<< " cell "<< cell->active_cell_index()
-										<< " strain component " << k << l
-										<< " value " << avg_upd_strain_tensor[k][l] << std::endl;
+										<< " component " << k << l
+										<< " value " << avg_upd_strain_tensor[k][l]
+										<< " norm " << avg_upd_strain_tensor.norm()
+										<< std::endl;
 
 								cell_to_be_updated = true;
 								for (unsigned int qc=0; qc<quadrature_formula.size(); ++qc)
@@ -1930,12 +1934,12 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values(const double present_time, const double present_timestep)
 	{
 
-		double tvel_vsupport=100.0; // target velocity of the boundary m/s-1
+		double tvel_vsupport=1000.0; // target velocity of the boundary m/s-1
 
-		double acc_time=1.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
+		double acc_time=1000.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
 		double acc_vsupport=tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
 
-		double tvel_time=4000.0*present_timestep;
+		double tvel_time=0.0*present_timestep;
 
 		// acceleration of the loading support (reaching aimed velocity)
 		if (present_time<acc_time){
@@ -4235,9 +4239,9 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		// Initialization of time variables
-		present_timestep = 1.0e-7;
+		present_timestep = 3.0e-7;
 		present_time = 0.0*present_timestep;
-		end_time = 6000.0*present_timestep; //4000.0 > 66% final strain
+		end_time = 1000.0*present_timestep; //4000.0 > 66% final strain
 		timestep_no = 0;
 
 		// Initiatilization of the FE problem

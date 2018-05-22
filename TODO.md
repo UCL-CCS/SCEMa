@@ -15,7 +15,7 @@
 * Separate initialization of MD
   - For each replica, of each material type produce:  inital box stiffness, initial box stress, initial box dimensions and the init binary file
 * Use Pilotjob as a scheduler
-  - use `split-into` option and assign value such as: $n_{split} = min \(n^{tot}_{nodes}, n_{microjobs}\)}$
+  - use `split-into` option and assign value such as: $n_{split} = min \(n_{nodes, tot}, n_{microjobs}\)}$
   - assign `min` option proportional to applied strain 
 * Avoid updating multiple cells that have the same mechanical history at the current time-step by fitting spline to the strain history, and measuring the distance in between
   - if two cells have the same history, run the atomic model for only one of them, and for the other copy the stress and the final state of the atomic model

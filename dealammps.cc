@@ -1760,12 +1760,16 @@ namespace HMM
 				if (newtonstep_no > 0 && !updated_md)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
-							if (fabs(avg_new_strain_tensor[k][l]) > strain_perturbation /*fabs(avg_upd_strain_tensor[k][l]) > strain_perturbation*/
-									&& cell_to_be_updated == false){
+							if ((fabs(avg_new_strain_tensor[k][l]) > strain_perturbation
+										|| local_quadrature_points_history[0].to_be_updated)
+									&& cell_to_be_updated == false)
+								{
 								std::cout << "           "
 										<< " cell "<< cell->active_cell_index()
-										<< " strain component " << k << l
-										<< " value " << avg_upd_strain_tensor[k][l] << std::endl;
+										<< " component " << k << l
+										<< " value " << avg_upd_strain_tensor[k][l]
+										<< " norm " << avg_upd_strain_tensor.norm()
+										<< std::endl;
 
 								cell_to_be_updated = true;
 								for (unsigned int qc=0; qc<quadrature_formula.size(); ++qc)

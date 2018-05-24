@@ -339,11 +339,11 @@ namespace MD
 
 		char replogloc[1024];
 		sprintf(replogloc, "%s/R%d", logloc, repl);
-		mkdir(replogloc, ACCESSPERMS);
+		//mkdir(replogloc, ACCESSPERMS);
 
 		char qpreplogloc[1024];
 		sprintf(qpreplogloc, "%s/%s.%s", replogloc, timeid, cellid);
-		mkdir(qpreplogloc, ACCESSPERMS);
+		//mkdir(qpreplogloc, ACCESSPERMS);
 
 		char straindata[1024];
 		sprintf(straindata, "%s.%s.%s", timeid, cellid, mdstate);

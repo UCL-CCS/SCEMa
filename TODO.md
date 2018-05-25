@@ -11,7 +11,11 @@
   - finite element cell number independence (location-based? else?)
 * Improve homogenization procedure
   - Enhanced stress homogenization, stiffness from fluctuations (Luding, S.)
-  - MercuryDPM (Luding, S.), LIME (Leither, K., ARL)
+  - MercuryDPM (Luding, S.), LIMEpy (Leither, K., ARL)
+* Adaptative mesh refinement
+  - based on deal.ii capabilities
+  - transfer mother cell features (strain, atomic model) to child cells
+  - handle cell renumbering
 * Separate initialization of MD
   - For each replica, of each material type produce:  inital box stiffness, initial box stress, initial box dimensions and the init binary file
 * Use Pilotjob as a scheduler
@@ -23,5 +27,5 @@
   - insert decision workflow to choose between MD simulation and GPR regression
 * Write documentation
 * Pass common features from all forks to master
-* Reflect on more than two scales
-* Gather inputs in a .json file (parameters, path to: replicas, mesh, microstructure)
+* N-scales extension
+* Gather inputs parameters in a .JSON file (parameters, path to: replicas, mesh, microstructure)

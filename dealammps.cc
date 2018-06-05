@@ -556,6 +556,7 @@ namespace HMM
 
 		void select_specific ();
 		void output_lhistory ();
+		void output_loaddisp ();
 		void output_specific ();
 		void output_visualisation ();
 		void output_results ();
@@ -583,7 +584,7 @@ namespace HMM
 		void update_strain_quadrature_point_history
 		(const Vector<double>& displacement_update);
 		void update_stress_quadrature_point_history
-		(const Vector<double>& displacement_update);
+		(const Vector<double>& displacement_update, bool init_ts);
 		void update_incremental_variables ();
 
 		void write_proc_job_list_json(char* filename_out, char* time_id, int max_nodes_per_md);
@@ -630,7 +631,8 @@ namespace HMM
 		double              				present_time;
 		double              				present_timestep;
 		double              				end_time;
-		int        							timestep_no;
+		int        					start_timestep;		
+		int						timestep_no;
 		int        							newtonstep_no;
 		bool 								updated_md;
 
@@ -667,7 +669,6 @@ namespace HMM
 		unsigned int						nrepl;
 		std::vector<ReplicaData<dim> > 		replica_data;
 		Tensor<1,dim> 						cg_dir;
-		unsigned int						machine_ppn;
 
 		// Finite Element dimensions and boundary conditions
 		double 								ll;
@@ -1059,6 +1060,7 @@ namespace HMM
 
 
 
+
 	template <int dim>
 	void FEProblem<dim>::assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > structure_data,
 			std::string &mat, Tensor<2,dim> &rotam)
@@ -1103,6 +1105,7 @@ namespace HMM
 			}
 		}
 	}
+
 
 
 
@@ -1301,12 +1304,12 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values()
 	{
 
-		double tvel_vsupport=50.0; // target velocity of the boundary m/s-1
+		double tvel_vsupport=100.0; // target velocity of the boundary m/s-1
 
-		double acc_time=1.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
+		double acc_time=500.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
 		double acc_vsupport=tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
 
-		double tvel_time=400.0*present_timestep;
+		double tvel_time=0.0*present_timestep;
 
 		// acceleration of the loading support (reaching aimed velocity)
 		if (present_time<acc_time){
@@ -1338,7 +1341,9 @@ namespace HMM
 		endc = dof_handler.end();
 
 		for ( ; cell != endc; ++cell) {
+
 			double eps = (cell->minimum_vertex_distance());
+
 			for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_cell; ++v) {
 
 				unsigned int component;
@@ -1411,7 +1416,6 @@ namespace HMM
 
 
 
-
 	template <int dim>
 	void FEProblem<dim>::make_grid ()
 	{
@@ -1479,8 +1483,6 @@ namespace HMM
 
 		FullMatrix<double>   cell_v_matrix (dofs_per_cell, dofs_per_cell);
 		Vector<double>       cell_v_rhs (dofs_per_cell);
-
-		Vector<double>       vtmp (dofs_per_cell);
 
 		std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
 
@@ -1557,17 +1559,6 @@ namespace HMM
 								fe_values.JxW (q_point);
 					}
 				}
-
-				// For Debug...
-				/*dcout << " " << std::endl;
-					dcout << " MASS " << std::endl;
-					if(cell->vertex_dof_index (0,0)==0)
-						for (unsigned int i=0; i<dofs_per_cell; ++i){
-							for (unsigned int j=0; j<dofs_per_cell; ++j){
-								dcout << cell_mass(i,j) << " " << std::flush;
-							}
-							dcout << std::endl;
-					}*/
 
 				cell->get_dof_indices (local_dof_indices);
 
@@ -1690,7 +1681,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		double strain_perturbation = 0.20;
+		double strain_perturbation = 0.00001;
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
@@ -1715,8 +1706,8 @@ namespace HMM
 				fe_values.get_function_gradients (displacement_update,
 						displacement_update_grads);
 
-				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-					local_quadrature_points_history[q].to_be_updated = false;
+				/*for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+					local_quadrature_points_history[q].to_be_updated = false;*/
 
 				avg_upd_strain_tensor = 0.;
 				avg_new_strain_tensor = 0.;
@@ -1802,7 +1793,7 @@ namespace HMM
 			char alltime_update_filename[1024];
 			sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
 			outfile.open (alltime_update_filename, std::ofstream::app);
-			if(timestep_no==1 && newtonstep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
+			if(timestep_no==start_timestep && newtonstep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
 			infile.open (update_filename);
 			while (getline(infile, iline)) outfile << timestep_no << "," << newtonstep_no << "," << iline << std::endl;
 			infile.close();
@@ -1854,7 +1845,7 @@ namespace HMM
 							<< "\", \"" << cell_id << "\", \""
 							<< local_quadrature_points_history[0].mat << "\", \"${it}\", \""
 							<< macrostatelocout << "\", \""
-							<< nanostatelocout << "\", \""
+							<< nanostateloc << "\", \""
 							<< nanologloc << "\"], "
 							<< std::endl;
 					output_file<<"         \"stdout\": \"" << nanologloc <<"/R${it}/" << time_id << "."
@@ -2067,7 +2058,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::update_stress_quadrature_point_history
-	(const Vector<double>& displacement_update)
+	(const Vector<double>& displacement_update, bool init_ts)
 	{
 		FEValues<dim> fe_values (fe, quadrature_formula,
 				update_values | update_gradients);
@@ -2129,7 +2120,7 @@ namespace HMM
 
 					if (newtonstep_no == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
-					if (local_quadrature_points_history[q].to_be_updated){
+					if (local_quadrature_points_history[q].to_be_updated and !init_ts){
 
 						// Updating stiffness tensor
 						/*SymmetricTensor<4,dim> stmp_stiff;
@@ -2362,14 +2353,9 @@ namespace HMM
 		newton_update_displacement.add(present_timestep, newton_update_velocity);
 		newton_update_displacement.add(-1.0, incremental_displacement);
 
-		//hcout << "    Upd. Norms: " << fe_problem.newton_update_displacement.l2_norm() << " - " << fe_problem.newton_update_velocity.l2_norm() <<  std::endl;
-
-		//fe_problem.newton_update_displacement.equ(present_timestep, fe_problem.newton_update_velocity);
-
 		const double alpha = determine_step_length();
 		incremental_velocity.add (alpha, newton_update_velocity);
 		incremental_displacement.add (alpha, newton_update_displacement);
-		//hcout << "    Inc. Norms: " << fe_problem.incremental_displacement.l2_norm() << " - " << fe_problem.incremental_velocity.l2_norm() <<  std::endl;
 	}
 
 
@@ -2586,7 +2572,6 @@ namespace HMM
 						lcmd[imd].push_back(cell->active_cell_index());
 					}
 				}
-
 			}
 
 		// Shuffling the list of cells of each material type and selecting a reduced number
@@ -2605,7 +2590,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::output_specific ()
+	void FEProblem<dim>::output_loaddisp ()
 	{
 		// Compute applied force vector
 		Vector<double> local_residual (dof_handler.n_dofs());
@@ -2634,7 +2619,7 @@ namespace HMM
 				if (cell->active_cell_index()==lcga[ii])
 				{
 					double ypos = cell->vertex(0)(1)+displacement[cell->vertex_dof_index (0, 1)];
-					if(ypos > 0.0) ytop = ypos;
+					if(cell->vertex(0)(1) > 0.0) ytop = ypos;
 					else ybot = ypos;
 				}
 			}
@@ -2648,7 +2633,7 @@ namespace HMM
 			std::ofstream ofile;
 			char fname[1024]; sprintf(fname, "%s/load_deflection.csv", macrologloc);
 
-			if (timestep_no == 1){
+			if (timestep_no == start_timestep){
 				ofile.open (fname);
 				if (ofile.is_open())
 				{
@@ -2673,7 +2658,7 @@ namespace HMM
 						}
 					}
 					ilength = ytop-ybot;
-					ofile << 0 << ", " << 0 << ", " << std::setprecision(16) << ilength << ", " << 0.0 << std::endl;
+					if (timestep_no == 1) ofile << 0 << ", " << 0 << ", " << std::setprecision(16) << ilength << ", " << 0.0 << std::endl;
 					ofile.close();
 				}
 				else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
@@ -2687,7 +2672,13 @@ namespace HMM
 			}
 			else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
 		}
+	}
 
+
+
+	template <int dim>
+	void FEProblem<dim>::output_specific ()
+	{
 		// Cells of special interest (store atom dump of every update of each replica of each cell)
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
@@ -3021,14 +3012,22 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::output_results ()
 	{
+		int freq_output_lhist = 1;
+		int freq_output_lddsp = 1;
+		int freq_output_spec = 1;
+		int freq_output_visu = 10;
+
 		// Output local history by processor
-		output_lhistory ();
+		if(timestep_no%freq_output_lhist==0) output_lhistory ();
+
+		// Macroscopic load-displacement to the current test
+		if(timestep_no%freq_output_lddsp==0 or timestep_no==start_timestep) output_loaddisp();
 
 		// Specific outputs to the current test
-		output_specific ();
+		if(timestep_no%freq_output_spec==0) output_specific ();
 
 		// Output visualisation files for paraview
-		output_visualisation();
+		if(timestep_no%freq_output_visu==0) output_visualisation();
 	}
 
 
@@ -3104,11 +3103,11 @@ namespace HMM
 				// Save box state history
 				for(unsigned int repl=1;repl<nrepl+1;repl++)
 				{
-					sprintf(filename, "%s/last.%s.%s_%d.bin", nanostatelocout, cell_id,
+					sprintf(filename, "%s/last.%s.%s_%d.dump", nanostatelocout, cell_id,
 							local_quadrature_points_history[0].mat.c_str(), repl);
 					std::ifstream  nanoin(filename, std::ios::binary);
 					if (nanoin.good()){
-						sprintf(filename, "%s/lcts.%s.%s_%d.bin", nanostatelocres, cell_id,
+						sprintf(filename, "%s/lcts.%s.%s_%d.dump", nanostatelocres, cell_id,
 								local_quadrature_points_history[0].mat.c_str(), repl);
 						std::ofstream  nanoout(filename,   std::ios::binary);
 						nanoout << nanoin.rdbuf();
@@ -3285,11 +3284,11 @@ namespace HMM
 						// Restore box state history
 						for(unsigned int repl=1;repl<nrepl+1;repl++)
 						{
-							sprintf(filename, "%s/restart/lcts.%d.%s_%d.bin", nanostatelocin, cell->active_cell_index(),
+							sprintf(filename, "%s/restart/lcts.%d.%s_%d.dump", nanostatelocin, cell->active_cell_index(),
 									local_quadrature_points_history[0].mat.c_str(), repl);
 							std::ifstream  nanoin(filename, std::ios::binary);
 							if (nanoin.good()){
-								sprintf(filename, "%s/last.%d.%s_%d.bin", nanostatelocout, cell->active_cell_index(),
+								sprintf(filename, "%s/last.%d.%s_%d.dump", nanostatelocout, cell->active_cell_index(),
 										local_quadrature_points_history[0].mat.c_str(), repl);
 								std::ofstream  nanoout(filename,   std::ios::binary);
 								nanoout << nanoin.rdbuf();
@@ -3370,7 +3369,7 @@ namespace HMM
 		do
 		{
 			dcout << "  Initial assembling FE system..." << std::flush;
-			if(timestep_no==1) previous_res = assemble_system (true);
+			if(timestep_no==start_timestep) previous_res = assemble_system (true);
 			else previous_res = assemble_system (false);
 			dcout << "  Initial residual: "
 					<< previous_res
@@ -3393,7 +3392,8 @@ namespace HMM
 				MPI_Barrier(world_communicator);
 				dcout << "    Updating quadrature point data..." << std::endl;
 
-				update_strain_quadrature_point_history (newton_update_displacement);
+				update_strain_quadrature_point_history
+						(newton_update_displacement);
 				MPI_Barrier(world_communicator);
 
 				dcout << "    Have some stiffnesses been updated in this group of iterations? " << updated_md << std::endl;
@@ -3402,7 +3402,7 @@ namespace HMM
 				MPI_Barrier(world_communicator);
 
 				update_stress_quadrature_point_history
-						(newton_update_displacement);
+						(newton_update_displacement, false);
 
 				dcout << "    Re-assembling FE system..." << std::flush;
 				previous_res = assemble_system (false);
@@ -3430,8 +3430,7 @@ namespace HMM
 	void FEProblem<dim>::do_timestep ()
 	{
 		// Frequencies of output and save
-		int freq_restart_output = 1;
-		int freq_output_results = 1;
+		int freq_restart_output = 10;
 
 		// Updating time variable
 		present_time += present_timestep;
@@ -3455,7 +3454,7 @@ namespace HMM
 
 		// Updating current strains and stresses with the boundary conditions information
 		update_strain_quadrature_point_history (incremental_displacement);
-		update_stress_quadrature_point_history (incremental_displacement);
+		update_stress_quadrature_point_history (incremental_displacement, true);
 		MPI_Barrier(world_communicator);
 
 		// Solving iteratively the current timestep
@@ -3469,7 +3468,7 @@ namespace HMM
 		//if(dealii_pcolor==0) fe_problem.error_estimation ();
 
 		// Outputs
-		if(timestep_no%freq_output_results==0) output_results ();
+		output_results ();
 
 		// Saving files for restart
 		if(timestep_no%freq_restart_output==0) restart_save ();
@@ -3487,13 +3486,10 @@ namespace HMM
 	{
 		dcout << "Building the HMM problem:       " << std::endl;
 
-		// PPN of the supercomputer
-		machine_ppn=16;
-
 		// List of name of MD box types
 		mdtype.push_back("g0");
-		//mdtype.push_back("PE");
-		//mdtype.push_back("PNC");
+		//mdtype.push_back("g1");
+		//mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble
 		nrepl=1;
@@ -3513,10 +3509,11 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		// Initialization of time variables
-		present_timestep = 5.0e-9;
-		present_time = 0.0*present_timestep;
-		end_time = 1000.0*present_timestep; //1000.0*
-		timestep_no = 0;
+		start_timestep = 1;
+		present_timestep = 1.0e-9;
+		timestep_no = start_timestep - 1;
+		present_time = timestep_no*present_timestep;
+		end_time = 1000*present_timestep; //4000.0 > 66% final strain
 
 		// Initiatilization of the FE problem
 		dcout << " Initiation of the Finite Element problem...       " << std::endl;

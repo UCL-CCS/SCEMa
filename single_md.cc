@@ -298,7 +298,7 @@ namespace MD
 			char* cellid,
 			char* timeid,
 			MPI_Comm comm_lammps,
-			const char* statelocout,
+			const char* stateloc,
 			const char* logloc,
 			std::string mdt,
 		    unsigned int repl)
@@ -330,9 +330,9 @@ namespace MD
 
 		// Name of nanostate binary files
 		char mdstate[1024];
-		sprintf(mdstate, "%s_%d.bin", mdt.c_str(), repl);
+		sprintf(mdstate, "%s_%d", mdt.c_str(), repl);
 		char initdata[1024];
-		sprintf(initdata, "init.%s", mdstate);
+		sprintf(initdata, "init.%s.bin", mdstate);
 
 		char atomstate[1024];
 		sprintf(atomstate, "%s_%d.lammpstrj", mdt.c_str(), repl);
@@ -345,10 +345,9 @@ namespace MD
 		sprintf(qpreplogloc, "%s/%s.%s", replogloc, timeid, cellid);
 		//mkdir(qpreplogloc, ACCESSPERMS);
 
-		char straindata[1024];
-		sprintf(straindata, "%s.%s.%s", timeid, cellid, mdstate);
 		char straindata_last[1024];
-		sprintf(straindata_last, "last.%s.%s", cellid, mdstate);
+		sprintf(straindata_last, "last.%s.%s.dump", cellid, mdstate);
+		// sprintf(straindata_last, "last.%s.%s.bin", cellid, mdstate);
 
 		char atomdata_last[1024];
 		sprintf(atomdata_last, "last.%s.%s", cellid, atomstate);
@@ -356,9 +355,6 @@ namespace MD
 		char cline[1024];
 		char cfile[1024];
 		char mfile[1024];
-
-		// Compute from the initial state (true) or the previous state (false)
-		bool compute_finit = false;
 
 		// Specifying the command line options for screen and log output file
 		int nargs = 5;
@@ -387,7 +383,9 @@ namespace MD
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
 
 		// Setting dumping of atom positions for post analysis of the MD simulation
-		sprintf(cline, "dump atom_dump all atom %d %s/%s", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
+		// DO NOT USE CUSTOM DUMP: WRONG ATOM POSITIONS...
+		//sprintf(cline, "dump atom_dump all custom %d %s/%s id type xs ys zs vx vy vz ix iy iz", ntsdump, statelocout, atomdata_last); lammps_command(lmp,cline);
+		sprintf(cline, "dump atom_dump all atom %d %s/out/%s", ntsdump, stateloc, atomdata_last); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
@@ -397,49 +395,38 @@ namespace MD
 		/*if (me == 0) std::cout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Compute current state data...       " << std::endl;*/
-		// Set the state of the testing box at the beginning of the simulation
-		// (either from initial end state or from previous testing end state).
-		if(compute_finit)
-		{
-			// Use the initial state if history path in the phases space is to be
-			// discarded
-			/*if (me == 0) std::cout << "               "
-					<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
-					<< "   ... from init state data...       " << std::endl;*/
-			sprintf(mfile, "%s/%s", statelocout, initdata);
-		}
-		else
-		{
-			// Check if a previous state has already been computed specifically for
-			// this quadrature point, otherwise use the initial state (which is the
-			// last state of this quadrature point)
-			/*if (me == 0) std::cout << "               "
-					<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
-					<< "   ... from previous state data...   " << std::flush;*/
-			sprintf(mfile, "%s/%s", statelocout, straindata_last);
-			std::ifstream ifile(mfile);
-			if (ifile.good()){
-				/*if (me == 0) std::cout << "  specifically computed." << std::endl;*/
-				ifile.close();
 
-				sprintf(cline, "print 'specifically computed'"); lammps_command(lmp,cline);
-			}
-			else{
-				/*if (me == 0) std::cout << "  initially computed." << std::endl;*/
-				sprintf(mfile, "%s/%s", statelocout, initdata);
-
-				sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
-			}
-		}
-		std::ifstream ifile(mfile);
-		if (!ifile.good()){
-			/*if (me == 0) std::cout << "               "
-					<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
-					<< "Unable to open beginning state file to read" << std::endl;*/
-		}
-		else ifile.close();
-
+		// Check if a previous state has already been computed specifically for
+		// this quadrature point, otherwise use the initial state (which is the
+		// last state of this quadrature point)
+		/*if (me == 0) std::cout << "               "
+				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
+				<< "   ... from previous state data...   " << std::flush;*/
+		sprintf(mfile, "%s/out/%s", stateloc, initdata);
 		sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+		// Check the presence of a dump file to restart from
+		sprintf(mfile, "%s/out/%s", stateloc, straindata_last);
+		std::ifstream ifile(mfile);
+		if (ifile.good()){
+			/*if (me == 0) std::cout << "  specifically computed." << std::endl;*/
+			ifile.close();
+
+			sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline);
+
+			// sprintf(mfile, "%s/%s", statelocout, straindata_last);
+			// sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+			sprintf(cline, "print 'specifically computed'"); lammps_command(lmp,cline);
+		}
+		else{
+			/*if (me == 0) std::cout << "  initially computed." << std::endl;*/
+
+			// sprintf(mfile, "%s/%s", statelocout, initdata);
+			// sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
+		}
 
 		sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 		sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
@@ -465,22 +452,43 @@ namespace MD
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Saving state data...       " << std::endl;*/
 		// Save data to specific file for this quadrature point
-		sprintf(cline, "write_restart %s/%s", statelocout, straindata_last); lammps_command(lmp,cline);
+		sprintf(cline, "write_dump all custom %s/out/%s id type xs ys zs vx vy vz ix iy iz", stateloc, straindata_last); lammps_command(lmp,cline);
 
+		// close down LAMMPS
+		delete lmp;
 
 		/*if (me == 0) std::cout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
+
+		// Creating LAMMPS instance
+		sprintf(lmparg[4], "%s/log.%s_homogenization", qpreplogloc, mdt.c_str());
+		lmp = new LAMMPS(nargs,lmparg,comm_lammps);
+
+        sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
+
+		// Setting testing temperature
+		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
+
+		// Setting general parameters for LAMMPS independentely of what will be
+		// tested on the sample next.
+		sprintf(cfile, "%s/%s", location, "in.set.lammps");
+		lammps_file(lmp,cfile);
+
+		sprintf(mfile, "%s/out/%s", stateloc, initdata);
+		sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+		sprintf(mfile, "%s/out/%s", stateloc, straindata_last);
+		sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline);
+		//sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline);
+
+		sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 
 		// Compute the secant stiffness tensor at the given stress/strain state
 		lammps_homogenization<dim>(lmp, location, stress, stiffness, dts, init);
 
 		// Cleaning initial offset of stresses
 		stress -= init_stress;
-
-		// Save data to specific file for this quadrature point
-		// At the end of the homogenization the state after sampling the current stress is reread to prepare this write
-		//sprintf(cline, "write_restart %s/%s", statelocout, straindata_last); lammps_command(lmp,cline);
 
 		// close down LAMMPS
 		delete lmp;
@@ -493,7 +501,7 @@ namespace MD
 	class MDProblem
 	{
 	public:
-		MDProblem (const char* mslocout, const char* nslocout, const char* nsloclog);
+		MDProblem (const char* mslocout, const char* nsloc, const char* nsloclog);
 		~MDProblem ();
 		void run(char* ctime, char* ccell, const char* cmat, unsigned int repl);
 
@@ -504,9 +512,9 @@ namespace MD
 		const int 							this_world_process;
 		int 								world_pcolor;
 
-		const char*                          macrostatelocout;
-		const char*                          nanostatelocout;
-		const char*                          nanologloc;
+		const char*                         macrostatelocout;
+		const char*                         nanostateloc;
+		const char*                         nanologloc;
 
 		ConditionalOStream 					hcout;
 
@@ -515,14 +523,14 @@ namespace MD
 
 
 	template <int dim>
-	MDProblem<dim>::MDProblem (const char* mslocout, const char* nslocout, const char* nsloclog)
+	MDProblem<dim>::MDProblem (const char* mslocout, const char* nsloc, const char* nsloclog)
 	:
 		world_communicator (MPI_COMM_WORLD),
 		n_world_processes (Utilities::MPI::n_mpi_processes(world_communicator)),
 		this_world_process (Utilities::MPI::this_mpi_process(world_communicator)),
 		world_pcolor (0),
 		macrostatelocout (mslocout),
-		nanostatelocout (nslocout),
+		nanostateloc (nsloc),
 		nanologloc (nsloclog),
 		hcout (std::cout,(this_world_process == 0))
 	{}
@@ -572,7 +580,7 @@ namespace MD
 				ccell,
 				ctime,
 				world_communicator,
-				nanostatelocout,
+				nanostateloc,
 				nanologloc,
 				cmat,
 				repl);
@@ -608,10 +616,10 @@ int main (int argc, char **argv)
 		std::string cmat = argv[3];
 		unsigned int repl = atoi(argv[4]);
 		std::string mslocout = argv[5];
-		std::string nslocout = argv[6];
+		std::string nsloc = argv[6];
 		std::string nsloclog = argv[7];
 		//std::cout << ctime << " " << ccell << " " << cmat << " " << repl << " " << mslocout << " " << nslocout << " " << nsloclog << std::endl;
-		MDProblem<3> md_problem (mslocout.c_str(),nslocout.c_str(),nsloclog.c_str());
+		MDProblem<3> md_problem (mslocout.c_str(),nsloc.c_str(),nsloclog.c_str());
 
 		md_problem.run(ctime, ccell, cmat.c_str(), repl);
 	}

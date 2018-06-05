@@ -1069,17 +1069,17 @@ namespace HMM
 		void setup_quadrature_point_history (unsigned int nrepl, std::vector<ReplicaData<dim> >);
 
 		void update_strain_quadrature_point_history
-		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no, const bool updated_stiffnesses);
+		(const Vector<double>& displacement_update, const int timestep_no, const int start_timestep, const int newtonstep_no, const bool updated_stiffnesses);
 		void update_stress_quadrature_point_history
 		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no, bool init_ts);
 		void update_incremental_variables (const double present_timestep);
 
 		void select_specific ();
 		void output_lhistory (const double present_time);
-		void output_loaddisp (const double present_time, const int timestep_no);
+		void output_loaddisp (const double present_time, const int timestep_no, const int start_timestep);
 		void output_specific (const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
 		void output_visualisation (const double present_time, const int timestep_no);
-		void output_results (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
+		void output_results (const double present_time, const int timestep_no, const int start_timestep, unsigned int nrepl, char* nanostatelocout, char* nanostatelocoutsi);
 		void clean_transfer(unsigned int nrepl);
 
 		Vector<double>  compute_internal_forces () const;
@@ -1601,7 +1601,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::update_strain_quadrature_point_history
-	(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no, const bool updated_stiffnesses)
+	(const Vector<double>& displacement_update, const int timestep_no, const int start_timestep, const int newtonstep_no, const bool updated_stiffnesses)
 	{
 		// Create file with qptid to update at timeid
 		std::ofstream ofile;
@@ -1749,7 +1749,7 @@ namespace HMM
                         char alltime_update_filename[1024];
                         sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
                         outfile.open (alltime_update_filename, std::ofstream::app);
-                        if(timestep_no==1 && newtonstep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
+                        if(timestep_no==start_timestep && newtonstep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
                         infile.open (update_filename);
                         while (getline(infile, iline)) outfile << timestep_no << "," << newtonstep_no << "," << iline << std::endl;
                         infile.close();
@@ -2638,7 +2638,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::output_loaddisp (const double present_time, const int timestep_no)
+	void FEProblem<dim>::output_loaddisp (const double present_time, const int timestep_no, const int start_timestep)
 	{
 		// Compute applied force vector
 		Vector<double> local_residual (dof_handler.n_dofs());
@@ -2678,7 +2678,7 @@ namespace HMM
 			std::ofstream ofile;
 			char fname[1024]; sprintf(fname, "%s/load_deflection.csv", macrologloc);
 
-			if (timestep_no == 1){
+			if (timestep_no == start_timestep){
 				ofile.open (fname);
 				if (ofile.is_open())
 				{
@@ -3052,7 +3052,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::output_results (const double present_time, const int timestep_no, unsigned int nrepl, char* nanostatelocout, char* nanologlocsi)
+	void FEProblem<dim>::output_results (const double present_time, const int timestep_no, const int start_timestep, unsigned int nrepl, char* nanostatelocout, char* nanologlocsi)
 	{
 		int freq_output_lhist = 10;
 		int freq_output_lddsp = 10;
@@ -3063,7 +3063,7 @@ namespace HMM
 		if(timestep_no%freq_output_lhist==0) output_lhistory (present_time);
 
 		// Macroscopic load-displacement to the current test
-		if(timestep_no%freq_output_lddsp==0 or timestep_no==1) output_loaddisp(present_time, timestep_no);
+		if(timestep_no%freq_output_lddsp==0 or timestep_no==start_timestep) output_loaddisp(present_time, timestep_no, start_timestep);
 
 		// Specific outputs to the current test
 		if(timestep_no%freq_output_spec==0) output_specific (timestep_no, nrepl, nanostatelocout, nanologlocsi);
@@ -3447,6 +3447,7 @@ namespace HMM
 		double              				present_time;
 		double              				present_timestep;
 		double              				end_time;
+		int						start_timestep;
 		int        							timestep_no;
 		int        							newtonstep_no;
 		bool 								updated_md;
@@ -3684,7 +3685,7 @@ namespace HMM
 		{
 			hcout << "  Initial assembling FE system..." << std::flush;
 			if(dealii_pcolor==0){
-				if(timestep_no==1) previous_res = fe_problem.assemble_system (present_timestep, true);
+				if(timestep_no==start_timestep) previous_res = fe_problem.assemble_system (present_timestep, true);
 				else previous_res = fe_problem.assemble_system (present_timestep, false);
 			}
 			hcout << "  Initial residual: "
@@ -3710,7 +3711,7 @@ namespace HMM
 				hcout << "    Updating quadrature point data..." << std::endl;
 
 				if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history
-						(fe_problem.newton_update_displacement, timestep_no, newtonstep_no, updated_md);
+						(fe_problem.newton_update_displacement, timestep_no, start_timestep, newtonstep_no, updated_md);
 				MPI_Barrier(world_communicator);
 
 				hcout << "    Have some stiffnesses been updated in this group of iterations? " << updated_md << std::endl;
@@ -3772,7 +3773,7 @@ namespace HMM
 		if(dealii_pcolor==0) fe_problem.set_boundary_values (present_time, present_timestep);
 
 		// Updating current strains and stresses with the boundary conditions information
-		if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no, updated_md);
+		if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, start_timestep, newtonstep_no, updated_md);
 		if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no, true);
 		MPI_Barrier(world_communicator);
 
@@ -3789,7 +3790,7 @@ namespace HMM
 		//if(dealii_pcolor==0) fe_problem.error_estimation ();
 
 		// Outputs
-		if(dealii_pcolor==0) fe_problem.output_results (present_time, timestep_no, nrepl, nanostatelocout, nanologlocsi);
+		if(dealii_pcolor==0) fe_problem.output_results (present_time, timestep_no, start_timestep, nrepl, nanostatelocout, nanologlocsi);
 
 		// Saving files for restart
 		if(dealii_pcolor==0) if(timestep_no%freq_restart_output==0) fe_problem.restart_save (present_time, nanostatelocout, nanostatelocres, nrepl);
@@ -4239,10 +4240,11 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		// Initialization of time variables
+		start_timestep = 1;
 		present_timestep = 3.0e-7;
-		present_time = 0.0*present_timestep;
-		end_time = 1000.0*present_timestep; //4000.0 > 66% final strain
-		timestep_no = 0;
+		timestep_no = start_timestep - 1;
+		present_time = timestep_no*present_timestep;
+		end_time = 1000*present_timestep; //4000.0 > 66% final strain
 
 		// Initiatilization of the FE problem
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;

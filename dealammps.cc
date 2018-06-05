@@ -1688,7 +1688,9 @@ namespace HMM
 
 				bool cell_to_be_updated = false;
 				if (cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
-				//if ((cell->active_cell_index() == 1530)) // For debug...
+				/*if ((cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923 
+					|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487 
+					|| cell->active_cell_index() == 2488 || cell->active_cell_index() == 2489))*/ // For debug...
 				//if (false) // For debug...
 				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
@@ -2700,7 +2702,7 @@ namespace HMM
 						}
 					}
 					ilength = yinit;
-					ofile << 0 << ", " << 0 << ", " << std::setprecision(16) << ilength << ", " << 0.0 << std::endl;
+					ofile << timestep_no-1 << ", " << present_time << ", " << std::setprecision(16) << ilength << ", " << 0.0 << std::endl;
 					ofile.close();
 				}
 				else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
@@ -4241,7 +4243,7 @@ namespace HMM
 
 		// Initialization of time variables
 		start_timestep = 1;
-		present_timestep = 3.0e-7;
+		present_timestep = 1.0e-7;
 		timestep_no = start_timestep - 1;
 		present_time = timestep_no*present_timestep;
 		end_time = 1000*present_timestep; //4000.0 > 66% final strain

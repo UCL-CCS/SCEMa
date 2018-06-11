@@ -85,6 +85,8 @@
 
 #include <deal.II/base/mpi.h>
 
+#include "spline/strain2spline.h"
+
 namespace HMM
 {
 	using namespace dealii;
@@ -117,6 +119,7 @@ namespace HMM
 		SymmetricTensor<2,dim> inc_strain;
 		SymmetricTensor<2,dim> upd_strain;
 		SymmetricTensor<2,dim> newton_strain;
+		Strain6D hist_strain;
 		bool to_be_updated;
 
 		// Characteristics
@@ -587,6 +590,9 @@ namespace HMM
 		(const Vector<double>& displacement_update, bool init_ts);
 		void update_incremental_variables ();
 
+		void spline_comparison();
+		void spline_building();
+		void history_analysis();
 		void write_proc_job_list_json(char* filename_out, char* time_id, int max_nodes_per_md);
 		bool concatenate_job_list(char* filename_out);
 		void update_cells_with_molecular_dynamics ();
@@ -669,6 +675,9 @@ namespace HMM
 		unsigned int						nrepl;
 		std::vector<ReplicaData<dim> > 		replica_data;
 		Tensor<1,dim> 						cg_dir;
+		
+		// Parameters of the Spline history comparison
+		int 					num_spline_points;
 
 		// Finite Element dimensions and boundary conditions
 		double 								ll;
@@ -1731,6 +1740,16 @@ namespace HMM
 					local_quadrature_points_history[q].new_strain += local_quadrature_points_history[q].newton_strain;
 					local_quadrature_points_history[q].upd_strain += local_quadrature_points_history[q].newton_strain;
 
+					// Add current strain to strain history
+					local_quadrature_points_history[q].hist_strain.add_current_strain(
+									local_quadrature_points_history[q].new_strain[0][0],
+									local_quadrature_points_history[q].new_strain[1][1],
+									local_quadrature_points_history[q].new_strain[2][2],
+									local_quadrature_points_history[q].new_strain[0][1],
+									local_quadrature_points_history[q].new_strain[0][2],
+									local_quadrature_points_history[q].new_strain[1][2]
+						);					
+
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++){
 							avg_upd_strain_tensor[k][l] += local_quadrature_points_history[q].upd_strain[k][l];
@@ -1801,7 +1820,59 @@ namespace HMM
 		}
 	}
 
+	template <int dim>
+	void FEProblem<dim>::void spline_building()
+	{
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
 
+				local_quadrature_points_history[0].hist_strain.splinify(num_spline_points);
+			}
+	}
+
+	template <int dim>
+	void FEProblem<dim>::void spline_comparison()
+	{
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
+
+				if(local_quadrature_points_history[0].to_be_updated)
+				{
+					local_quadrature_points_history[0].hist_strain.print();
+				}
+			}
+	}
+
+	template <int dim>
+	void FEProblem<dim>::void history_analysis()
+	{
+		if(timestep_no > min_num_steps_before_spline) {
+			spline_building();
+			spline_comparison();
+		}
+	}
 
 
 	template <int dim>
@@ -3398,6 +3469,10 @@ namespace HMM
 
 				dcout << "    Have some stiffnesses been updated in this group of iterations? " << updated_md << std::endl;
 
+				// reduce the number of cells to update using the history comparison
+				history_analysis();
+
+				// update the required cells with MD
 				if (!updated_md) update_cells_with_molecular_dynamics();
 				MPI_Barrier(world_communicator);
 
@@ -3493,6 +3568,10 @@ namespace HMM
 
 		// Number of replicas in MD-ensemble
 		nrepl=1;
+
+		// Spline history comparison
+		num_spline_points = 15;
+		min_num_steps_before_spline = 5;
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();

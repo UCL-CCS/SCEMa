@@ -23,6 +23,16 @@ class Strain6D
 			num_points = 0;
 		}
 
+		void add_current_strain(double xx, double yy, double zz, double xy, double xz, double yz)
+		{
+			XX.push_back(xx);
+			YY.push_back(yy);
+			ZZ.push_back(zz);
+			XY.push_back(xy);
+			XZ.push_back(xz);
+			YZ.push_back(yz);
+		}
+
 		void from_file(const char *in_fname)
 		{
 			this->in_fname = std::string(in_fname);
@@ -80,6 +90,13 @@ class Strain6D
 				XY.push_back(splXY(t));
 				XZ.push_back(splXZ(t));
 				YZ.push_back(splYZ(t));
+			}
+		}
+
+		void print()
+		{
+			for(uint32_t n = 0; n < num_points; n++) {
+				std::cout << XX[n] << ' ' << YY[n] << ' ' << ZZ[n] << ' ' << XY[n] << ' ' << XZ[n] << ' ' << YZ[n] << '\n';
 			}
 		}
 

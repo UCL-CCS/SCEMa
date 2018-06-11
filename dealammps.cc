@@ -585,14 +585,15 @@ namespace HMM
 		void setup_quadrature_point_history (unsigned int nrepl, std::vector<ReplicaData<dim> >);
 
 		void update_strain_quadrature_point_history
-		(const Vector<double>& displacement_update);
+		(const Vector<double>& displacement_update, bool init_ts);
 		void update_stress_quadrature_point_history
 		(const Vector<double>& displacement_update, bool init_ts);
 		void update_incremental_variables ();
 
-		void spline_comparison();
 		void spline_building();
+		void spline_comparison();
 		void history_analysis();
+
 		void write_proc_job_list_json(char* filename_out, char* time_id, int max_nodes_per_md);
 		bool concatenate_job_list(char* filename_out);
 		void update_cells_with_molecular_dynamics ();
@@ -678,6 +679,7 @@ namespace HMM
 		
 		// Parameters of the Spline history comparison
 		int 					num_spline_points;
+		int 					min_num_steps_before_spline;
 
 		// Finite Element dimensions and boundary conditions
 		double 								ll;
@@ -1681,7 +1683,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::update_strain_quadrature_point_history
-	(const Vector<double>& displacement_update)
+	(const Vector<double>& displacement_update, bool init_ts)
 	{
 		// Preparing requirements for strain update
 		FEValues<dim> fe_values (fe, quadrature_formula,
@@ -1741,7 +1743,7 @@ namespace HMM
 					local_quadrature_points_history[q].upd_strain += local_quadrature_points_history[q].newton_strain;
 
 					// Add current strain to strain history
-					local_quadrature_points_history[q].hist_strain.add_current_strain(
+					if(!init_ts) local_quadrature_points_history[q].hist_strain.add_current_strain(
 									local_quadrature_points_history[q].new_strain[0][0],
 									local_quadrature_points_history[q].new_strain[1][1],
 									local_quadrature_points_history[q].new_strain[2][2],
@@ -1821,7 +1823,7 @@ namespace HMM
 	}
 
 	template <int dim>
-	void FEProblem<dim>::void spline_building()
+	void FEProblem<dim>::spline_building()
 	{
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
@@ -1842,7 +1844,7 @@ namespace HMM
 	}
 
 	template <int dim>
-	void FEProblem<dim>::void spline_comparison()
+	void FEProblem<dim>::spline_comparison()
 	{
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
@@ -1866,7 +1868,7 @@ namespace HMM
 	}
 
 	template <int dim>
-	void FEProblem<dim>::void history_analysis()
+	void FEProblem<dim>::history_analysis()
 	{
 		if(timestep_no > min_num_steps_before_spline) {
 			spline_building();
@@ -3464,7 +3466,7 @@ namespace HMM
 				dcout << "    Updating quadrature point data..." << std::endl;
 
 				update_strain_quadrature_point_history
-						(newton_update_displacement);
+						(newton_update_displacement, false);
 				MPI_Barrier(world_communicator);
 
 				dcout << "    Have some stiffnesses been updated in this group of iterations? " << updated_md << std::endl;
@@ -3528,7 +3530,7 @@ namespace HMM
 		set_boundary_values ();
 
 		// Updating current strains and stresses with the boundary conditions information
-		update_strain_quadrature_point_history (incremental_displacement);
+		update_strain_quadrature_point_history (incremental_displacement, true);
 		update_stress_quadrature_point_history (incremental_displacement, true);
 		MPI_Barrier(world_communicator);
 

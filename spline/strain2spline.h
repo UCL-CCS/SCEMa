@@ -25,12 +25,13 @@ class Strain6D
 
 		void add_current_strain(double xx, double yy, double zz, double xy, double xz, double yz)
 		{
-			XX.push_back(xx);
-			YY.push_back(yy);
-			ZZ.push_back(zz);
-			XY.push_back(xy);
-			XZ.push_back(xz);
-			YZ.push_back(yz);
+			in_XX.push_back(xx);
+			in_YY.push_back(yy);
+			in_ZZ.push_back(zz);
+			in_XY.push_back(xy);
+			in_XZ.push_back(xz);
+			in_YZ.push_back(yz);
+			num_points_read_in++;
 		}
 
 		void from_file(const char *in_fname)
@@ -60,7 +61,7 @@ class Strain6D
 		void splinify(uint32_t num_points)
 		{
 			if(num_points_read_in == 0) {
-				fprintf(stderr, "Error: No strain data has been read in yet. Please use .from_file() first.\n");
+				fprintf(stderr, "Error: No strain data has been read in yet. Please use .from_file() or .add_current_strain() first.\n");
 				exit(1);
 			}
 
@@ -74,6 +75,8 @@ class Strain6D
 				double t = (double)n/(double)(num_points_read_in - 1);
 				T.push_back(t);
 			}
+
+			std::cout << T.size() << " " << in_XX.size() << "\n";
 
 			splXX.set_points(T,in_XX);
 			splYY.set_points(T,in_YY);

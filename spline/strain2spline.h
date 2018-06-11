@@ -14,8 +14,9 @@ class Strain6D
 {
 	public:
 		uint32_t num_points;
-		std::vector<double> XX, YY, ZZ, XY, XZ, YZ;
-		std::string in_fname;
+//		std::vector<double> XX, YY, ZZ, XY, XZ, YZ;
+//		std::string in_fname;
+		std::vector<double> spline;
 
 		Strain6D()
 		{
@@ -36,7 +37,6 @@ class Strain6D
 
 		void from_file(const char *in_fname)
 		{
-			this->in_fname = std::string(in_fname);
 			std::ifstream infile(in_fname);
 			if(infile.fail()) {
 				fprintf(stderr, "Could not open %s for reading.\n", in_fname);
@@ -85,21 +85,23 @@ class Strain6D
 			splXZ.set_points(T,in_XZ);
 			splYZ.set_points(T,in_YZ);
 
+			spline.clear(); // reset the existing spline result to zero
+			spline.reserve(this->num_points * 6);
 			for(uint32_t n = 0; n < num_points; n++) {
 				double t = (double)n/(double)(num_points - 1);
-				XX.push_back(splXX(t));
-				YY.push_back(splYY(t));
-				ZZ.push_back(splZZ(t));
-				XY.push_back(splXY(t));
-				XZ.push_back(splXZ(t));
-				YZ.push_back(splYZ(t));
+				spline.push_back(splXX(t));
+				spline.push_back(splYY(t));
+				spline.push_back(splZZ(t));
+				spline.push_back(splXY(t));
+				spline.push_back(splXZ(t));
+				spline.push_back(splYZ(t));
 			}
 		}
 
 		void print()
 		{
-			for(uint32_t n = 0; n < num_points; n++) {
-				std::cout << XX[n] << ' ' << YY[n] << ' ' << ZZ[n] << ' ' << XY[n] << ' ' << XZ[n] << ' ' << YZ[n] << '\n';
+			for(uint32_t n = 0; n < num_points * 6; n += 6) {
+				std::cout << spline[n] << ' ' << spline[n + 1] << ' ' << spline[n + 2] << ' ' << spline[n + 3] << ' ' << spline[n + 4] << ' ' << spline[n + 5] << '\n';
 			}
 		}
 
@@ -111,8 +113,8 @@ class Strain6D
 				exit(1);
 			}
 
-			for(uint32_t n = 0; n < num_points; n++) {
-			outfile << XX[n] << ' ' << YY[n] << ' ' << ZZ[n] << ' ' << XY[n] << ' ' << XZ[n] << ' ' << YZ[n] << '\n';
+			for(uint32_t n = 0; n < num_points * 6; n += 6) {
+				outfile << spline[n] << ' ' << spline[n] << ' ' << spline[n] << ' ' << spline[n] << ' ' << spline[n] << ' ' << spline[n] << '\n';
 			}
 
 			outfile.close();
@@ -133,14 +135,8 @@ double compare_L2_norm(Strain6D *a, Strain6D *b)
 	uint32_t N = a->num_points;
 	double sum = 0;
 	for(uint32_t i = 0; i < N; i++) {
-		double dxx = a->XX[i] - b->XX[i];
-		double dyy = a->YY[i] - b->YY[i];
-		double dzz = a->ZZ[i] - b->ZZ[i];
-		double dxy = a->XY[i] - b->XY[i];
-		double dxz = a->XZ[i] - b->XZ[i];
-		double dyz = a->YZ[i] - b->YZ[i];
-
-		sum += dxx*dxx + dyy*dyy + dzz*dzz + dxy*dxy + dxz*dxz + dyz*dyz;
+		double diff = a->spline[i] - b->spline[i];
+		sum += diff*diff;
 	}
 
 	return sqrt(sum);

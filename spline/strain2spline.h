@@ -142,5 +142,22 @@ double compare_L2_norm(Strain6D *a, Strain6D *b)
 	return sqrt(sum);
 }
 
+double compare_L2_norm(double *a, double *b, uint32_t num_points_a, uint32_t num_points_b)
+{
+	if(num_points_a != num_points_b) {
+		fprintf(stderr, "Error in compare_L2_norm(): given strain6D objects have different numbers of spline points (%u and %u)\n", num_points_a, num_points_b);
+		exit(1);
+	}
+
+	uint32_t N = num_points_a;
+	double sum = 0;
+	for(uint32_t i = 0; i < N; i++) {
+		double diff = a[i] - b[i];
+		sum += diff*diff;
+	}
+
+	return sqrt(sum);
+}
+
 #endif /* MATHISTPREDICT_STRAIN2SPLINE_H */
 

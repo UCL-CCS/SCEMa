@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 		for(uint32_t j = 0; j < rankdata.num_histories; j++) {
 			uint32_t num_hist_points = rankdata.histories[j]->num_points;
 			MPI_Isend(&(num_hist_points), 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
-			MPI_Isend(&(rankdata.histories[j]->spline[0]), num_hist_points, MPI_DOUBLE, target_rank, this_rank, comm, &request);
+			MPI_Isend(&(rankdata.histories[j]->spline[0]), num_hist_points * 6, MPI_DOUBLE, target_rank, this_rank, comm, &request);
 		}
 
 		std::cout << "Rank " << this_rank << ": Expecting " << from_rank << "\n";
@@ -76,8 +76,9 @@ int main(int argc, char **argv)
 			MPI_Recv(&recv_num_hist_points, 1, MPI_UNSIGNED, from_rank, from_rank, comm, &status);
 			MPI_Recv(recv_buf, recv_max_buf_size, MPI_DOUBLE, from_rank, from_rank, comm, &status);
 
-			for(uint32_t k = 0; k < recv_num_hist_points; k++) {
-				std::cout << "Received from rank " << from_rank << " " << recv_buf[j] << "\n";
+			for(uint32_t k = 0; k < rankdata.num_histories; k++) {
+				double compare_result = compare_L2_norm(rankdata.histories[k]->spline.data(), recv_buf, rankdata.histories[k]->num_points*6, recv_num_hist_points*6);
+				std::cout << "Comparison between rank " << this_rank << ", history " << k << " and rank " <<  from_rank << ", history " << j << ": " << compare_result << "\n";
 			}
 		}
 	}

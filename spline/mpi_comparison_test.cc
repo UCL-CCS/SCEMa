@@ -64,6 +64,7 @@ int main(int argc, char **argv)
 		std::cout << "Rank " << this_rank << ": Hist" << histories[i]->get_ID() << " is most similar to Hist" << histories[i]->get_most_similar_history_ID() << " with diff " << histories[i]->get_most_similar_history_diff() << " => will_run_new_MD=" << will_run_new_MD << "\n";
 
 		histories[i]->print_most_similar_histories();
+		histories[i]->most_similar_histories_to_file(("Rank_" + std::to_string(this_rank) + ".txt").c_str());
 	}
 
 	MPI_Finalize();

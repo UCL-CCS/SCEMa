@@ -159,7 +159,7 @@ namespace MatHistPredict {
 				}
 			}
 
-			void to_file(char *out_fname)
+			void spline_to_file(char *out_fname)
 			{
 				if(!up_to_date) {
 					std::cout << "Warning: spline is not up to date (run splinify() to rebuild spline)\n";
@@ -244,6 +244,21 @@ namespace MatHistPredict {
 				for(uint32_t i = 0; i < most_similar_histories.size(); i++) {
 					std::cout << ID << " " << most_similar_histories[i].ID << " " << most_similar_histories[i].diff << "\n";
 				}
+			}
+
+			void most_similar_histories_to_file(const char *out_fname)
+			{
+				std::ofstream outfile(out_fname);
+				if(outfile.fail()) {
+					fprintf(stderr, "Could not open %s for writing.\n", out_fname);
+					exit(1);
+				}
+
+				for(uint32_t i = 0; i < most_similar_histories.size(); i++) {
+					outfile << ID << " " << most_similar_histories[i].ID << " " << most_similar_histories[i].diff << "\n";
+				}
+
+				outfile.close();
 			}
 
 			bool run_new_sim(double threshold)

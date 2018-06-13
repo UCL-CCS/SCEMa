@@ -10,6 +10,12 @@
 
 #include "spline.h"
 
+typedef struct
+{
+	uint32_t ID;
+	double diff;
+} HISTORY_ID_DIFF_PAIR;
+
 namespace MatHistPredict {
 
 	class Strain6D
@@ -24,8 +30,10 @@ namespace MatHistPredict {
 				ID = std::numeric_limits<uint32_t>::max(); // Should be set correctly using set_ID
 				ID_is_set = false;
 
-				most_similar_history_ID = 0;
-				most_similar_history_diff = 0;
+				most_similar_history.ID = 0;
+				most_similar_history.diff = 0;
+
+				most_similar_histories.clear();
 			}
 
 			void set_ID(uint32_t ID)
@@ -191,26 +199,69 @@ namespace MatHistPredict {
 
 			uint32_t get_most_similar_history_ID()
 			{
-				return most_similar_history_ID;
+				return most_similar_history.ID;
 			}
 
 			double get_most_similar_history_diff()
 			{
-				return most_similar_history_diff;
+				return most_similar_history.diff;
 			}
 			
 			void clear_most_similar_history()
 			{
-				this->most_similar_history_ID = std::numeric_limits<uint32_t>::max();;
-				this->most_similar_history_diff = std::numeric_limits<double>::infinity();
+				most_similar_history.ID = std::numeric_limits<uint32_t>::max();;
+				most_similar_history.diff = std::numeric_limits<double>::infinity();
+
+				most_similar_histories.clear();
 			}
 
-			void choose_most_similar_history(double candidate_diff, uint32_t candidate_ID)
+			void choose_most_similar_history(double candidate_diff, uint32_t candidate_ID, double threshold)
 			{
-				if(candidate_diff < most_similar_history_diff) {
-					most_similar_history_ID = candidate_ID;
-					most_similar_history_diff = candidate_diff;
+				if(candidate_diff < threshold) {
+					HISTORY_ID_DIFF_PAIR hp;
+					hp.diff = candidate_diff;
+					hp.ID = candidate_ID;
+					most_similar_histories.push_back(hp);
 				}
+
+				if(candidate_diff <= most_similar_history.diff) {
+
+					// In the rare case where several histories may be exactly equidistant,
+					// choose the candidate_ID that is lowest
+					if(candidate_diff == most_similar_history.diff) {
+						if(candidate_ID > most_similar_history.ID) {
+							return; // reject
+						}
+					}
+
+					most_similar_history.ID = candidate_ID;
+					most_similar_history.diff = candidate_diff;
+				}
+			}
+
+			void print_most_similar_histories()
+			{
+				for(uint32_t i = 0; i < most_similar_histories.size(); i++) {
+					std::cout << ID << " " << most_similar_histories[i].ID << " " << most_similar_histories[i].diff << "\n";
+				}
+			}
+
+			bool run_new_sim(double threshold)
+			{
+				// A new MD simulation should be run for this Strain6D if
+				// (i) The difference with the most similar history is too high (more than threshold)
+				// OR (ii) This Strain6D's ID is lower
+				//
+				// In the remaining case (diff within threshold and ID greater than other ID) we do not
+				// run another sim, and instead wait to get the results from the other ID's run
+				if(most_similar_history.diff > threshold) {
+					return true;
+				} else {
+					if(ID < most_similar_history.ID) {
+						return true;
+					}
+				}
+				return false;
 			}
 
 		private:
@@ -229,10 +280,11 @@ namespace MatHistPredict {
 			uint32_t num_spline_points_per_component;
 			std::vector<double> spline; // built spline
 
-			// The ID of the most similar strain history, calculated by running compare_histories_with_all_ranks()
-			uint32_t most_similar_history_ID = 0;
-			// The L2 norm difference with the most similar strain history, calculated by running compare_histories_with_all_ranks()
-			double most_similar_history_diff = 0;
+			// The ID and L2 norm difference of the most similar strain history, calculated by running compare_histories_with_all_ranks()
+			HISTORY_ID_DIFF_PAIR most_similar_history;
+
+			// List of all (other) histories within threshold difference of this history			
+			std::vector<HISTORY_ID_DIFF_PAIR> most_similar_histories;
 	};
 
 	class Strain6DReceiver
@@ -318,7 +370,7 @@ namespace MatHistPredict {
 		return (x % n + n) % n;
 	}
 
-	void compare_histories_with_all_ranks(std::vector<Strain6D*>& histories, MPI_Comm comm)
+	void compare_histories_with_all_ranks(std::vector<Strain6D*>& histories, double threshold, MPI_Comm comm)
 	{
 		MPI_Request request;
 		MPI_Status status;
@@ -373,7 +425,7 @@ namespace MatHistPredict {
 
 					for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
 						double diff = compare_L2_norm(histories[h], &recv);
-						histories[h]->choose_most_similar_history(diff, recv.ID);
+						histories[h]->choose_most_similar_history(diff, recv.ID, threshold);
 //						std::cout << "Comparison between rank " << this_rank << ", cell " << histories[h]->get_ID() << " and rank " <<  from_rank << ", cell " << recv.ID << ": " << diff << "\n";
 					}
 				}
@@ -383,8 +435,8 @@ namespace MatHistPredict {
 				for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
 					for(uint32_t b = a + 1; b < num_histories_on_this_rank; b++) {
 						double diff = compare_L2_norm(histories[a], histories[b]);
-						histories[a]->choose_most_similar_history(diff, histories[b]->get_ID()); // both Strain6D's need this info
-						histories[b]->choose_most_similar_history(diff, histories[a]->get_ID()); // both Strain6D's need this info
+						histories[a]->choose_most_similar_history(diff, histories[b]->get_ID(), threshold); // both Strain6D's need this info
+						histories[b]->choose_most_similar_history(diff, histories[a]->get_ID(), threshold); // both Strain6D's need this info
 //						std::cout << "Same rank comparison (" << this_rank << ") cell " << histories[a]->get_ID() << " vs cell " << histories[b]->get_ID() << ": " << diff << "\n";
 					}
 				}

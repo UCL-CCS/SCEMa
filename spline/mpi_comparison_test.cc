@@ -18,6 +18,8 @@
 
 int main(int argc, char **argv)
 {
+	const double acceptable_diff_threshold = 100.0; 
+
 	MPI_Comm comm = MPI_COMM_WORLD;
 
 	// set up MPI
@@ -28,7 +30,7 @@ int main(int argc, char **argv)
 	MPI_Comm_size(comm, &num_ranks);
 
 	// Build some Strain6D objects for this rank
-	uint32_t num_histories_on_this_rank = 3;
+	uint32_t num_histories_on_this_rank = 1;
 	std::vector<MatHistPredict::Strain6D*> histories;
 	for(uint32_t i = 0; i < num_histories_on_this_rank; i++) {
 		MatHistPredict::Strain6D *new_s6D = new MatHistPredict::Strain6D();
@@ -54,11 +56,14 @@ int main(int argc, char **argv)
 	}
 	
 	// Find the most similar strain histories
-	MatHistPredict::compare_histories_with_all_ranks(histories, comm);
+	MatHistPredict::compare_histories_with_all_ranks(histories, acceptable_diff_threshold, comm);
 
 	// Results
 	for(uint32_t i=0; i < num_histories_on_this_rank; i++) {
-		std::cout << "Rank " << this_rank << ": History " << histories[i]->get_ID() << " is most similar to history " << histories[i]->get_most_similar_history_ID() << " with diff " << histories[i]->get_most_similar_history_diff() << "\n";
+		bool will_run_new_MD = histories[i]->run_new_sim(acceptable_diff_threshold);
+		std::cout << "Rank " << this_rank << ": Hist" << histories[i]->get_ID() << " is most similar to Hist" << histories[i]->get_most_similar_history_ID() << " with diff " << histories[i]->get_most_similar_history_diff() << " => will_run_new_MD=" << will_run_new_MD << "\n";
+
+		histories[i]->print_most_similar_histories();
 	}
 
 	MPI_Finalize();

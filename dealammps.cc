@@ -1699,7 +1699,7 @@ namespace HMM
 				/*if ((cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923 
 					|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487 
 					|| cell->active_cell_index() == 2488 || cell->active_cell_index() == 2489))*/ // For debug...
-				//if (false) // For debug...
+				if (false) // For debug...
 				if (avg_new_stress_tensor.norm() > 1.0e8 || avg_new_strain_tensor.norm() < 3.0)	
 				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
@@ -1949,10 +1949,10 @@ namespace HMM
 	void FEProblem<dim>::set_boundary_values(const double present_time, const double present_timestep)
 	{
 
-		double tvel_vsupport=1000.0; // target velocity of the boundary m/s-1
+		double tvel_vsupport=50.0; // target velocity of the boundary m/s-1
 
-		double acc_time=1000.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
-		double acc_vsupport=tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
+		double acc_time=500.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
+		double acc_vsupport=tvel_vsupport*tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
 
 		double tvel_time=0.0*present_timestep;
 
@@ -4259,7 +4259,7 @@ namespace HMM
 		present_timestep = 1.0e-7;
 		timestep_no = start_timestep - 1;
 		present_time = timestep_no*present_timestep;
-		end_time = 1000*present_timestep; //4000.0 > 66% final strain
+		end_time = 500*present_timestep; //4000.0 > 66% final strain
 
 		// Initiatilization of the FE problem
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;

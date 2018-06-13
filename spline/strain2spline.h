@@ -382,7 +382,7 @@ namespace MatHistPredict {
 	// Handle negative numbers too
 	int32_t modulo_neg(int32_t x, int32_t n)
 	{
-		return (x % n + n) % n;
+		return ((x%n + n) % n);
 	}
 
 	void compare_histories_with_all_ranks(std::vector<Strain6D*>& histories, double threshold, MPI_Comm comm)
@@ -415,11 +415,9 @@ namespace MatHistPredict {
 			int32_t target_rank = modulo_neg(this_rank + i, num_ranks); // send data to target_rank
 			int32_t from_rank = modulo_neg(this_rank - i, num_ranks); // receive data sent by from_rank
 			
-//			std::cout << "Rank " << this_rank << ": Targetting " << target_rank << "\n";
-//			std::cout << "Rank " << this_rank << ": Expecting " << from_rank << "\n";
-
 			// If we are not considering cells on the same rank
-			if(target_rank != from_rank) {
+//			std::cout << "Rank " << this_rank << ": Targetting " << target_rank << " Expecting " << from_rank << "\n";
+			if(target_rank != this_rank) {
 				// Indicate the number of histories that will be sent to target_rank
 				MPI_Isend(&num_histories_on_this_rank, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
 
@@ -427,7 +425,6 @@ namespace MatHistPredict {
 				for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
 					send_strain6D_mpi(histories[h], target_rank, this_rank, comm);
 				}
-
 
 				// Get number of histories to receive from from_rank
 				uint32_t num_histories_to_receive = 0;
@@ -446,7 +443,6 @@ namespace MatHistPredict {
 				}
 
 			} else { // Considering cells on the same rank
-
 				for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
 					for(uint32_t b = a + 1; b < num_histories_on_this_rank; b++) {
 						double diff = compare_L2_norm(histories[a], histories[b]);

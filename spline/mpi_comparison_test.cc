@@ -1,17 +1,15 @@
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <stdint.h>
-#include <math.h>
-#include <rpc/rpc.h>
-#include <zlib.h>
-#include <unordered_map>
-#include <map>
 #include <vector>
 #include <iostream>
 #include <limits.h>
-#include <vector>
 #include <assert.h>
+
 #include <mpi.h>
 
 #include "strain2spline.h"
@@ -32,25 +30,22 @@ int main(int argc, char **argv)
 	// Build some Strain6D objects for this rank
 	uint32_t num_histories_on_this_rank = 1;
 	std::vector<MatHistPredict::Strain6D*> histories;
+	std::srand(this_rank*100); // never use srand(0) or srand(1) - they give the same...
+	std::cout << "Rank " << this_rank << ": " << std::rand() << "\n";
 	for(uint32_t i = 0; i < num_histories_on_this_rank; i++) {
 		MatHistPredict::Strain6D *new_s6D = new MatHistPredict::Strain6D();
 
 		for(uint32_t j = 0; j < 5; j++) {
-			new_s6D->add_current_strain(	this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i,
-							this_rank * 10 + i);
+			new_s6D->add_current_strain(	std::rand()/(float)RAND_MAX,
+							std::rand()/(float)RAND_MAX,
+							std::rand()/(float)RAND_MAX,
+							std::rand()/(float)RAND_MAX,
+							std::rand()/(float)RAND_MAX,
+							std::rand()/(float)RAND_MAX);
 		}
 		new_s6D->splinify(10);
 		new_s6D->set_ID(this_rank * 10 + i);
+		std::cout << "Rank " << this_rank << ":\n";
 		new_s6D->print();
 		histories.push_back(new_s6D);
 	}

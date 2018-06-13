@@ -207,14 +207,17 @@ namespace HMM
 
 	template <int dim>
 	inline
-	void
+	bool
 	read_tensor (char *filename, SymmetricTensor<2,dim> &tensor)
 	{
 		std::ifstream ifile;
+		
+		bool load_ok = false;
 
 		ifile.open (filename);
 		if (ifile.is_open())
 		{
+			load_ok = true;
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
 				{
@@ -225,6 +228,7 @@ namespace HMM
 			ifile.close();
 		}
 		else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+	return load_ok;
 	}
 
 	template <int dim>
@@ -1622,7 +1626,7 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		double strain_perturbation = 0.20;
+		double strain_perturbation = 0.00001;
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
@@ -1633,7 +1637,8 @@ namespace HMM
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
 			{
-				SymmetricTensor<2,dim> newton_strain_tensor, avg_upd_strain_tensor, avg_new_strain_tensor;
+				SymmetricTensor<2,dim> newton_strain_tensor, avg_upd_strain_tensor;
+				SymmetricTensor<2,dim> avg_new_strain_tensor, avg_new_stress_tensor;
 
 				PointHistory<dim> *local_quadrature_points_history
 				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
@@ -1652,6 +1657,7 @@ namespace HMM
 
 				avg_upd_strain_tensor = 0.;
 				avg_new_strain_tensor = 0.;
+				avg_new_stress_tensor = 0.;
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
@@ -1676,6 +1682,7 @@ namespace HMM
 						for(unsigned int l=k;l<dim;l++){
 							avg_upd_strain_tensor[k][l] += local_quadrature_points_history[q].upd_strain[k][l];
 							avg_new_strain_tensor[k][l] += local_quadrature_points_history[q].new_strain[k][l];
+							avg_new_stress_tensor[k][l] += local_quadrature_points_history[q].new_stress[k][l];
 						}
 				}
 
@@ -1683,6 +1690,7 @@ namespace HMM
 					for(unsigned int l=k;l<dim;l++){
 						avg_upd_strain_tensor[k][l] /= quadrature_formula.size();
 						avg_new_strain_tensor[k][l] /= quadrature_formula.size();
+						avg_new_stress_tensor[k][l] /= quadrature_formula.size();
 					}
 
 
@@ -1692,6 +1700,7 @@ namespace HMM
 					|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487 
 					|| cell->active_cell_index() == 2488 || cell->active_cell_index() == 2489))*/ // For debug...
 				//if (false) // For debug...
+				if (avg_new_stress_tensor.norm() > 1.0e8 || avg_new_strain_tensor.norm() < 3.0)	
 				if (newtonstep_no > 0 && !updated_stiffnesses)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
@@ -1703,7 +1712,9 @@ namespace HMM
 										<< " cell "<< cell->active_cell_index()
 										<< " component " << k << l
 										<< " value " << avg_upd_strain_tensor[k][l]
-										<< " norm " << avg_upd_strain_tensor.norm()
+										<< " upd norm " << avg_upd_strain_tensor.norm()
+										<< " total norm " << avg_new_strain_tensor.norm()
+										<< " total stress norm " << avg_new_stress_tensor.norm()
 										<< std::endl;
 
 								cell_to_be_updated = true;
@@ -1860,11 +1871,13 @@ namespace HMM
 						// Updating stress tensor
 						SymmetricTensor<2,dim> stmp_stress;
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
-						read_tensor<dim>(filename, stmp_stress);
+						bool load_stress = read_tensor<dim>(filename, stmp_stress);
 
 						// Rotate the output stress wrt the flake angles
-						local_quadrature_points_history[q].new_stress =
+						if (load_stress) local_quadrature_points_history[q].new_stress =
 									rotate_tensor(stmp_stress, transpose(local_quadrature_points_history[q].rotam));
+						else local_quadrature_points_history[q].new_stress +=
+                                                        0.00*local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 
 						// Resetting the update strain tensor
 						local_quadrature_points_history[q].upd_strain = 0;

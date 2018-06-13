@@ -20,6 +20,27 @@ namespace MatHistPredict {
 				num_steps_added = 0;
 				num_spline_points_per_component = 0;
 				up_to_date = false;
+				this->cell_ID = 0; // Should be set correctly using set_cell_ID
+				this->cell_ID_set = false;
+			}
+
+			void set_cell_ID(uint32_t cell_ID)
+			{
+				this->cell_ID = cell_ID;
+				this->cell_ID_set = true;
+			}
+
+			void add_current_strain(double strain_xx, double strain_yy, double strain_zz, double strain_xy, double strain_xz, double strain_yz)
+			{
+				up_to_date = false;
+
+				in_XX.push_back(strain_xx);
+				in_YY.push_back(strain_yy);
+				in_ZZ.push_back(strain_zz);
+				in_XY.push_back(strain_xy);
+				in_XZ.push_back(strain_xz);
+				in_YZ.push_back(strain_yz);
+				num_steps_added++;
 			}
 
 			void add_current_strain(double strain_xx, double strain_yy, double strain_zz, double strain_xy, double strain_xz, double strain_yz,
@@ -150,9 +171,13 @@ namespace MatHistPredict {
 				return &spline;
 			}
 
-			double *get_stress()
+			uint32_t get_cell_ID()
 			{
-				return stress;
+				if(!cell_ID_set) {
+					fprintf(stderr, "Error: cell_ID is unset. Please use set_cell_ID().\n");
+					exit(1);
+				}
+				return cell_ID;
 			}
 
 			uint32_t get_num_spline_points_per_component()
@@ -168,6 +193,10 @@ namespace MatHistPredict {
 
 			// Stress at most recent step
 			double stress[6];
+
+			// Integer ID of the cell/quad point that this strain history belongs to
+			bool cell_ID_set;
+			uint32_t cell_ID;
 
 			uint32_t num_spline_points_per_component;
 			std::vector<double> spline; // built spline
@@ -190,7 +219,7 @@ namespace MatHistPredict {
 
 			int32_t max_buf_size; // Max number of doubles that can be received from another rank
 			double *spline;
-			double stress[6];
+			uint32_t cell_ID;
 			uint32_t recv_count;
 	};
 
@@ -234,21 +263,20 @@ namespace MatHistPredict {
 		MPI_Request request;
 
 		std::vector<double> *strain = in_s6D->get_spline();
-		double *stress = in_s6D->get_stress();
+		uint32_t cell_ID = in_s6D->get_cell_ID();
 		int32_t num_doubles_to_send = strain->size();
 
 		MPI_Isend(&num_doubles_to_send, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
 		MPI_Isend(strain->data(), num_doubles_to_send, MPI_DOUBLE, target_rank, this_rank, comm, &request);
-		MPI_Isend(stress, 6, MPI_DOUBLE, target_rank, this_rank, comm, &request);
+		MPI_Isend(&cell_ID, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
 	}
-
 
 	void receive_strain6D_mpi(Strain6DReceiver *recv, int32_t from_rank, MPI_Comm comm)
 	{
 		MPI_Status status;
 		MPI_Recv(&(recv->recv_count), 1, MPI_UNSIGNED, from_rank, from_rank, comm, &status);
 		MPI_Recv(recv->spline, recv->max_buf_size, MPI_DOUBLE, from_rank, from_rank, comm, &status);
-		MPI_Recv(recv->stress, 6, MPI_DOUBLE, from_rank, from_rank, comm, &status);
+		MPI_Recv(&(recv->cell_ID), 1, MPI_UNSIGNED, from_rank, from_rank, comm, &status);
 	}
 
 	// Handle negative numbers too
@@ -266,7 +294,7 @@ namespace MatHistPredict {
 		MPI_Comm_rank(comm, &this_rank);
 		MPI_Comm_size(comm, &num_ranks);
 		
-		// For receiving the strain history and stress from another rank
+		// For receiving the strain history and cell_ID from another rank
 		const int32_t max_buf_size = 2000;
 		Strain6DReceiver recv(max_buf_size);
 
@@ -289,7 +317,7 @@ namespace MatHistPredict {
 				// Indicate the number of histories that will be sent to target_rank
 				MPI_Isend(&num_histories_on_this_rank, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
 
-				// Send all histories and associated (final) stresses
+				// Send all histories and cell_IDs
 				for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
 					send_strain6D_mpi(histories[h], target_rank, this_rank, comm);
 				}
@@ -306,7 +334,7 @@ namespace MatHistPredict {
 
 					for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
 						double compare_result = compare_L2_norm(histories[h], &recv);
-						std::cout << "Comparison between rank " << this_rank << ", history " << h << " and rank " <<  from_rank << ", history " << r << ": " << compare_result << "\n";
+						std::cout << "Comparison between rank " << this_rank << ", cell " << histories[h]->get_cell_ID() << " and rank " <<  from_rank << ", cell " << recv.cell_ID << ": " << compare_result << "\n";
 					}
 				}
 
@@ -315,7 +343,7 @@ namespace MatHistPredict {
 				for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
 					for(uint32_t b = a + 1; b < num_histories_on_this_rank; b++) {
 						double compare_result = compare_L2_norm(histories[a], histories[b]);
-						std::cout << "Comparison between rank " << this_rank << ", history " << a << " and rank " <<  from_rank << ", history " << b << ": " << compare_result << "\n";
+						std::cout << "Same rank comparison (" << this_rank << ") cell " << histories[a]->get_cell_ID() << " vs cell " << histories[b]->get_cell_ID() << ": " << compare_result << "\n";
 					}
 				}
 			}

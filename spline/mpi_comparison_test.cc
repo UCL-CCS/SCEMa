@@ -48,6 +48,7 @@ int main(int argc, char **argv)
 							this_rank * 10 + i);
 		}
 		new_s6D->splinify(10);
+		new_s6D->set_cell_ID(this_rank * 10 + i);
 		new_s6D->print();
 		histories.push_back(new_s6D);
 	}

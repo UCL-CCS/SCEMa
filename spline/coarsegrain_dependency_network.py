@@ -9,11 +9,12 @@ def get_max_degree_node(x):
 	return sorted_x[-1][0]
 
 
-if len(sys.argv) != 3:
-	sys.exit("Usage: coarsegrain_dependency_network.py [results_folder] [output.txt]")
+if len(sys.argv) != 4:
+	sys.exit("Usage: coarsegrain_dependency_network.py [input_folder] [out_mapping.csv] [out_IDs_to_run.csv]")
 
 results_folder = sys.argv[1]
-outfname = sys.argv[2]
+out_mapping_fname = sys.argv[2]
+out_run_fname = sys.argv[3]
 
 G = nx.Graph()
 
@@ -60,8 +61,11 @@ print "Converged in", iterations, "iterations"
 print "Mapping:"
 
 i = 0
-with open(outfname, "w") as outfile:
-	for mapp in mapping:
-		outfile.write(str(i) + " -> " + str(mapp) + "\n");
-		i+=1
+with open(out_mapping_fname, "w") as outfile_map:
+	with open(out_run_fname, "w") as outfile_run:
+		for mapp in mapping:
+			outfile_map.write(str(i) + "," + str(mapp) + "\n");
+			if i == mapp:
+				outfile_run.write(str(i) + "\n");
+			i+=1
 print len(set(mapping)), "simulations required"

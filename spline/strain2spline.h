@@ -34,6 +34,8 @@ namespace MatHistPredict {
 				most_similar_history.diff = 0;
 
 				most_similar_histories.clear();
+
+				ID_to_get_results_from = std::numeric_limits<uint32_t>::max();
 			}
 
 			void set_ID(uint32_t ID)
@@ -261,22 +263,44 @@ namespace MatHistPredict {
 				outfile.close();
 			}
 
-			bool run_new_sim(double threshold)
+			bool run_new_md()
 			{
-				// A new MD simulation should be run for this Strain6D if
-				// (i) The difference with the most similar history is too high (more than threshold)
-				// OR (ii) This Strain6D's ID is lower
-				//
-				// In the remaining case (diff within threshold and ID greater than other ID) we do not
-				// run another sim, and instead wait to get the results from the other ID's run
-				if(most_similar_history.diff > threshold) {
+				if(ID_to_get_results_from == ID) {
 					return true;
-				} else {
-					if(ID < most_similar_history.ID) {
-						return true;
-					}
 				}
 				return false;
+			}
+
+			/* Read mapping.csv file output from the coarsegrain_dependency_network.py script */
+			void read_coarsegrain_dependency_mapping(const char *in_fname)
+			{
+				std::ifstream infile(in_fname);
+				if(infile.fail()) {
+					fprintf(stderr, "Could not open %s for reading.\n", in_fname);
+					exit(1);
+				}
+				uint32_t id_from, id_to;
+
+				// Skip lines until line that contains this ID
+				std::string line;
+				for(uint32_t i = 0; i < ID - 1; i++) {
+					std::getline(infile, line);
+				}
+				infile >> id_from >> id_to;
+
+				if(id_from != ID) {
+					fprintf(stderr, "ID in mapping file (%u) does not match cell ID (%u)\n", id_from, ID);
+					exit(1);
+				}
+
+				this->ID_to_get_results_from = id_to;
+
+				infile.close();
+			}
+
+			uint32_t get_ID_to_update_from()
+			{
+				return ID_to_get_results_from;
 			}
 
 		private:
@@ -300,6 +324,8 @@ namespace MatHistPredict {
 
 			// List of all (other) histories within threshold difference of this history			
 			std::vector<HISTORY_ID_DIFF_PAIR> most_similar_histories;
+
+			uint32_t ID_to_get_results_from;
 	};
 
 	class Strain6DReceiver

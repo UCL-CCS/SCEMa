@@ -9,17 +9,17 @@ def get_max_degree_node(x):
 	return sorted_x[-1][0]
 
 
-if len(sys.argv) != 4:
-	sys.exit("Usage: coarsegrain_dependency_network.py [input_folder] [out_mapping.csv] [out_IDs_to_run.csv]")
+if len(sys.argv) != 3:
+	sys.exit("Usage: coarsegrain_dependency_network.py [input_folder] [out_mapping.csv]")
 
-results_folder = sys.argv[1]
+input_folder = sys.argv[1]
 out_mapping_fname = sys.argv[2]
-out_run_fname = sys.argv[3]
 
 G = nx.Graph()
 
 print "Reading..."
-for fname in glob.glob(results_folder + "/ID_*"):
+max_cell_ID = 0;
+for fname in glob.glob(input_folder + "/last.*.similar_hist"):
 	with open(fname, "r") as infile:
 		for line in infile.readlines():
 			cell1, cell2, dist = line.split()
@@ -27,9 +27,13 @@ for fname in glob.glob(results_folder + "/ID_*"):
 			cell2 = int(cell2)
 			dist = float(dist)
 
+			if cell1 > max_cell_ID:
+				max_cell_ID = cell1
+
 			G.add_edge(cell1, cell2, weight=1.0/dist)
+
 num_nodes_remaining = len(G)
-mapping = [None] * num_nodes_remaining
+mapping = ["Not to be updated"] * max_cell_ID
 iterations = 0
 
 print "Coarsegraining..."
@@ -62,10 +66,7 @@ print "Mapping:"
 
 i = 0
 with open(out_mapping_fname, "w") as outfile_map:
-	with open(out_run_fname, "w") as outfile_run:
-		for mapp in mapping:
-			outfile_map.write(str(i) + "," + str(mapp) + "\n");
-			if i == mapp:
-				outfile_run.write(str(i) + "\n");
-			i+=1
+	for mapp in mapping:
+		outfile_map.write(str(i) + "," + str(mapp) + "\n");
+		i+=1
 print len(set(mapping)), "simulations required"

@@ -119,7 +119,7 @@ namespace HMM
 		SymmetricTensor<2,dim> inc_strain;
 		SymmetricTensor<2,dim> upd_strain;
 		SymmetricTensor<2,dim> newton_strain;
-		Strain6D hist_strain;
+		MatHistPredict::Strain6D hist_strain;
 		bool to_be_updated;
 
 		// Characteristics
@@ -680,6 +680,7 @@ namespace HMM
 		// Parameters of the Spline history comparison
 		int 					num_spline_points;
 		int 					min_num_steps_before_spline;
+		double					acceptable_diff_threshold;
 
 		// Finite Element dimensions and boundary conditions
 		double 								ll;
@@ -1278,6 +1279,9 @@ namespace HMM
 					local_quadrature_points_history[q].to_be_updated = false;
 					local_quadrature_points_history[q].new_stress = 0;
 
+					// Tell strain history object what cell ID it belongs to
+					local_quadrature_points_history[q].hist_strain.set_ID(cell->active_cell_index);
+
 					// Assign microstructure to the current cell (so far, mdtype
 					// and rotation from global to common ground direction)
 					if (q==0) assign_microstructure(cell, structure_data,
@@ -1725,6 +1729,8 @@ namespace HMM
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
+					local_quadrature_points_history[q].to_be_updated_with_md = false;
+
 					local_quadrature_points_history[q].old_strain =
 							local_quadrature_points_history[q].new_strain;
 
@@ -1846,6 +1852,8 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::spline_comparison()
 	{
+		// Building vector of (updateable) histories of cells on rank
+		std::vector<MatHistPredict::Strain6D*> histories;
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1862,20 +1870,49 @@ namespace HMM
 
 				if(local_quadrature_points_history[0].to_be_updated)
 				{
-					local_quadrature_points_history[0].hist_strain.print();
+					histories.push_back(local_quadrature_points_history[0].hist_strain);
+//					local_quadrature_points_history[0].hist_strain.print();
 				}
 			}
+
+		// Launch MPI communication to compare strain histories on this rank with histories on all other ranks (including this one).
+		// Results will be stored in the Strain6D objects - a vector of all other similar strain histories (i.e. within the given threshold difference).
+		MatHistPredict::compare_histories_with_all_ranks(histories, acceptable_diff_threshold, world_communicator);
+
+		for(uint32_t i=0; i < histories.size(); i++) {
+			std::string outhistfname = macrostatelocout + "/last." + std::to_string(histories[i]->get_ID()) + ".similar_hist";
+			histories[i]->most_similar_histories_to_file(outhistfname.c_str());
+		}
+
+		// Use networkx to coarsegrain the strain similarity graph, outputting the final list of cells to update using MD (jobs_to_run.csv),
+		// and where to get the stress results for the cells to be updated (mapping.csv). Script must run on only one rank.
+		MPI_Barrier(world_communicator);
+		if(this_world_process == 0) {
+			sprintf(command,
+					"python ../spline/coarsegrain_dependency_network.py %s %s/mapping.csv",
+					macrostatelocout,
+					macrostatelocout);
+			system(command);
+		}
+		MPI_Barrier(world_communicator);
+
+		for(uint32_t i=0; i < histories.size(); i++) {
+			histories[i].read_coarsegrain_dependency_mapping(macrostatelocout+"/mapping.csv");
+
+		}
 	}
 
 	template <int dim>
 	void FEProblem<dim>::history_analysis()
 	{
+		acceptable_diff_threshold = 0.0;
+
+		// Fit spline to all histories, and determine similarity graph (over all ranks)
 		if(timestep_no > min_num_steps_before_spline) {
 			spline_building();
 			spline_comparison();
 		}
 	}
-
 
 	template <int dim>
 	void FEProblem<dim>::write_proc_job_list_json(char* filename_out, char* time_id, int max_nodes_per_md)
@@ -1897,7 +1934,7 @@ namespace HMM
 						&quadrature_point_history.back(),
 						ExcInternalError());
 
-				if(local_quadrature_points_history[0].to_be_updated)
+				if(local_quadrature_points_history[0].hist_strain.run_new_md())
 				{
 					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
 					/*for(unsigned int repl=1;repl<nrepl+1;repl++){
@@ -2207,7 +2244,7 @@ namespace HMM
 
 						// Updating stress tensor
 						SymmetricTensor<2,dim> stmp_stress;
-						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
+						sprintf(filename, "%s/last.%s.stress", macrostatelocout, local_quadrature_points_history[0].get_ID_to_update_from());
 						read_tensor<dim>(filename, stmp_stress);
 
 						// Rotate the output stress wrt the flake angles
@@ -3413,6 +3450,10 @@ namespace HMM
 
 				// Removing updstrain passing file
 				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
+				remove(filename);
+
+				// Removing similar_hist passing file
+				sprintf(filename, "%s/last.%s.similar_hist", macrostatelocout, cell_id);
 				remove(filename);
 			}
 

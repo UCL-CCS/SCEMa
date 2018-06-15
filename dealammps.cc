@@ -1280,7 +1280,7 @@ namespace HMM
 					local_quadrature_points_history[q].new_stress = 0;
 
 					// Tell strain history object what cell ID it belongs to
-					local_quadrature_points_history[q].hist_strain.set_ID(cell->active_cell_index);
+					local_quadrature_points_history[q].hist_strain.set_ID(cell->active_cell_index());
 
 					// Assign microstructure to the current cell (so far, mdtype
 					// and rotation from global to common ground direction)
@@ -1729,8 +1729,6 @@ namespace HMM
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
-					local_quadrature_points_history[q].to_be_updated_with_md = false;
-
 					local_quadrature_points_history[q].old_strain =
 							local_quadrature_points_history[q].new_strain;
 
@@ -1870,7 +1868,7 @@ namespace HMM
 
 				if(local_quadrature_points_history[0].to_be_updated)
 				{
-					histories.push_back(local_quadrature_points_history[0].hist_strain);
+					histories.push_back(&local_quadrature_points_history[0].hist_strain);
 //					local_quadrature_points_history[0].hist_strain.print();
 				}
 			}
@@ -1880,14 +1878,17 @@ namespace HMM
 		MatHistPredict::compare_histories_with_all_ranks(histories, acceptable_diff_threshold, world_communicator);
 
 		for(uint32_t i=0; i < histories.size(); i++) {
-			std::string outhistfname = macrostatelocout + "/last." + std::to_string(histories[i]->get_ID()) + ".similar_hist";
-			histories[i]->most_similar_histories_to_file(outhistfname.c_str());
+			char outhistfname[1024];
+			sprintf(outhistfname, "%s/last.%d.similar_hist", macrostatelocout, histories[i]->get_ID());
+			//std::string outhistfname = macrostatelocout + "/last." + std::to_string(histories[i]->get_ID()) + ".similar_hist";
+			histories[i]->most_similar_histories_to_file(outhistfname);
 		}
 
 		// Use networkx to coarsegrain the strain similarity graph, outputting the final list of cells to update using MD (jobs_to_run.csv),
 		// and where to get the stress results for the cells to be updated (mapping.csv). Script must run on only one rank.
 		MPI_Barrier(world_communicator);
 		if(this_world_process == 0) {
+			char command[1024];
 			sprintf(command,
 					"python ../spline/coarsegrain_dependency_network.py %s %s/mapping.csv",
 					macrostatelocout,
@@ -1897,7 +1898,9 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		for(uint32_t i=0; i < histories.size(); i++) {
-			histories[i].read_coarsegrain_dependency_mapping(macrostatelocout+"/mapping.csv");
+			char mappingfname[1024];
+			sprintf(mappingfname, "%s/mapping.csv", macrostatelocout);
+			histories[i]->read_coarsegrain_dependency_mapping(mappingfname);
 
 		}
 	}
@@ -2244,7 +2247,7 @@ namespace HMM
 
 						// Updating stress tensor
 						SymmetricTensor<2,dim> stmp_stress;
-						sprintf(filename, "%s/last.%s.stress", macrostatelocout, local_quadrature_points_history[0].get_ID_to_update_from());
+						sprintf(filename, "%s/last.%d.stress", macrostatelocout, local_quadrature_points_history[0].hist_strain.get_ID_to_update_from());
 						read_tensor<dim>(filename, stmp_stress);
 
 						// Rotate the output stress wrt the flake angles
@@ -3635,7 +3638,7 @@ namespace HMM
 		present_timestep = 1.0e-9;
 		timestep_no = start_timestep - 1;
 		present_time = timestep_no*present_timestep;
-		end_time = 1000*present_timestep; //4000.0 > 66% final strain
+		end_time = 1*present_timestep; //4000.0 > 66% final strain
 
 		// Initiatilization of the FE problem
 		dcout << " Initiation of the Finite Element problem...       " << std::endl;

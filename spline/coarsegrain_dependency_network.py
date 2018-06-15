@@ -17,7 +17,7 @@ out_mapping_fname = sys.argv[2]
 
 G = nx.Graph()
 
-print "Reading..."
+print("Reading...")
 max_cell_ID = 0;
 for fname in glob.glob(input_folder + "/last.*.similar_hist"):
 	with open(fname, "r") as infile:
@@ -36,7 +36,7 @@ num_nodes_remaining = len(G)
 mapping = ["Not to be updated"] * max_cell_ID
 iterations = 0
 
-print "Coarsegraining..."
+print("Coarsegraining...")
 while num_nodes_remaining > 0:
 
 	# get max degree node
@@ -61,12 +61,12 @@ while num_nodes_remaining > 0:
 
 	iterations += 1
 
-print "Converged in", iterations, "iterations"
-print "Mapping:"
+print("Converged in", iterations, "iterations")
+print("Mapping:")
 
 i = 0
 with open(out_mapping_fname, "w") as outfile_map:
 	for mapp in mapping:
 		outfile_map.write(str(i) + "," + str(mapp) + "\n");
 		i+=1
-print len(set(mapping)), "simulations required"
+print(len(set(mapping)), "simulations required")

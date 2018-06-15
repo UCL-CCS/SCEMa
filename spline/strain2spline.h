@@ -298,6 +298,11 @@ namespace MatHistPredict {
 				infile.close();
 			}
 
+			void set_ID_to_get_results_from(uint32_t ID)
+			{
+				this->ID_to_get_results_from = ID;
+			}
+
 			uint32_t get_ID_to_update_from()
 			{
 				return ID_to_get_results_from;

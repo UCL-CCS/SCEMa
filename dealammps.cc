@@ -205,14 +205,17 @@ namespace HMM
 
 	template <int dim>
 	inline
-	void
+	bool
 	read_tensor (char *filename, SymmetricTensor<2,dim> &tensor)
 	{
 		std::ifstream ifile;
+		
+		bool load_ok = false;
 
 		ifile.open (filename);
 		if (ifile.is_open())
 		{
+			load_ok = true;
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
 				{
@@ -223,6 +226,7 @@ namespace HMM
 			ifile.close();
 		}
 		else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+	return load_ok;
 	}
 
 	template <int dim>
@@ -585,9 +589,9 @@ namespace HMM
 		void setup_quadrature_point_history (unsigned int nrepl, std::vector<ReplicaData<dim> >);
 
 		void update_strain_quadrature_point_history
-		(const Vector<double>& displacement_update, bool init_ts);
+		(const Vector<double>& displacement_update);
 		void update_stress_quadrature_point_history
-		(const Vector<double>& displacement_update, bool init_ts);
+		(const Vector<double>& displacement_update);
 		void update_incremental_variables ();
 
 		void spline_building();
@@ -641,7 +645,6 @@ namespace HMM
 		int        					start_timestep;		
 		int						timestep_no;
 		int        							newtonstep_no;
-		bool 								updated_md;
 
 		// Degrees of freedom of the Finite Element system
 		Vector<double> 		     			newton_update_displacement;
@@ -1687,7 +1690,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::update_strain_quadrature_point_history
-	(const Vector<double>& displacement_update, bool init_ts)
+	(const Vector<double>& displacement_update)
 	{
 		// Preparing requirements for strain update
 		FEValues<dim> fe_values (fe, quadrature_formula,
@@ -1700,7 +1703,7 @@ namespace HMM
 
 		char time_id[1024]; sprintf(time_id, "%d-%d", timestep_no, newtonstep_no);
 
-		if (newtonstep_no > 0) dcout << "        " << "...checking quadrature points requiring update..." << std::endl;
+		if (newtonstep_no > 0) dcout << "        " << "...checking quadrature points requiring update based on current strain..." << std::endl;
 
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
@@ -1747,14 +1750,16 @@ namespace HMM
 					local_quadrature_points_history[q].upd_strain += local_quadrature_points_history[q].newton_strain;
 
 					// Add current strain to strain history
-					if(!init_ts) local_quadrature_points_history[q].hist_strain.add_current_strain(
+					if(newtonstep_no>0){
+						local_quadrature_points_history[q].hist_strain.add_current_strain(
 									local_quadrature_points_history[q].new_strain[0][0],
 									local_quadrature_points_history[q].new_strain[1][1],
 									local_quadrature_points_history[q].new_strain[2][2],
 									local_quadrature_points_history[q].new_strain[0][1],
 									local_quadrature_points_history[q].new_strain[0][2],
-									local_quadrature_points_history[q].new_strain[1][2]
-						);					
+									local_quadrature_points_history[q].new_strain[1][2]);
+						local_quadrature_points_history[q].hist_strain.set_ID_to_get_results_from(cell->active_cell_index());
+					}
 
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++){
@@ -1773,7 +1778,7 @@ namespace HMM
 				bool cell_to_be_updated = false;
 				//if ((cell->active_cell_index()%10==0)) // For debug...
 				//if (false) // For debug...
-				if (newtonstep_no > 0 && !updated_md)
+				if (newtonstep_no > 0)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
 							if ((fabs(avg_new_strain_tensor[k][l]) > strain_perturbation
@@ -1842,7 +1847,7 @@ namespace HMM
 				Assert (local_quadrature_points_history <
 						&quadrature_point_history.back(),
 						ExcInternalError());
-
+				dcout << "           " << "...building splines..." << std::endl;
 				local_quadrature_points_history[0].hist_strain.splinify(num_spline_points);
 			}
 	}
@@ -1850,6 +1855,7 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::spline_comparison()
 	{
+		dcout << "           " << "...computing similarity of splines..." << std::endl;
 		// Building vector of (updateable) histories of cells on rank
 		std::vector<MatHistPredict::Strain6D*> histories;
 		for (typename DoFHandler<dim>::active_cell_iterator
@@ -1884,6 +1890,7 @@ namespace HMM
 			histories[i]->most_similar_histories_to_file(outhistfname);
 		}
 
+		dcout << "           " << "...computing quadrature points reduced dependencies..." << std::endl;
 		// Use networkx to coarsegrain the strain similarity graph, outputting the final list of cells to update using MD (jobs_to_run.csv),
 		// and where to get the stress results for the cells to be updated (mapping.csv). Script must run on only one rank.
 		MPI_Barrier(world_communicator);
@@ -1908,6 +1915,8 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::history_analysis()
 	{
+		dcout << "        " << "...comparing strain history of quadrature points to be updated..." << std::endl;
+
 		acceptable_diff_threshold = 0.0;
 
 		// Fit spline to all histories, and determine similarity graph (over all ranks)
@@ -2171,7 +2180,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::update_stress_quadrature_point_history
-	(const Vector<double>& displacement_update, bool init_ts)
+	(const Vector<double>& displacement_update)
 	{
 		FEValues<dim> fe_values (fe, quadrature_formula,
 				update_values | update_gradients);
@@ -2233,7 +2242,7 @@ namespace HMM
 
 					if (newtonstep_no == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
-					if (local_quadrature_points_history[q].to_be_updated and !init_ts){
+					if (local_quadrature_points_history[q].to_be_updated and newtonstep_no>0){
 
 						// Updating stiffness tensor
 						/*SymmetricTensor<4,dim> stmp_stiff;
@@ -2248,11 +2257,13 @@ namespace HMM
 						// Updating stress tensor
 						SymmetricTensor<2,dim> stmp_stress;
 						sprintf(filename, "%s/last.%d.stress", macrostatelocout, local_quadrature_points_history[0].hist_strain.get_ID_to_update_from());
-						read_tensor<dim>(filename, stmp_stress);
+						bool load_stress = read_tensor<dim>(filename, stmp_stress);
 
 						// Rotate the output stress wrt the flake angles
-						local_quadrature_points_history[q].new_stress =
+						if (load_stress) local_quadrature_points_history[q].new_stress =
 									rotate_tensor(stmp_stress, transpose(local_quadrature_points_history[q].rotam));
+						else local_quadrature_points_history[q].new_stress +=
+	                                                      0.00*local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 
 						// Resetting the update strain tensor
 						local_quadrature_points_history[q].upd_strain = 0;
@@ -3492,8 +3503,6 @@ namespace HMM
 					<< previous_res
 					<< std::endl;
 
-			updated_md = false;
-
 			for (unsigned int inner_iteration=0; inner_iteration<1; ++inner_iteration)
 			{
 				++newtonstep_no;
@@ -3510,20 +3519,18 @@ namespace HMM
 				dcout << "    Updating quadrature point data..." << std::endl;
 
 				update_strain_quadrature_point_history
-						(newton_update_displacement, false);
+						(newton_update_displacement);
 				MPI_Barrier(world_communicator);
-
-				dcout << "    Have some stiffnesses been updated in this group of iterations? " << updated_md << std::endl;
 
 				// reduce the number of cells to update using the history comparison
 				history_analysis();
 
 				// update the required cells with MD
-				if (!updated_md) update_cells_with_molecular_dynamics();
+				update_cells_with_molecular_dynamics();
 				MPI_Barrier(world_communicator);
 
 				update_stress_quadrature_point_history
-						(newton_update_displacement, false);
+						(newton_update_displacement);
 
 				dcout << "    Re-assembling FE system..." << std::flush;
 				previous_res = assemble_system (false);
@@ -3566,7 +3573,6 @@ namespace HMM
 
 		// Initialisation of timestep variables
 		newtonstep_no = 0;
-		updated_md = false;
 		incremental_velocity = 0;
 		incremental_displacement = 0;
 
@@ -3574,8 +3580,8 @@ namespace HMM
 		set_boundary_values ();
 
 		// Updating current strains and stresses with the boundary conditions information
-		update_strain_quadrature_point_history (incremental_displacement, true);
-		update_stress_quadrature_point_history (incremental_displacement, true);
+		update_strain_quadrature_point_history (incremental_displacement);
+		update_stress_quadrature_point_history (incremental_displacement);
 		MPI_Barrier(world_communicator);
 
 		// Solving iteratively the current timestep

@@ -1879,7 +1879,7 @@ namespace HMM
 				if(local_quadrature_points_history[0].to_be_updated)
 				{
 					histories.push_back(&local_quadrature_points_history[0].hist_strain);
-//					local_quadrature_points_history[0].hist_strain.print();
+					//local_quadrature_points_history[0].hist_strain.print();
 				}
 			}
 
@@ -1892,6 +1892,12 @@ namespace HMM
 			sprintf(outhistfname, "%s/last.%d.similar_hist", macrostatelocout, histories[i]->get_ID());
 			//std::string outhistfname = macrostatelocout + "/last." + std::to_string(histories[i]->get_ID()) + ".similar_hist";
 			histories[i]->most_similar_histories_to_file(outhistfname);
+
+			sprintf(outhistfname, "%s/last.%d.all_similar_hist", macrostatelocout, histories[i]->get_ID());
+			histories[i]->all_similar_histories_to_file(outhistfname);
+
+			/*sprintf(outhistfname, "%s/%d.%d.all_similar_hist", macrostatelocout, timestep_no, histories[i]->get_ID());
+			histories[i]->all_similar_histories_to_file(outhistfname);*/
 		}
 
 		dcout << "           " << "...computing quadrature points reduced dependencies..." << std::endl;
@@ -1901,10 +1907,16 @@ namespace HMM
 		if(this_world_process == 0) {
 			char command[1024];
 			sprintf(command,
-					"python ../spline/coarsegrain_dependency_network.py %s %s/mapping.csv",
+					"python ../spline/coarsegrain_dependency_network.py %s %s/mapping.csv %d",
 					macrostatelocout,
-					macrostatelocout);
-			system(command);
+					macrostatelocout,
+					triangulation.n_active_cells()
+					);
+			int ret = system(command);
+			if (ret!=0){
+				std::cerr << "Failed completing coarse-graining of the update list dependency!" << std::endl;
+				exit(1);
+			}
 		}
 		MPI_Barrier(world_communicator);
 
@@ -1912,7 +1924,6 @@ namespace HMM
 			char mappingfname[1024];
 			sprintf(mappingfname, "%s/mapping.csv", macrostatelocout);
 			histories[i]->read_coarsegrain_dependency_mapping(mappingfname);
-
 		}
 	}
 
@@ -1921,7 +1932,7 @@ namespace HMM
 	{
 		dcout << "        " << "...comparing strain history of quadrature points to be updated..." << std::endl;
 
-		acceptable_diff_threshold = 0.0;
+		acceptable_diff_threshold = 0.000001;
 
 		// Fit spline to all histories, and determine similarity graph (over all ranks)
 		if(timestep_no > min_num_steps_before_spline) {
@@ -1950,16 +1961,20 @@ namespace HMM
 						&quadrature_point_history.back(),
 						ExcInternalError());
 
-				if(local_quadrature_points_history[0].hist_strain.run_new_md())
+				if(local_quadrature_points_history[0].to_be_updated
+						&& local_quadrature_points_history[0].hist_strain.run_new_md())
 				{
 					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-					/*for(unsigned int repl=1;repl<nrepl+1;repl++){
+
+					// Create repository containing log files of MD jobs
+					for(unsigned int repl=1;repl<nrepl+1;repl++){
 						char replogloc[1024];
 						sprintf(replogloc, "%s/R%d", nanologloc, repl);
 						char qpreplogloc[1024];
 						sprintf(qpreplogloc, "%s/%s.%s", replogloc, time_id, cell_id);
 						mkdir(qpreplogloc, ACCESSPERMS);
-					}*/
+					}
+
 					// Write json file containing each simulation and its parameters
 					// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
 					output_file<<"   { " <<std::endl;
@@ -2062,7 +2077,7 @@ namespace HMM
 		char filename[1024], command[1024];
 
 		// Creating repositories containing the logs of the MD simulations
-		for (typename DoFHandler<dim>::active_cell_iterator
+		/*for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
@@ -2076,7 +2091,8 @@ namespace HMM
 						&quadrature_point_history.back(),
 						ExcInternalError());
 
-				if(local_quadrature_points_history[0].to_be_updated)
+				if(local_quadrature_points_history[0].to_be_updated
+						&& local_quadrature_points_history[0].hist_strain.run_new_md())
 				{
 					char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
 					for(unsigned int repl=1;repl<nrepl+1;repl++){
@@ -2087,7 +2103,7 @@ namespace HMM
 						mkdir(qpreplogloc, ACCESSPERMS);
 					}
 				}
-			}
+			}*/
 
 		// Writing the JSON file contents separately for each processor
 		sprintf(filename, "%s/list_md_jobs.%d.json", nanostatelocout, this_world_process);
@@ -2119,7 +2135,14 @@ namespace HMM
 						//"/opt/exp_soft/plgrid/qcg-appscripts-eagle/tools/qcg-pilotmanager/qcg-pm-service --exschema slurm --file --file-path=%s",
 						//"/bin/echo %s",
 						filename);
-				system(command);
+				int ret = system(command);
+				if (ret!=0){
+					std::cerr << "Failed completing the MD updates via QCG-PM" << std::endl;
+					exit(1);
+				}
+
+				// DO NOT FORGET TO REMOVE THIS ONE!!
+				//exit(1);
 
 				std::cout << "       Completion signal from QCG-PM received!" << std::endl;
 			}
@@ -3483,7 +3506,11 @@ namespace HMM
 			for(unsigned int repl=1;repl<nrepl+1;repl++)
 			{
 				sprintf(command, "rm -rf %s/R%d/*", nanologloc, repl);
-				system(command);
+				int ret = system(command);
+				if (ret!=0){
+					std::cerr << "Failed removing the log files of the MD simualtions of the current step!" << std::endl;
+					exit(1);
+				}
 				//sprintf(command, "%s/R%d/*", nanologloc, repl);
 				//boost::filesystem::remove_all(command);
 			}

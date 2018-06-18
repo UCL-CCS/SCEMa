@@ -215,14 +215,20 @@ namespace MatHistPredict {
 				most_similar_history.diff = std::numeric_limits<double>::infinity();
 
 				most_similar_histories.clear();
+				all_similar_histories.clear();
 			}
 
 			void choose_most_similar_history(double candidate_diff, uint32_t candidate_ID, double threshold)
 			{
+				HISTORY_ID_DIFF_PAIR hp;
+				hp.diff = candidate_diff;
+				hp.ID = candidate_ID;
+
+				all_similar_histories.push_back(hp);
 				if(candidate_diff < threshold) {
-					HISTORY_ID_DIFF_PAIR hp;
+					/*HISTORY_ID_DIFF_PAIR hp;
 					hp.diff = candidate_diff;
-					hp.ID = candidate_ID;
+					hp.ID = candidate_ID;*/
 					most_similar_histories.push_back(hp);
 				}
 
@@ -263,6 +269,21 @@ namespace MatHistPredict {
 				outfile.close();
 			}
 
+			void all_similar_histories_to_file(const char *out_fname)
+			{
+				std::ofstream outfile(out_fname);
+				if(outfile.fail()) {
+					fprintf(stderr, "Could not open %s for writing.\n", out_fname);
+					exit(1);
+				}
+
+				for(uint32_t i = 0; i < all_similar_histories.size(); i++) {
+					outfile << ID << " " << all_similar_histories[i].ID << " " << all_similar_histories[i].diff << "\n";
+				}
+
+				outfile.close();
+			}
+
 			bool run_new_md()
 			{
 				if(ID_to_get_results_from == ID) {
@@ -282,11 +303,15 @@ namespace MatHistPredict {
 				uint32_t id_from, id_to;
 
 				// Skip lines until line that contains this ID
+				// Line number doesn't not always fit cell ID because
+				// if cell has no similar history it is not captured by the python script
 				std::string line;
-				for(uint32_t i = 0; i < ID - 1; i++) {
+				for(uint32_t i = 0; i < ID; i++) {
 					std::getline(infile, line);
 				}
 				infile >> id_from >> id_to;
+
+				//std::cout << "cell " << ID << "id_from " << id_from << "id_to" << id_to << std::endl;
 
 				if(id_from != ID) {
 					fprintf(stderr, "ID in mapping file (%u) does not match cell ID (%u)\n", id_from, ID);
@@ -329,6 +354,7 @@ namespace MatHistPredict {
 
 			// List of all (other) histories within threshold difference of this history			
 			std::vector<HISTORY_ID_DIFF_PAIR> most_similar_histories;
+			std::vector<HISTORY_ID_DIFF_PAIR> all_similar_histories;
 
 			uint32_t ID_to_get_results_from;
 	};
@@ -479,7 +505,7 @@ namespace MatHistPredict {
 						double diff = compare_L2_norm(histories[a], histories[b]);
 						histories[a]->choose_most_similar_history(diff, histories[b]->get_ID(), threshold); // both Strain6D's need this info
 						histories[b]->choose_most_similar_history(diff, histories[a]->get_ID(), threshold); // both Strain6D's need this info
-//						std::cout << "Same rank comparison (" << this_rank << ") cell " << histories[a]->get_ID() << " vs cell " << histories[b]->get_ID() << ": " << diff << "\n";
+						//std::cout << "Same rank comparison (" << this_rank << ") cell " << histories[a]->get_ID() << " vs cell " << histories[b]->get_ID() << ": " << diff << "\n";
 					}
 				}
 			}

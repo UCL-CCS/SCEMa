@@ -4,43 +4,46 @@ import operator
 import matplotlib.pyplot as plt
 import glob
 
+print("           ...entering coarsegrain_dependency_network.py...", end='')
+
 def get_max_degree_node(x):
 	sorted_x = sorted(x.items(), key=operator.itemgetter(1))
 	return sorted_x[-1][0]
 
 
-if len(sys.argv) != 3:
-	sys.exit("Usage: coarsegrain_dependency_network.py [input_folder] [out_mapping.csv]")
+if len(sys.argv) != 4:
+	sys.exit("Usage: coarsegrain_dependency_network.py [input_folder] [out_mapping.csv] [number_of_cells]")
 
 input_folder = sys.argv[1]
 out_mapping_fname = sys.argv[2]
+num_cells = int(sys.argv[3])
+
+num_cells_tbu = 0
 
 G = nx.Graph()
 
-print("Reading...")
-max_cell_ID = 0;
+print(" reading...", end='')
 for fname in glob.glob(input_folder + "/last.*.similar_hist"):
 	with open(fname, "r") as infile:
+		num_cells_tbu+=1
 		for line in infile.readlines():
 			cell1, cell2, dist = line.split()
 			cell1 = int(cell1)
 			cell2 = int(cell2)
 			dist = float(dist)
 
-			if cell1 > max_cell_ID:
-				max_cell_ID = cell1
-
 			G.add_edge(cell1, cell2, weight=1.0/dist)
 
 num_nodes_remaining = len(G)
-mapping = ["Not to be updated"] * max_cell_ID
+mapping = [i for i in range(num_cells)]
 iterations = 0
 
-print("Coarsegraining...")
+print(" coarsegraining...", end='')
+
 while num_nodes_remaining > 0:
 
 	# get max degree node
-	max_deg_node = get_max_degree_node(G.degree())
+	max_deg_node = get_max_degree_node(dict(G.degree()))
 #	print "Max degree node = ", max_deg_node
 
 	# Map this node to use its own MD results
@@ -61,12 +64,13 @@ while num_nodes_remaining > 0:
 
 	iterations += 1
 
-print("Converged in", iterations, "iterations")
-print("Mapping:")
+print(" converged in", iterations, "iterations")
 
 i = 0
 with open(out_mapping_fname, "w") as outfile_map:
 	for mapp in mapping:
-		outfile_map.write(str(i) + "," + str(mapp) + "\n");
+		outfile_map.write(str(i) + " " + str(mapp) + "\n");
 		i+=1
-print(len(set(mapping)), "simulations required")
+print("           ...number of cells to be udpated:",num_cells_tbu, " - number of simulations required: ",num_cells_tbu-iterations)
+
+sys.exit(0)

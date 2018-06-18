@@ -1778,6 +1778,7 @@ namespace HMM
 				bool cell_to_be_updated = false;
 				//if ((cell->active_cell_index()%10==0)) // For debug...
 				//if (false) // For debug...
+				if (timestep_no > min_num_steps_before_spline)
 				if (newtonstep_no > 0)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
@@ -1834,6 +1835,8 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::spline_building()
 	{
+		dcout << "           " << "...building splines..." << std::endl;
+
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1847,7 +1850,7 @@ namespace HMM
 				Assert (local_quadrature_points_history <
 						&quadrature_point_history.back(),
 						ExcInternalError());
-				dcout << "           " << "...building splines..." << std::endl;
+
 				local_quadrature_points_history[0].hist_strain.splinify(num_spline_points);
 			}
 	}
@@ -1856,6 +1859,7 @@ namespace HMM
 	void FEProblem<dim>::spline_comparison()
 	{
 		dcout << "           " << "...computing similarity of splines..." << std::endl;
+
 		// Building vector of (updateable) histories of cells on rank
 		std::vector<MatHistPredict::Strain6D*> histories;
 		for (typename DoFHandler<dim>::active_cell_iterator
@@ -3644,7 +3648,7 @@ namespace HMM
 		present_timestep = 1.0e-9;
 		timestep_no = start_timestep - 1;
 		present_time = timestep_no*present_timestep;
-		end_time = 1*present_timestep; //4000.0 > 66% final strain
+		end_time = 6*present_timestep; //4000.0 > 66% final strain
 
 		// Initiatilization of the FE problem
 		dcout << " Initiation of the Finite Element problem...       " << std::endl;

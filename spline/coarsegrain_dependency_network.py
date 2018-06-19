@@ -1,7 +1,6 @@
 import os, sys
 import networkx as nx
 import operator
-import matplotlib.pyplot as plt
 import glob
 
 print("           ...entering coarsegrain_dependency_network.py...", end='')

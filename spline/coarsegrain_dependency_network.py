@@ -36,6 +36,7 @@ for fname in glob.glob(input_folder + "/last.*.similar_hist"):
 num_nodes_remaining = len(G)
 mapping = [i for i in range(num_cells)]
 iterations = 0
+neighbour_removed = 0
 
 print(" coarsegraining...", end='')
 
@@ -52,6 +53,7 @@ while num_nodes_remaining > 0:
 	for neighbour in nx.all_neighbors(G, max_deg_node):
 		neighbours.append(neighbour)
 		mapping[neighbour] = max_deg_node
+		neighbour_removed += 1
 
 #	print "Neighbours:", neighbours
 
@@ -70,6 +72,6 @@ with open(out_mapping_fname, "w") as outfile_map:
 	for mapp in mapping:
 		outfile_map.write(str(i) + " " + str(mapp) + "\n");
 		i+=1
-print("           ...number of cells to be udpated:",num_cells_tbu, " - number of simulations required: ",num_cells_tbu-iterations)
+print("           ...number of cells to be udpated:",num_cells_tbu, " - number of simulations required: ",num_cells_tbu-neighbour_removed)
 
 sys.exit(0)

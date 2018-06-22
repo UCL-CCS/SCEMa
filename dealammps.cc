@@ -2203,7 +2203,7 @@ namespace HMM
 						for(unsigned int repl=1;repl<nrepl+1;repl++)
 						{
 							/*SymmetricTensor<4,dim> loc_rep_stiffness;
-							sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, cell_id, repl);
+							sprintf(filename, "%s/last.%d.%d.stiff", macrostatelocout, local_quadrature_points_history[0].hist_strain.get_ID_to_update_from(), repl);
 							read_tensor<dim>(filename, loc_rep_stiffness);
 
 							loc_stiffness += loc_rep_stiffness;*/
@@ -3433,11 +3433,11 @@ namespace HMM
 			for(unsigned int repl=1;repl<nrepl+1;repl++)
 			{
 				sprintf(command, "rm -rf %s/R%d/*", nanologloc, repl);
-				/*int ret = system(command);
+				int ret = system(command);
 				if (ret!=0){
 					std::cerr << "Failed removing the log files of the MD simualtions of the current step!" << std::endl;
 					exit(1);
-				}*/
+				}
 				//sprintf(command, "%s/R%d/*", nanologloc, repl);
 				//boost::filesystem::remove_all(command);
 			}
@@ -3506,7 +3506,7 @@ namespace HMM
 						<< previous_res
 						<< std::endl;
 			}
-		} while (false /*previous_res>1e-02 and newtonstep_no < 5*/ /*previous_res>1e-02 || updated_md*/);
+		} while (false /*previous_res>1e-02 and newtonstep_no < 5*/ /*previous_res>1e-02*/);
 	}
 
 

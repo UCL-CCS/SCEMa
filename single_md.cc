@@ -623,7 +623,7 @@ int main (int argc, char **argv)
 		std::string mslocout = argv[5];
 		std::string nsloc = argv[6];
 		std::string nsloclog = argv[7];
-		//std::cout << ctime << " " << ccell << " " << cmat << " " << repl << " " << mslocout << " " << nslocout << " " << nsloclog << std::endl;
+		//std::cout << ctime << " " << ccell << " " << cmat << " " << repl << " " << mslocout << " " << nsloc << " " << nsloclog << std::endl;
 		MDProblem<3> md_problem (mslocout.c_str(),nsloc.c_str(),nsloclog.c_str());
 
 		md_problem.run(ctime, ccell, cmat.c_str(), repl);

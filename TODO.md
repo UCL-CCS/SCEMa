@@ -6,6 +6,7 @@
   - the Python wrapper would only execute the higher-level functions such as `do_timestep` (and the other ones in the HMMProblem class)
   - Complete separation of the different models and synchronisation relying on MUSCLE
     - base the work on pre-separated models in version *standalone_md*
+  - See the following [slides](https://figshare.com/articles/Interfacing_Python_to_C_UCL_20_June_2018/6626639) for tutorials on interface Python and C++
 * Improve restarting process
   - continuity of timesteps
   - finite element cell number independence (location-based? else?)

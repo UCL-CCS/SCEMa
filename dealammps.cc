@@ -1810,26 +1810,6 @@ namespace HMM
 								write_tensor<dim>(filename, rot_avg_upd_strain_tensor);
 							}
 			}
-		MPI_Barrier(world_communicator);
-
-		// Gathering in a single file all the quadrature points to be updated...
-		// Might be worth replacing indivual local file writings by a parallel vector of string
-		// and globalizing this vector before this final writing step.
-		std::ifstream infile;
-		std::ofstream outfile;
-		std::string iline;
-		if (this_world_process == 0){
-			char update_filename[1024];
-
-			char alltime_update_filename[1024];
-			sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc);
-			outfile.open (alltime_update_filename, std::ofstream::app);
-			if(timestep_no==start_timestep && newtonstep_no==1) outfile << "timestep_no,newtonstep_no,cell" << std::endl;
-			infile.open (update_filename);
-			while (getline(infile, iline)) outfile << timestep_no << "," << newtonstep_no << "," << iline << std::endl;
-			infile.close();
-			outfile.close();
-		}
 	}
 
 	template <int dim>

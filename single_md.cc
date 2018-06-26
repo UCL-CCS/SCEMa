@@ -548,7 +548,7 @@ namespace MD
 
 
 	template <int dim>
-	void MDProblem<dim>::run (char* ctime, char* ccell, const char* cmat, unsigned int repl)
+	void MDProblem<dim>::run (char* ctime, char* id, const char* cmat, unsigned int repl)
 	{
 		if(this_world_process == 0) std::cout << "Number of processes assigned: " << n_world_processes << std::endl;  
 
@@ -570,7 +570,7 @@ namespace MD
 		read_tensor<dim>(filename, init_rep_length);
 
 		// Argument of the MD simulation: strain to apply
-		sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, ccell);
+		sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, id);
 		read_tensor<dim>(filename, loc_strain);
 
 		// Then the lammps function instanciates lammps, starting from an initial
@@ -582,7 +582,7 @@ namespace MD
 				loc_rep_stress,
 				loc_rep_stiffness,
 				init_rep_length,
-				ccell,
+				id,
 				ctime,
 				world_communicator,
 				nanostateloc,
@@ -592,12 +592,12 @@ namespace MD
 
 		if(this_world_process == 0)
 		{
-			std::cout << " \t" << ccell <<"-"<< repl << " \t" << std::flush;
+			std::cout << " \t" << id <<"-"<< repl << " \t" << std::flush;
 
 			/*sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, ccell, repl);
 			write_tensor<dim>(filename, loc_rep_stiffness);*/
 
-			sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, ccell, repl);
+			sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, id, repl);
 			write_tensor<dim>(filename, loc_rep_stress);
 		}
 	}
@@ -616,8 +616,8 @@ int main (int argc, char **argv)
 
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
-		char* ctime= argv[1];
-		char* ccell= argv[2];
+		char* ctime = argv[1];
+		char* qcid = argv[2];
 		std::string cmat = argv[3];
 		unsigned int repl = atoi(argv[4]);
 		std::string mslocout = argv[5];
@@ -626,7 +626,7 @@ int main (int argc, char **argv)
 		//std::cout << ctime << " " << ccell << " " << cmat << " " << repl << " " << mslocout << " " << nsloc << " " << nsloclog << std::endl;
 		MDProblem<3> md_problem (mslocout.c_str(),nsloc.c_str(),nsloclog.c_str());
 
-		md_problem.run(ctime, ccell, cmat.c_str(), repl);
+		md_problem.run(ctime, qcid, cmat.c_str(), repl);
 	}
 	catch (std::exception &exc)
 	{

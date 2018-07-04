@@ -11,28 +11,30 @@ def get_max_degree_node(x):
 
 
 if len(sys.argv) != 4:
-	sys.exit("Usage: coarsegrain_dependency_network.py [input_folder] [out_mapping.csv] [number_of_qps]")
+	sys.exit("Usage: coarsegrain_dependency_network.py [input_folder] [out_mapping.csv] [number_of_cells]")
 
 input_folder = sys.argv[1]
 out_mapping_fname = sys.argv[2]
-num_qps = int(sys.argv[3])
+num_cells = int(sys.argv[3])
 
-num_qps_tbu = 0
+num_cells_tbu = 0
 
 G = nx.Graph()
 
 print(" reading...", end='')
 for fname in glob.glob(input_folder + "/last.*.similar_hist"):
 	with open(fname, "r") as infile:
-		num_qps_tbu+=1
+		num_cells_tbu+=1
 		for line in infile.readlines():
-			qcid1, qcid1, dist = line.split()
+			cell1, cell2, dist = line.split()
+			cell1 = int(cell1)
+			cell2 = int(cell2)
 			dist = float(dist)
 
-			G.add_edge(qcid1, qcid2, weight=1.0/dist)
+			G.add_edge(cell1, cell2, weight=1.0/dist)
 
 num_nodes_remaining = len(G)
-mapping = [i for i in range(num_qps)]
+mapping = [i for i in range(num_cells)]
 iterations = 0
 neighbour_removed = 0
 
@@ -70,6 +72,6 @@ with open(out_mapping_fname, "w") as outfile_map:
 	for mapp in mapping:
 		outfile_map.write(str(i) + " " + str(mapp) + "\n");
 		i+=1
-print("           ...number of quadrature points to be udpated:",num_qps_tbu, " - number of simulations required: ",num_qps_tbu-neighbour_removed)
+print("           ...number of cells to be udpated:",num_cells_tbu, " - number of simulations required: ",num_cells_tbu-neighbour_removed)
 
 sys.exit(0)

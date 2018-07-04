@@ -12,7 +12,7 @@
 
 typedef struct
 {
-	std::pair <uint32_t, uint32_t> ID;
+	uint32_t ID;
 	double diff;
 } HISTORY_ID_DIFF_PAIR;
 
@@ -27,21 +27,18 @@ namespace MatHistPredict {
 				num_steps_added = 0;
 				num_spline_points_per_component = 0;
 
-				ID = std::pair<uint32_t, uint32_t>(std::numeric_limits<uint32_t>::max(),
-									 	 	 	   std::numeric_limits<uint32_t>::max()); // Should be set correctly using set_ID
+				ID = std::numeric_limits<uint32_t>::max(); // Should be set correctly using set_ID
 				ID_is_set = false;
 
-				most_similar_history.ID = std::pair<uint32_t, uint32_t>(std::numeric_limits<uint32_t>::max(),
-							 	 	 	 	 	 	 	 	 	 	 	std::numeric_limits<uint32_t>::max());
+				most_similar_history.ID = 0;
 				most_similar_history.diff = 0;
 
 				most_similar_histories.clear();
 
-				ID_to_get_results_from = ID = std::pair<uint32_t, uint32_t>(std::numeric_limits<uint32_t>::max(),
-		 	 	 	    													std::numeric_limits<uint32_t>::max());
+				ID_to_get_results_from = std::numeric_limits<uint32_t>::max();
 			}
 
-			void set_ID(std::pair <uint32_t, uint32_t> ID)
+			void set_ID(uint32_t ID)
 			{
 				this->ID = ID;
 				this->ID_is_set = true;
@@ -188,7 +185,7 @@ namespace MatHistPredict {
 				return &spline;
 			}
 
-			std::pair <uint32_t, uint32_t>& get_ID()
+			uint32_t get_ID()
 			{
 				if(!ID_is_set) {
 					fprintf(stderr, "Error: history ID is unset. Please use set_ID().\n");
@@ -202,7 +199,7 @@ namespace MatHistPredict {
 				return num_spline_points_per_component;
 			}
 
-			std::pair <uint32_t, uint32_t> get_most_similar_history_ID()
+			uint32_t get_most_similar_history_ID()
 			{
 				return most_similar_history.ID;
 			}
@@ -214,15 +211,14 @@ namespace MatHistPredict {
 			
 			void clear_most_similar_history()
 			{
-				most_similar_history.ID = std::pair<uint32_t, uint32_t>(std::numeric_limits<uint32_t>::max(),
-		 	 	 	    												std::numeric_limits<uint32_t>::max());
+				most_similar_history.ID = std::numeric_limits<uint32_t>::max();;
 				most_similar_history.diff = std::numeric_limits<double>::infinity();
 
 				most_similar_histories.clear();
 				all_similar_histories.clear();
 			}
 
-			void choose_most_similar_history(double candidate_diff, std::pair <uint32_t, uint32_t>& candidate_ID, double threshold)
+			void choose_most_similar_history(double candidate_diff, uint32_t candidate_ID, double threshold)
 			{
 				HISTORY_ID_DIFF_PAIR hp;
 				hp.diff = candidate_diff;
@@ -241,10 +237,9 @@ namespace MatHistPredict {
 					// In the rare case where several histories may be exactly equidistant,
 					// choose the candidate_ID that is lowest
 					if(candidate_diff == most_similar_history.diff) {
-						if(candidate_ID.first > most_similar_history.ID.first)
-							if(candidate_ID.second > most_similar_history.ID.second){
-								return; // reject
-							}
+						if(candidate_ID > most_similar_history.ID) {
+							return; // reject
+						}
 					}
 
 					most_similar_history.ID = candidate_ID;
@@ -255,7 +250,7 @@ namespace MatHistPredict {
 			void print_most_similar_histories()
 			{
 				for(uint32_t i = 0; i < most_similar_histories.size(); i++) {
-					std::cout << ID.first << "-" << ID.second << " " << most_similar_histories[i].ID.first << "-" << most_similar_histories[i].ID.second << " " << most_similar_histories[i].diff << "\n";
+					std::cout << ID << " " << most_similar_histories[i].ID << " " << most_similar_histories[i].diff << "\n";
 				}
 			}
 
@@ -268,7 +263,7 @@ namespace MatHistPredict {
 				}
 
 				for(uint32_t i = 0; i < most_similar_histories.size(); i++) {
-					outfile << ID.first << "-" << ID.second << " " << most_similar_histories[i].ID.first << "-" << most_similar_histories[i].ID.second << " " << most_similar_histories[i].diff << "\n";
+					outfile << ID << " " << most_similar_histories[i].ID << " " << most_similar_histories[i].diff << "\n";
 				}
 
 				outfile.close();
@@ -283,7 +278,7 @@ namespace MatHistPredict {
 				}
 
 				for(uint32_t i = 0; i < all_similar_histories.size(); i++) {
-					outfile << ID.first << "-" << ID.second << " " << all_similar_histories[i].ID.first << "-" << all_similar_histories[i].ID.second << " " << all_similar_histories[i].diff << "\n";
+					outfile << ID << " " << all_similar_histories[i].ID << " " << all_similar_histories[i].diff << "\n";
 				}
 
 				outfile.close();
@@ -305,44 +300,35 @@ namespace MatHistPredict {
 					fprintf(stderr, "Could not open %s for reading.\n", in_fname);
 					exit(1);
 				}
-				char id_from[1024], id_to[1024];
+				uint32_t id_from, id_to;
 
 				// Skip lines until line that contains this ID
 				// Line number doesn't not always fit cell ID because
 				// if cell has no similar history it is not captured by the python script
 				std::string line;
-				for(uint32_t i = 0; i < ID.first; i++)
-					for(uint32_t i = 0; i < ID.second; i++) {
-						std::getline(infile, line);
-					}
+				for(uint32_t i = 0; i < ID; i++) {
+					std::getline(infile, line);
+				}
 				infile >> id_from >> id_to;
 
 				//std::cout << "cell " << ID << "id_from " << id_from << "id_to" << id_to << std::endl;
-				char qcid[1024]; sprintf(qcid, "%d-%d", ID.first, ID.second);
-				if(id_from != qcid) {
-					fprintf(stderr, "ID in mapping file (%s) does not match cell ID (%s)\n", id_from, qcid);
+
+				if(id_from != ID) {
+					fprintf(stderr, "ID in mapping file (%u) does not match cell ID (%u)\n", id_from, ID);
 					exit(1);
 				}
 
-				std::istringstream ss(id_to);
-				std::string token;
-				std::vector<int> tmp;
-
-				while(std::getline(ss, token, '-')) {
-				    tmp.push_back(std::stoi(token));
-				}
-
-				this->ID_to_get_results_from = std::pair<uint32_t, uint32_t>(tmp[0], tmp[1]);
+				this->ID_to_get_results_from = id_to;
 
 				infile.close();
 			}
 
-			void set_ID_to_get_results_from(std::pair <uint32_t, uint32_t> ID)
+			void set_ID_to_get_results_from(uint32_t ID)
 			{
 				this->ID_to_get_results_from = ID;
 			}
 
-			std::pair <uint32_t, uint32_t> get_ID_to_update_from()
+			uint32_t get_ID_to_update_from()
 			{
 				return ID_to_get_results_from;
 			}
@@ -358,7 +344,7 @@ namespace MatHistPredict {
 
 			// Integer ID of the cell/quad point that this strain history belongs to
 			bool ID_is_set;
-			std::pair <uint32_t, uint32_t> ID;
+			uint32_t ID;
 
 			uint32_t num_spline_points_per_component;
 			std::vector<double> spline; // built spline
@@ -370,7 +356,7 @@ namespace MatHistPredict {
 			std::vector<HISTORY_ID_DIFF_PAIR> most_similar_histories;
 			std::vector<HISTORY_ID_DIFF_PAIR> all_similar_histories;
 
-			std::pair <uint32_t, uint32_t> ID_to_get_results_from;
+			uint32_t ID_to_get_results_from;
 	};
 
 	class Strain6DReceiver
@@ -390,7 +376,7 @@ namespace MatHistPredict {
 
 			int32_t max_buf_size; // Max number of doubles that can be received from another rank
 			double *spline;
-			std::pair <uint32_t, uint32_t>  ID;
+			uint32_t ID;
 			uint32_t recv_count;
 	};
 
@@ -434,7 +420,7 @@ namespace MatHistPredict {
 		MPI_Request request;
 
 		std::vector<double> *strain = in_s6D->get_spline();
-		std::pair <uint32_t, uint32_t> ID = in_s6D->get_ID();
+		uint32_t ID = in_s6D->get_ID();
 		int32_t num_doubles_to_send = strain->size();
 
 		MPI_Isend(&num_doubles_to_send, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);

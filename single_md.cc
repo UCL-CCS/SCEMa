@@ -295,7 +295,7 @@ namespace MD
 			SymmetricTensor<2,dim>& stress,
 			SymmetricTensor<4,dim>& stiffness,
 			std::vector<double>& length,
-			char* cellid,
+			unsigned int qpid,
 			char* timeid,
 			MPI_Comm comm_lammps,
 			const char* stateloc,
@@ -345,15 +345,15 @@ namespace MD
 		//mkdir(replogloc, ACCESSPERMS);
 
 		char qpreplogloc[1024];
-		sprintf(qpreplogloc, "%s/%s.%s", replogloc, timeid, cellid);
+		sprintf(qpreplogloc, "%s/%s.%d", replogloc, timeid, qpid);
 		//mkdir(qpreplogloc, ACCESSPERMS);
 
 		char straindata_last[1024];
-		sprintf(straindata_last, "last.%s.%s.dump", cellid, mdstate);
-		// sprintf(straindata_last, "last.%s.%s.bin", cellid, mdstate);
+		sprintf(straindata_last, "last.%d.%s.dump", qpid, mdstate);
+		// sprintf(straindata_last, "last.%d.%s.bin", qpid, mdstate);
 
 		char atomdata_last[1024];
-		sprintf(atomdata_last, "last.%s.%s", cellid, atomstate);
+		sprintf(atomdata_last, "last.%d.%s", qpid, atomstate);
 
 		char cline[1024];
 		char cfile[1024];
@@ -397,14 +397,14 @@ namespace MD
 		lammps_file(lmp,cfile);
 
 		/*if (me == 0) std::cout << "               "
-				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
+				<< "(MD - " << timeid <<"."<< qpid << " - repl " << repl << ") "
 				<< "Compute current state data...       " << std::endl;*/
 
 		// Check if a previous state has already been computed specifically for
 		// this quadrature point, otherwise use the initial state (which is the
 		// last state of this quadrature point)
 		/*if (me == 0) std::cout << "               "
-				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
+				<< "(MD - " << timeid <<"."<< qpid << " - repl " << repl << ") "
 				<< "   ... from previous state data...   " << std::flush;*/
 		//sprintf(mfile, "%s/out/%s", stateloc, initdata); /*reaxff*/ 
 		//sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*reaxff*/ 
@@ -443,7 +443,7 @@ namespace MD
 
 		// Run the NEMD simulations of the strained box
 		/*if (me == 0) std::cout << "               "
-				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
+				<< "(MD - " << timeid <<"."<< qpid << " - repl " << repl << ") "
 				<< "   ... reading and executing in.strain.lammps.       " << std::endl;*/
 		sprintf(cfile, "%s/%s", location, "in.strain.lammps");
 		lammps_file(lmp,cfile);
@@ -452,7 +452,7 @@ namespace MD
 		sprintf(cline, "undump atom_dump"); lammps_command(lmp,cline);
 
 		/*if (me == 0) std::cout << "               "
-				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
+				<< "(MD - " << timeid <<"."<< qpid << " - repl " << repl << ") "
 				<< "Saving state data...       " << std::endl;*/
 		// Save data to specific file for this quadrature point
 		sprintf(cline, "write_restart %s/out/%s", stateloc, straindata_last); lammps_command(lmp,cline); /*opls*/
@@ -462,7 +462,7 @@ namespace MD
 		delete lmp;
 
 		/*if (me == 0) std::cout << "               "
-				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
+				<< "(MD - " << timeid <<"."<< qpid << " - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
 
 		// Creating LAMMPS instance
@@ -508,7 +508,7 @@ namespace MD
 	public:
 		MDProblem (const char* mslocout, const char* nsloc, const char* nsloclog);
 		~MDProblem ();
-		void run(char* ctime, char* ccell, const char* cmat, unsigned int repl);
+		void run(char* ctime, unsigned int ccell, const char* cmat, unsigned int repl);
 
 	private:
 
@@ -548,7 +548,7 @@ namespace MD
 
 
 	template <int dim>
-	void MDProblem<dim>::run (char* ctime, char* id, const char* cmat, unsigned int repl)
+	void MDProblem<dim>::run (char* ctime, unsigned int id, const char* cmat, unsigned int repl)
 	{
 		if(this_world_process == 0) std::cout << "Number of processes assigned: " << n_world_processes << std::endl;  
 
@@ -570,7 +570,7 @@ namespace MD
 		read_tensor<dim>(filename, init_rep_length);
 
 		// Argument of the MD simulation: strain to apply
-		sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, id);
+		sprintf(filename, "%s/last.%d.upstrain", macrostatelocout, id);
 		read_tensor<dim>(filename, loc_strain);
 
 		// Then the lammps function instanciates lammps, starting from an initial
@@ -597,7 +597,7 @@ namespace MD
 			/*sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, ccell, repl);
 			write_tensor<dim>(filename, loc_rep_stiffness);*/
 
-			sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, id, repl);
+			sprintf(filename, "%s/last.%d.%d.stress", macrostatelocout, id, repl);
 			write_tensor<dim>(filename, loc_rep_stress);
 		}
 	}
@@ -617,7 +617,7 @@ int main (int argc, char **argv)
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
 		char* ctime = argv[1];
-		char* qcid = argv[2];
+		unsigned int qpid = atoi(argv[2]);
 		std::string cmat = argv[3];
 		unsigned int repl = atoi(argv[4]);
 		std::string mslocout = argv[5];
@@ -626,7 +626,7 @@ int main (int argc, char **argv)
 		//std::cout << ctime << " " << ccell << " " << cmat << " " << repl << " " << mslocout << " " << nsloc << " " << nsloclog << std::endl;
 		MDProblem<3> md_problem (mslocout.c_str(),nsloc.c_str(),nsloclog.c_str());
 
-		md_problem.run(ctime, qcid, cmat.c_str(), repl);
+		md_problem.run(ctime, qpid, cmat.c_str(), repl);
 	}
 	catch (std::exception &exc)
 	{

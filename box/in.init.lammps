@@ -9,12 +9,6 @@
 #  Setting data input source for atoms initial positions, masses, bonds, and potential parameters
 read_data       ${locd}   # read LAMMPS data file
 
-#  Setting the formula to compute pairwise interactions to a LJ potential within 12.0 cutoff
-#  Coulombic interaction within a 9.0 cutoff of each atom
-pair_style      reax/c NULL safezone 50.0 mincap 100000
-pair_coeff      * * ${locf} H C N O #C F
-fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c
-
 #  Extending box volume by 2 in each direction
 #replicate       2 2 2
 
@@ -31,6 +25,10 @@ restart         150000 ${loco}/${mdt}_heatup_cooldown.restart1
 ##  the later simulations, restart command will automatically generate triclinic
 ##  box from the previous simulations.
 change_box      all triclinic
+
+#  Setting weights for pairwise direct, 1-intermediary, 2-intermediary LJ and Coul interactions
+#  potentials
+special_bonds   lj/coul 0.0 0.0 1.0
 
 #  Setting to display thermodynamical information on the system every 500 steps
 thermo          500

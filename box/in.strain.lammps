@@ -5,21 +5,6 @@
 ## Should we optimize the lammps call depending on the computer setup?
 ## suffix OMP
 
-#  Setting the formula to compute pairwise interactions to a LJ potential within 12.0 cutoff
-#  Coulombic interaction within a 9.0 cutoff of each atom
-pair_style      reax/c NULL  safezone 50.0 mincap 100000
-pair_coeff      * * ${locf} H C N O #C F
-fix             2 all qeq/reax 1 0.0 10.0 1e-6 reax/c
-
-compute reax all pair reax/c
-variable eb      equal c_reax[1]
-variable ea      equal c_reax[2]
-variable ev      equal c_reax[5]
-variable et      equal c_reax[9]
-variable ew      equal c_reax[11]
-variable ep      equal c_reax[12]
-
-
 ##  -------------------------------------------
 #   Calculate the stress-strain curve for uniaxial extension in the x direction
 
@@ -27,7 +12,7 @@ variable ep      equal c_reax[12]
 thermo          500
 
 #  Setting the type of thermodynamical information to be printed: T, P, energies, dimesions, V, stress tensor
-thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz v_eb v_ev v_et v_ew v_ep
+thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz
 
 #  Setting the syntax of the printed thermodynamical information
 thermo_modify   flush yes line multi format float %g format 3 %15.8g
@@ -55,12 +40,12 @@ variable p6 equal "lx"
 variable p7 equal "ly"
 variable p8 equal "lz"
 variable p9 equal "vol"
-variable evdwl equal v_ew
-variable ecoul equal v_ep
-variable eatom equal v_ea
-variable ebond equal v_eb
-variable eangle equal v_ev
-variable edihed equal v_et
+variable evdwl equal "evdwl"
+variable ecoul equal "ecoul"
+variable eatom equal "epair"
+variable ebond equal "ebond"
+variable eangle equal "eangle"
+variable edihed equal "edihed"
 
 #  Storing initial dimensions of the box
 variable lx1 equal ${p6}
@@ -83,7 +68,7 @@ variable ceeps_12 equal ${eeps_12}*${lxbox0}/${lx1}
 run_style       verlet
 
 #  Loading the same fix 4 as in the init.lammps set of commands.
-#fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
+fix             4  all shake 0.001 20 1000 m 1.0  # SHAKE to keep bond distances / angles involving H-atoms fixe
 
 #  Setting a global constraint of canonical ensemble on all atoms, the temperature is set constant at 200k
 #  with a relaxation time of 100fs
@@ -136,7 +121,7 @@ unfix 1
 
 #  Releasing fix constraints
 unfix 3
-#unfix 4
+unfix 4
 
 #  Stopping dump
 #undump            atom_dump

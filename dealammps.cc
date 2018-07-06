@@ -778,7 +778,6 @@ namespace HMM
 			char* cellid,
 			char* timeid,
 			MPI_Comm comm_lammps,
-			char* statelocin,
 			char* statelocout,
 			char* logloc,
 			std::string mdt,
@@ -792,7 +791,7 @@ namespace HMM
 
 		// Declaration of run parameters
 		// timestep length in fs
-		double dts = 0.5;
+		double dts = 2.0;
 
 		// number of timesteps
 		double strain_rate = 1.0e-4; // in fs^(-1)
@@ -809,8 +808,8 @@ namespace HMM
 		// to place LAMMPS log/dump/temporary restart outputs
 		char location[1024] = "../box";
 
-        	char locff[1024]; /*reaxff*/ 
-        	sprintf(locff, "%s/data/ffield.reax.2", statelocin); /*reaxff*/ 
+        	//char locff[1024]; /*reaxff*/ 
+        	//sprintf(locff, "%s/data/ffield.reax.2", statelocin); /*reaxff*/ 
 
 		// Name of nanostate binary files
 		char mdstate[1024];
@@ -862,7 +861,7 @@ namespace HMM
 		// Passing location for output as variable
 		sprintf(cline, "variable mdt string %s", mdt.c_str()); lammps_command(lmp,cline);
 		sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
-		sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline); /*reaxff*/ 
+		//sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline); /*reaxff*/ 
 
 		// Setting testing temperature
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
@@ -887,8 +886,8 @@ namespace HMM
 		/*if (me == 0) std::cout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "   ... from previous state data...   " << std::flush;*/
-		sprintf(mfile, "%s/%s", statelocout, initdata); /*reaxff*/ 
-		sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*reaxff*/ 
+		//sprintf(mfile, "%s/%s", statelocout, initdata); /*reaxff*/ 
+		//sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*reaxff*/ 
 
 		// Check the presence of a dump file to restart from
 		sprintf(mfile, "%s/%s", statelocout, straindata_last);
@@ -897,17 +896,17 @@ namespace HMM
 			/*if (me == 0) std::cout << "  specifically computed." << std::endl;*/
 			ifile.close();
 
-			sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline); /*reaxff*/ 
+			//sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline); /*reaxff*/ 
 
-			//sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*opls*/
+			sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*opls*/
 
 			sprintf(cline, "print 'specifically computed'"); lammps_command(lmp,cline);
 		}
 		else{
 			/*if (me == 0) std::cout << "  initially computed." << std::endl;*/
 
-			//sprintf(mfile, "%s/%s", statelocout, initdata); /*opls*/
-			//sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*opls*/
+			sprintf(mfile, "%s/%s", statelocout, initdata); /*opls*/
+			sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*opls*/
 
 			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
 		}
@@ -936,8 +935,8 @@ namespace HMM
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Saving state data...       " << std::endl;*/
 		// Save data to specific file for this quadrature point
-		//sprintf(cline, "write_restart %s/%s", statelocout, straindata_last); lammps_command(lmp,cline); /*opls*/
-		sprintf(cline, "write_dump all custom %s/%s id type xs ys zs vx vy vz ix iy iz", statelocout, straindata_last); lammps_command(lmp,cline); /*reaxff*/ 
+		sprintf(cline, "write_restart %s/%s", statelocout, straindata_last); lammps_command(lmp,cline); /*opls*/
+		//sprintf(cline, "write_dump all custom %s/%s id type xs ys zs vx vy vz ix iy iz", statelocout, straindata_last); lammps_command(lmp,cline); /*reaxff*/ 
 
 		// close down LAMMPS
 		delete lmp;
@@ -950,7 +949,7 @@ namespace HMM
 		sprintf(lmparg[4], "%s/log.%s_homogenization", qpreplogloc, mdt.c_str());
 		lmp = new LAMMPS(nargs,lmparg,comm_lammps);
 
-		sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline); /*reaxff*/ 
+		//sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline); /*reaxff*/ 
         	sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
 
 		// Setting testing temperature
@@ -962,11 +961,11 @@ namespace HMM
 		lammps_file(lmp,cfile);
 
 		sprintf(mfile, "%s/%s", statelocout, initdata);
-		sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*reaxff*/ 
+		//sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*reaxff*/ 
 
 		sprintf(mfile, "%s/%s", statelocout, straindata_last);
-		sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline); /*reaxff*/ 
-		//sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*opls*/
+		//sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", mfile); lammps_command(lmp,cline); /*reaxff*/ 
+		sprintf(cline, "read_restart %s", mfile); lammps_command(lmp,cline); /*opls*/
 
 		sprintf(cline, "variable dts equal %f", dts); lammps_command(lmp,cline);
 
@@ -1700,8 +1699,8 @@ namespace HMM
 				/*if ((cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
 					|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487
 					|| cell->active_cell_index() == 2488 || cell->active_cell_index() == 2489))*/ // For debug...
-				//if (false) // For debug...
-				if (avg_new_stress_tensor.norm() > 1.0e8 || avg_new_strain_tensor.norm() < 3.0)
+				if (false) // For debug...
+				//if (avg_new_stress_tensor.norm() > 1.0e8 || avg_new_strain_tensor.norm() < 3.0)
 				if (newtonstep_no > 0)
 					for(unsigned int k=0;k<dim;k++)
 						for(unsigned int l=k;l<dim;l++)
@@ -1956,13 +1955,44 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::set_boundary_values(const double present_time, const double present_timestep)
 	{
+		/*double tvel_vsupport_amplitude = 50.0; // target velocity of the boundary m/s-1
 
-		double tvel_vsupport=50.0; // target velocity of the boundary m/s-1
+		double time_phase = 10.0*present_timestep;
+
+		int phase_no = std::floor(present_time/time_phase);
+
+		dcout << present_time << " " << time_phase << " " << phase_no << std::endl;
+
+		double tvel_vsupport = tvel_vsupport_amplitude;
+		if (phase_no==0) tvel_vsupport*=1.0;
+		else tvel_vsupport*=2.0;
 
 		double acc_time=500.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
-		double acc_vsupport=tvel_vsupport*tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
 
-		double tvel_time=0.0*present_timestep;
+		double acc_vsupport= tvel_vsupport/acc_time; // acceleration of the boundary m/s-2
+		if (phase_no%2==0) acc_vsupport*=1.0;
+		else if (phase_no%2==1) acc_vsupport*=-1.0;
+
+		dcout << acc_vsupport << " " << tvel_vsupport << std::endl;*/
+
+		double time_phase = 15.0*present_timestep;
+
+		int phase_no = 0;
+	    while(true){
+	        if(present_time < time_phase*(phase_no)*(phase_no)) break;
+			phase_no = phase_no+1;
+	    }
+
+		dcout << present_time << " " << time_phase << " " << phase_no << std::endl;
+
+		double tacc_vsupport = 1.0e8; // acceleration of the boundary m/s-2
+
+		if (phase_no%2==1) inc_vsupport = 1.0*tacc_vsupport*present_timestep;
+		else if (phase_no%2==0) inc_vsupport = -0.91*tacc_vsupport*present_timestep;
+
+		dcout << tacc_vsupport << " " << inc_vsupport << std::endl;
+
+		/*double tvel_time=0.0*present_timestep;
 
 		// acceleration of the loading support (reaching aimed velocity)
 		if (present_time<acc_time){
@@ -1978,7 +2008,7 @@ namespace HMM
 		else{
 			dcout << "CRUISING!!!" << std::endl;
 			inc_vsupport = 0.0;
-		}
+		}*/
 
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);
@@ -3077,10 +3107,10 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::output_results (const double present_time, const int timestep_no, const int start_timestep, unsigned int nrepl, char* nanostatelocout, char* nanologlocsi)
 	{
-		int freq_output_lhist = 10;
-		int freq_output_lddsp = 10;
+		int freq_output_lhist = 1;
+		int freq_output_lddsp = 1;
 		int freq_output_spec = 30;
-		int freq_output_visu = 20;
+		int freq_output_visu = 1;
 
 		// Output local history by processor
 		if(timestep_no%freq_output_lhist==0) output_lhistory (present_time);
@@ -4075,7 +4105,6 @@ namespace HMM
 				ccell,
 				ctime,
 				lammps_batch_communicator,
-				nanostatelocin,
 				nanostatelocout,
 				nanologloc,
 				cmat,

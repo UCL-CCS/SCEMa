@@ -1075,7 +1075,7 @@ namespace HMM
 		void update_strain_quadrature_point_history
 		(const Vector<double>& displacement_update, const int timestep_no, const int start_timestep, const int newtonstep_no);
 		void update_stress_quadrature_point_history
-		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no, unsigned int nrepl);
+		(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no);
 		void update_incremental_variables (const double present_timestep);
 
 		void select_specific ();
@@ -1786,7 +1786,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::update_stress_quadrature_point_history
-	(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no, unsigned int nrepl)
+	(const Vector<double>& displacement_update, const int timestep_no, const int newtonstep_no)
 	{
 		FEValues<dim> fe_values (fe, quadrature_formula,
 				update_values | update_gradients);
@@ -1861,29 +1861,19 @@ namespace HMM
 						 */
 
 						// Updating stress tensor
-						SymmetricTensor<2,dim> stmp_stress;
-						bool load_stress = true;
+						bool load_stress;
 
-						for(unsigned int repl=1;repl<nrepl+1;repl++)
-						{
-							/*SymmetricTensor<4,dim> loc_rep_stiffness;
-							sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout, cell_id, repl);
-							read_tensor<dim>(filename, loc_rep_stiffness);
+						/*SymmetricTensor<4,dim> loc_stiffness;
+						sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
+						read_tensor<dim>(filename, loc_stiffness);*/
 
-							loc_stiffness += loc_rep_stiffness;*/
-
-							SymmetricTensor<2,dim> loc_rep_stress;
-							sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout, cell_id, repl);
-							load_stress = read_tensor<dim>(filename, loc_rep_stress);
-
-							stmp_stress += loc_rep_stress;
-						}
-
-						stmp_stress /= nrepl;
+						SymmetricTensor<2,dim> loc_stress;
+						sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
+						load_stress = read_tensor<dim>(filename, loc_stress);
 
 						// Rotate the output stress wrt the flake angles
 						if (load_stress) local_quadrature_points_history[q].new_stress =
-									rotate_tensor(stmp_stress, transpose(local_quadrature_points_history[q].rotam));
+									rotate_tensor(loc_stress, transpose(local_quadrature_points_history[q].rotam));
 						else local_quadrature_points_history[q].new_stress +=
                                                         0.00*local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 
@@ -3375,6 +3365,10 @@ namespace HMM
 				//sprintf(filename, "%s/last.%s.stiff", macrostatelocout, cell_id);
 				//remove(filename);
 
+				// Removing stress passing file
+				sprintf(filename, "%s/last.%s.stress", macrostatelocout, cell_id);
+				remove(filename);
+
 				// Removing updstrain passing file
 				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout, cell_id);
 				remove(filename);
@@ -3697,7 +3691,7 @@ namespace HMM
 				MPI_Barrier(world_communicator);
 
 				if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history
-						(fe_problem.newton_update_displacement, timestep_no, newtonstep_no, nrepl);
+						(fe_problem.newton_update_displacement, timestep_no, newtonstep_no);
 
 				hcout << "    Re-assembling FE system..." << std::flush;
 				if(dealii_pcolor==0) previous_res = fe_problem.assemble_system (present_timestep, false);
@@ -3750,7 +3744,7 @@ namespace HMM
 
 		// Updating current strains and stresses with the boundary conditions information
 		if(dealii_pcolor==0) fe_problem.update_strain_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, start_timestep, newtonstep_no);
-		if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no, nrepl);
+		if(dealii_pcolor==0) fe_problem.update_stress_quadrature_point_history (fe_problem.incremental_displacement, timestep_no, newtonstep_no);
 		MPI_Barrier(world_communicator);
 
 		// Solving iteratively the current timestep

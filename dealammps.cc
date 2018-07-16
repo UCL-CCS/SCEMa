@@ -1972,30 +1972,32 @@ namespace HMM
 		double acc_time=10.0*present_timestep + present_timestep*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
 
 		bool is_loaded = true;
+
+		dcout << "Loading condition: " << std::flush;
 		// acceleration of the loading support (reaching aimed velocity)
 		if (present_time<=acc_time){
-			dcout << "ACCELERATE!!!" << std::endl;
+			dcout << "ACCELERATE!!!" << std::flush;
 			inc_vsupport = tacc_vsupport*present_timestep;
 		}
 		// stationary motion of the loading support
 		else if (present_time>acc_time and present_time<=acc_time+tvel_time){
-			dcout << "CRUISING!!!" << std::endl;
+			dcout << "CRUISING!!!" << std::flush;
 			inc_vsupport = 0.0;
 		}
 		// deccelaration of the loading support (return to 0 velocity)
 		else if (present_time>acc_time+tvel_time and present_time<=acc_time+tvel_time+acc_time){
-			dcout << "DECCELERATE!!!" << std::endl;
+			dcout << "DECCELERATE!!!" << std::flush;
 			inc_vsupport = -1.0*tacc_vsupport*present_timestep;
 			is_loaded = false;
 		}
 		// stationary motion of the loading support
 		else{
-			dcout << "NOT LOADED!!!" << std::endl;
+			dcout << "NOT LOADED!!!" << std::flush;
 			inc_vsupport = 0.0;
 			is_loaded = false;
 		}
 
-		dcout << tacc_vsupport << " " << inc_vsupport << std::endl;
+		dcout << " acceleration: " << tacc_vsupport << " - velocity increment: " << inc_vsupport << std::endl;
 
 		FEValuesExtractors::Scalar x_component (dim-3);
 		FEValuesExtractors::Scalar y_component (dim-2);
@@ -2548,10 +2550,10 @@ namespace HMM
 		std::vector< std::vector<int> > lcmd (mdtype.size());
 
 		// Number of cells to skip of each selection
-		int nskip = 1;
+		int nskip = 15;
 
 		// Maximum number of cells of each material to select per process
-		//int ncmat = std::max(1, int(60/n_FE_processes));
+		int ncmat = std::max(1, int(50/n_FE_processes));
 
 		// Build vector of ids of central bottom and central top cells
 		dcout << "    Cells for global measurements: " << std::endl;
@@ -2581,14 +2583,14 @@ namespace HMM
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned()){
 
-				/*const PointHistory<dim> *local_quadrature_points_history
-							= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());*/
+				const PointHistory<dim> *local_quadrature_points_history
+							= reinterpret_cast<PointHistory<dim>*>(cell->user_pointer());
 
 				// with cells precisely in the crack tip...
 				if (fabs(cell->barycenter()(0)) <  lls/2.
 						&& fabs(cell->barycenter()(1)) <  hhs/2.){
 					yccells1++;
-					if(yccells1%(3*nskip)==0){
+					if(yccells1%(nskip)==0){
 						lcis.push_back(cell->active_cell_index());
 						std::cout << "       specific cell - in unsupported area: " << cell->active_cell_index() << std::endl;
 					}
@@ -2596,16 +2598,16 @@ namespace HMM
 
 				// Create a list of each cell material type for later selection of small number of cells
 				// of each material type
-				/*for (int imd = 0; imd<int(mdtype.size()); imd++){
+				for (int imd = 0; imd<int(mdtype.size()); imd++){
 					if (local_quadrature_points_history[0].mat==mdtype[imd]){
 						lcmd[imd].push_back(cell->active_cell_index());
 					}
-				}*/
+				}
 			}
 
 		// Shuffling the list of cells of each material type and selecting a reduced number
 		// of each material to add to the list of cells of specific interest 'lcis'
-		/*for (int imd = 0; imd<int(mdtype.size()); imd++){
+		for (int imd = 0; imd<int(mdtype.size()); imd++){
 			std::random_shuffle (lcmd[imd].begin(), lcmd[imd].end());
 			for (int icl = 0; icl<int(lcmd[imd].size()); icl++){
 				if(icl<ncmat){
@@ -2613,7 +2615,7 @@ namespace HMM
 					std::cout << "       specific cell - material " << mdtype[imd] << " : " << lcmd[imd][icl] << " " << std::endl;
 				}
 			}
-		}*/
+		}
 	}
 
 
@@ -3037,8 +3039,8 @@ namespace HMM
 	{
 		int freq_output_lhist = 1;
 		int freq_output_lddsp = 1;
-		int freq_output_spec = 30;
-		int freq_output_visu = 1;
+		int freq_output_spec = 10;
+		int freq_output_visu = 5;
 
 		// Output local history by processor
 		if(timestep_no%freq_output_lhist==0) output_lhistory (present_time);
@@ -4196,7 +4198,7 @@ namespace HMM
 
 		// List of name of MD box types
 		mdtype.push_back("g0");
-		//mdtype.push_back("g1");
+		mdtype.push_back("g1");
 		//mdtype.push_back("g2");
 
 		// Number of replicas in MD-ensemble

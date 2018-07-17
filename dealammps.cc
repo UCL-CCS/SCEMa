@@ -3313,6 +3313,7 @@ namespace HMM
 									local_quadrature_points_history[0].mat.c_str(), repl);
 							std::ifstream  nanoin(filename, std::ios::binary);
 							if (nanoin.good()){
+                                                                local_quadrature_points_history[q].to_be_updated = true;
 								sprintf(filename, "%s/last.%d.%s_%d.dump", nanostatelocout, cell->active_cell_index(),
 										local_quadrature_points_history[0].mat.c_str(), repl);
 								std::ofstream  nanoout(filename,   std::ios::binary);

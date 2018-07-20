@@ -417,15 +417,13 @@ namespace MatHistPredict {
 
 	void send_strain6D_mpi(Strain6D *in_s6D, int32_t target_rank, int32_t this_rank, MPI_Comm comm)
 	{
-		MPI_Request request;
-
 		std::vector<double> *strain = in_s6D->get_spline();
 		uint32_t ID = in_s6D->get_ID();
 		int32_t num_doubles_to_send = strain->size();
 
-		MPI_Isend(&num_doubles_to_send, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
-		MPI_Isend(strain->data(), num_doubles_to_send, MPI_DOUBLE, target_rank, this_rank, comm, &request);
-		MPI_Isend(&ID, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
+		MPI_Send(&num_doubles_to_send, 1, MPI_UNSIGNED, target_rank, this_rank, comm);
+		MPI_Send(strain->data(), num_doubles_to_send, MPI_DOUBLE, target_rank, this_rank, comm);
+		MPI_Send(&ID, 1, MPI_UNSIGNED, target_rank, this_rank, comm);
 	}
 
 	void receive_strain6D_mpi(Strain6DReceiver *recv, int32_t from_rank, MPI_Comm comm)
@@ -444,7 +442,6 @@ namespace MatHistPredict {
 
 	void compare_histories_with_all_ranks(std::vector<Strain6D*>& histories, double threshold, MPI_Comm comm)
 	{
-		MPI_Request request;
 		MPI_Status status;
 
 		int32_t this_rank, num_ranks;
@@ -476,7 +473,7 @@ namespace MatHistPredict {
 //			std::cout << "Rank " << this_rank << ": Targetting " << target_rank << " Expecting " << from_rank << "\n";
 			if(target_rank != this_rank) {
 				// Indicate the number of histories that will be sent to target_rank
-				MPI_Isend(&num_histories_on_this_rank, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
+				MPI_Send(&num_histories_on_this_rank, 1, MPI_UNSIGNED, target_rank, this_rank, comm);
 
 				// Send all histories and IDs
 				for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
@@ -510,6 +507,7 @@ namespace MatHistPredict {
 				}
 			}
 		}
+		MPI_Barrier(comm);
 	}
 }
 #endif /* MATHISTPREDICT_STRAIN2SPLINE_H */

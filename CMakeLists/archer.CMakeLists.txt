@@ -1,11 +1,11 @@
   SET(TARGET "dealammps")
-  
+
   SET(TARGET_SRC
     ${TARGET}.cc
     )
-  
+
   CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
-  
+
   FIND_PACKAGE(deal.II 8.5 QUIET
     HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
     )
@@ -16,22 +16,22 @@
       "or set an environment variable \"DEAL_II_DIR\" that contains this path."
       )
   ENDIF()
-  
+
   DEAL_II_INITIALIZE_CACHED_VARIABLES()
-  
+
   PROJECT(${TARGET})
-  
+
   DEAL_II_INVOKE_AUTOPILOT()
-  
+
   ## Include LAMMPS sources repository
   INCLUDE_DIRECTORIES(
     /work/e283/e283/vassaux/source/lammps-17Nov16/src/
     )
-  
+
   ## Include LAMMPS library shared (or static)
-  SET(CMAKE_CXX_FLAGS "-dynamic /work/e283/e283/vassaux/source/lammps-17Nov16/src/liblammps.so") 
+  SET(CMAKE_CXX_FLAGS "-dynamic /work/e283/e283/vassaux/source/lammps-17Nov16/src/liblammps.so")
   #SET(CMAKE_CXX_FLAGS "/work/e283/e283/vassaux/source/lammps-17Nov16/src/liblammps.a")
-  
+
   ## Create additional targets to the standard DEAL.II targets
   ## Use "aprun" as follow: e.g "make aprun NTHR=24"
   ADD_CUSTOM_TARGET(aprun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
@@ -39,21 +39,20 @@
                         COMMAND @echo "... APRUN on $(NTHR) threads ..."
                         COMMAND aprun -n $(NTHR) ${TARGET}
     )
-  
+
   ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
                                DEPENDS buildclean
                                COMMAND rm
                                ARGS -rf CMakeFiles cmake_install.cmake CMakeCache.txt Makefile
     )
-  
+
   ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
                                DEPENDS outclean
                                COMMAND rm
                                ARGS -rf ${TARGET}
     )
-  
+
   ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
                              COMMAND rm
-                             ARGS -rf core output.* error.* log.* *_log *_state/out *_state/restart
+                             ARGS -rf core output.* error.* log.* *_log *_output *_restart
     )
-  

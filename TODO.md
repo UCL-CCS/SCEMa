@@ -29,4 +29,5 @@
 * Write documentation
 * Pass common features from all forks to master
 * N-scales extension
-* Gather inputs parameters in a .JSON file (parameters, path to: replicas, mesh, microstructure)
+   - apply periodic boundary conditions on the mesoscale finite element model
+

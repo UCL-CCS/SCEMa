@@ -35,4 +35,4 @@ variable p8 equal "lz"
 variable p9 equal "vol"
 
 #  Compute current stress using sampling over time and fixed NVT conditions
-fix 1e all print 1 "${pt} ${pp} ${p0} ${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8} ${p9}" file ${loco}/PE_elastic_${dir}_${ori}_evol.dat screen no
+#fix 1e all print 1 "${pt} ${pp} ${p0} ${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8} ${p9}" file ${loco}/PE_elastic_${dir}_${ori}_evol.dat screen no

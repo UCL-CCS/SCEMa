@@ -601,7 +601,7 @@ namespace HMM
 		// sprintf(straindata_lcts, "%s/lcts.%s.%s.bin", statelocres.c_str(), cellid, mdstate);
 
 		char homogdata_time[1024];
-		sprintf(homogdata_time, "%s/%s.%s.%s.lammpstrj.gz", loglochom.c_str(), timeid, cellid, mdstate);
+		sprintf(homogdata_time, "%s/%s.%s.%s.lammpstrj", loglochom.c_str(), timeid, cellid, mdstate);
 
 		char cline[1024];
 		char cfile[1024];
@@ -694,9 +694,6 @@ namespace HMM
 		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "in.strain.lammps");
 		lammps_file(lmp,cfile);
 
-		// Unetting dumping of atom positions
-		sprintf(cline, "undump atom_dump"); lammps_command(lmp,cline);
-
 		/*if (me == 0) std::cout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Saving state data...       " << std::endl;*/
@@ -742,11 +739,16 @@ namespace HMM
 		if(output_hom){
 			// Setting dumping of atom positions for post analysis of the MD simulation
 			// DO NOT USE CUSTOM DUMP: WRONG ATOM POSITIONS...
-			sprintf(cline, "dump atom_dump all atom/gz %d %s", 1, homogdata_time); lammps_command(lmp,cline);
+			sprintf(cline, "dump atom_dump all atom %d %s", 1, homogdata_time); lammps_command(lmp,cline);
 		}
 
 		// Compute the secant stiffness tensor at the given stress/strain state
 		lammps_homogenization<dim>(lmp, scriptsloc, stress, nssample);
+
+		if(output_hom){
+			// Unetting dumping of atom positions
+			sprintf(cline, "undump atom_dump"); lammps_command(lmp,cline);
+		}
 
 		// Cleaning initial offset of stresses
 		stress -= init_stress;
@@ -1392,8 +1394,10 @@ namespace HMM
 						local_quadrature_points_history[qc].to_be_updated = true;
 
 					// The cell will get its stress from MD, but should it run an MD simulation?
-					if (avg_upd_strain_tensor.norm() > 1.0e-7
-							// otherwise MD simulation unecessary, because no significant volume change and MD will fail
+					if (true
+						// otherwise MD simulation unecessary, because no significant volume change and MD will fail
+						/*avg_upd_strain_tensor.norm() > 1.0e-7*/
+						// in case of extreme straining with reaxff
 						/*&& (avg_new_stress_tensor.norm() > 1.0e8 || avg_new_strain_tensor.norm() < 3.0)*/
 						){
 						std::cout << "           "
@@ -3647,8 +3651,8 @@ namespace HMM
 		}
 
 		// Molecular dynamics simulation parameters
-		md_timestep_length = std::stod(bptree_read(pt, "molecular dynamics parameters", "temperature"));
-		md_temperature = std::stod(bptree_read(pt, "molecular dynamics parameters", "timestep length"));
+		md_timestep_length = std::stod(bptree_read(pt, "molecular dynamics parameters", "timestep length"));
+		md_temperature = std::stod(bptree_read(pt, "molecular dynamics parameters", "temperature"));
 		md_nsteps_sample = std::stoi(bptree_read(pt, "molecular dynamics parameters", "number of sampling steps"));
 		md_strain_rate = std::stod(bptree_read(pt, "molecular dynamics parameters", "strain rate"));
 		md_scripts_directory = bptree_read(pt, "molecular dynamics parameters", "scripts directory");

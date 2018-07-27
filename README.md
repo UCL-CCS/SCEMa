@@ -10,10 +10,8 @@ After installing separately LAMMPS and Deal.II, and building your MD input lammp
 ```sh
 cd /path/to/DeaLAMMPS
 mkdir build
-mkdir -p nanoscale_state/in/data/
-cp /path/to/lammps.data nanoscale_state/in/data/
 cmake ../
-./dealammps
+./dealammps inputs_hmm.json
 ```
 Additionally, a FE mesh can be imported from a GMSH file, and most of the parameters of the simulation can be found in dealammps.cc
 

@@ -838,7 +838,6 @@ namespace HMM
 		void solve_linear_problem_GMRES ();
 		void solve_linear_problem_BiCGStab ();
 		void solve_linear_problem_direct ();
-		void error_estimation ();
 
 		void generate_nanostructure();
 		std::vector<Vector<double> > get_microstructure ();
@@ -2131,40 +2130,6 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::error_estimation ()
-	{
-		error_per_cell.reinit (triangulation.n_active_cells());
-		KellyErrorEstimator<dim>::estimate (dof_handler,
-				QGauss<dim-1>(2),
-				typename FunctionMap<dim>::type(),
-				newton_update_velocity,
-				error_per_cell,
-				ComponentMask(),
-				0,
-				MultithreadInfo::n_threads(),
-				this_FE_process);
-
-		// Not too sure how is stored the vector 'distributed_error_per_cell',
-		// it might be worth checking in case this is local, hence using a
-		// lot of memory on a single process. This is ok, however it might
-		// stupid to keep this vector global because the memory space will
-		// be kept used during the whole simulation.
-		const unsigned int n_local_cells = triangulation.n_locally_owned_active_cells ();
-		PETScWrappers::MPI::Vector
-		distributed_error_per_cell (FE_communicator,
-				triangulation.n_active_cells(),
-				n_local_cells);
-		for (unsigned int i=0; i<error_per_cell.size(); ++i)
-			if (error_per_cell(i) != 0)
-				distributed_error_per_cell(i) = error_per_cell(i);
-		distributed_error_per_cell.compress (VectorOperation::insert);
-
-		error_per_cell = distributed_error_per_cell;
-	}
-
-
-
-	template <int dim>
 	void FEProblem<dim>::output_lhistory (const double present_time, const int timestep)
 	{
 		char filename[1024];
@@ -3153,8 +3118,6 @@ namespace HMM
 			fe_problem.displacement+=fe_problem.incremental_displacement;
 			fe_problem.old_displacement=fe_problem.displacement;
 		}
-
-		//if(dealii_pcolor==0) fe_problem.error_estimation ();
 
 		// Outputs
 		if(dealii_pcolor==0) fe_problem.output_results (present_time, timestep,

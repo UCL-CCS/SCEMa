@@ -1,6 +1,6 @@
 ### Things to be done
-* Sort things to be done (duh...)
 * Sort the content of READMEs
+* Setup a docker image of DeaLAMMPS based on existing dealii existing [ones](https://hub.docker.com/r/dealii/dealii/)
 * Profile Deal.ii + I/O 
 * Write a Python wrapper around the c++ functions found in dealammps.cc or single_md.cc compiled as a shared library
   - the Python wrapper would only execute the higher-level functions such as `do_timestep` (and the other ones in the HMMProblem class)

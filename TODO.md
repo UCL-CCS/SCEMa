@@ -4,21 +4,25 @@
 * Profile Deal.ii + I/O 
 * Write a Python wrapper around the c++ functions found in dealammps.cc or single_md.cc compiled as a shared library
   - the Python wrapper would only execute the higher-level functions such as `do_timestep` (and the other ones in the HMMProblem class)
-  - Complete separation of the different models and synchronisation relying on MUSCLE
+  - complete separation of the different models and synchronisation relying on MUSCLE
     - base the work on pre-separated models in version *standalone_md*
-  - See the following [slides](https://figshare.com/articles/Interfacing_Python_to_C_UCL_20_June_2018/6626639) for tutorials on interface Python and C++
+  - see the following [slides](https://figshare.com/articles/Interfacing_Python_to_C_UCL_20_June_2018/6626639) for tutorials on interface Python and C++
+* Outputs management
+  - store for each iteration (timestep), the bare minimum of information to restart the simulation (see restarting process)
+  - prepare executable to output visualization files from restart checkpoints
 * Improve restarting process
-  - continuity of timesteps
+  - serialize global simulation state: continuum (triangulation, nodes data, cell data), atomistic (atoms position, topology)
   - finite element cell number independence (location-based? else?)
 * Improve homogenization procedure
-  - Enhanced stress homogenization, stiffness from fluctuations (Luding, S.)
+  - enhanced stress homogenization, stiffness from fluctuations (Luding, S.)
   - MercuryDPM (Luding, S.), LIMEpy (Leither, K., ARL)
 * Adaptative mesh refinement
   - based on deal.ii capabilities
   - transfer mother cell features (strain, atomic model) to child cells
   - handle cell renumbering
 * Separate initialization of MD
-  - For each replica, of each material type produce:  inital box stiffness, initial box stress, initial box dimensions and the init binary file
+  - for each replica, of each material type produce:  inital box stiffness, initial box stress, initial box dimensions and the init binary file
+  - build a second executable specifically for the initilization
 * Use Pilotjob as a scheduler
   - use `split-into` option and assign value such as: $n_{split} = min \(n_{nodes, tot}, n_{microjobs}\)}$
   - assign `min` option proportional to applied strain 

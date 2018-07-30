@@ -563,7 +563,7 @@ namespace HMM
 			MPI_Comm comm_lammps,
 			std::string statelocout,
 			std::string statelocres,
-			std::string logloctmp,
+			std::string qpreplogloc,
 			std::string loglochom,
 			std::string scriptsloc,
 			std::string mdt,
@@ -585,16 +585,16 @@ namespace HMM
 		char mdstate[1024];
 		sprintf(mdstate, "%s_%d", mdt.c_str(), repl);
 
-		char qpreplogloc[1024];
-		sprintf(qpreplogloc, "%s/%s.%s.%s", logloctmp.c_str(), timeid, cellid, mdstate);
-		mkdir(qpreplogloc, ACCESSPERMS);
-
 		char initdata[1024];
 		sprintf(initdata, "%s/init.%s.bin", statelocout.c_str(), mdstate);
 
 		char straindata_last[1024];
 		sprintf(straindata_last, "%s/last.%s.%s.dump", statelocout.c_str(), cellid, mdstate);
 		// sprintf(straindata_last, "%s/last.%s.%s.bin", statelocout.c_str(), cellid, mdstate);
+
+		char straindata_time[1024];
+		sprintf(straindata_time, "%s/%s.%s.%s.dump", statelocres.c_str(), timeid, cellid, mdstate);
+		// sprintf(straindata_lcts, "%s/lcts.%s.%s.bin", statelocres.c_str(), cellid, mdstate);
 
 		char straindata_lcts[1024];
 		sprintf(straindata_lcts, "%s/lcts.%s.%s.dump", statelocres.c_str(), cellid, mdstate);
@@ -615,7 +615,7 @@ namespace HMM
 		lmparg[2] = (char *) "none";
 		lmparg[3] = (char *) "-log";
 		lmparg[4] = new char[1024];
-		sprintf(lmparg[4], "%s/log.%s_stress_strain", qpreplogloc, mdt.c_str());
+		sprintf(lmparg[4], "%s/log.%s_stress_strain", qpreplogloc.c_str(), mdt.c_str());
 
 		// Creating LAMMPS instance
 		LAMMPS *lmp = NULL;
@@ -628,7 +628,7 @@ namespace HMM
 
 		// Passing location for output as variable
 		sprintf(cline, "variable mdt string %s", mdt.c_str()); lammps_command(lmp,cline);
-		sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
+		sprintf(cline, "variable loco string %s", qpreplogloc.c_str()); lammps_command(lmp,cline);
 		//sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline); /*reaxff*/ 
 
 		// Setting testing temperature
@@ -704,6 +704,8 @@ namespace HMM
 		if(restart_sav){
 			sprintf(cline, "write_restart %s", straindata_lcts); lammps_command(lmp,cline); /*opls*/
 			//sprintf(cline, "write_dump all custom %s id type xs ys zs vx vy vz ix iy iz", straindata_lcts); lammps_command(lmp,cline); /*reaxff*/
+			sprintf(cline, "write_restart %s", straindata_time); lammps_command(lmp,cline); /*opls*/
+			//sprintf(cline, "write_dump all custom %s id type xs ys zs vx vy vz ix iy iz", straindata_time); lammps_command(lmp,cline); /*reaxff*/
 		}
 		// close down LAMMPS
 		delete lmp;
@@ -713,11 +715,11 @@ namespace HMM
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
 
 		// Creating LAMMPS instance
-		sprintf(lmparg[4], "%s/log.%s_homogenization", qpreplogloc, mdt.c_str());
+		sprintf(lmparg[4], "%s/log.%s_homogenization", qpreplogloc.c_str(), mdt.c_str());
 		lmp = new LAMMPS(nargs,lmparg,comm_lammps);
 
 		//sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline); /*reaxff*/ 
-        	sprintf(cline, "variable loco string %s", qpreplogloc); lammps_command(lmp,cline);
+        sprintf(cline, "variable loco string %s", qpreplogloc.c_str()); lammps_command(lmp,cline);
 
 		// Setting testing temperature
 		sprintf(cline, "variable tempt equal %f", tempt); lammps_command(lmp,cline);
@@ -827,8 +829,8 @@ namespace HMM
 				std::vector<std::string> mdtype, Tensor<1,dim> cg_dir, int fe_deg, int quad_for);
 		~FEProblem ();
 
-		void restart_system (std::string nanostatelocin, std::string nanostatelocout, unsigned int nrepl);
-		void restart_save (const double present_time) const;
+		void restart ();
+		void checkpoint (const double present_time, char* timeid) const;
 
 		void make_grid ();
 		void setup_system ();
@@ -855,7 +857,7 @@ namespace HMM
 		void output_visualisation (const double present_time, const int timestep);
 		void output_results (const double present_time, const int timestep,
 				const int freq_output_lhist, const int freq_output_visu);
-		void clean_transfer(unsigned int nrepl);
+		void clean_transfer();
 
 		Vector<double>  compute_internal_forces () const;
 
@@ -2421,8 +2423,10 @@ namespace HMM
 
 
 
+	// Creation of a checkpoint with the bare minimum data to restart the simulation (i.e nodes information,
+	// and quadrature point information)
 	template <int dim>
-	void FEProblem<dim>::restart_save (const double present_time) const
+	void FEProblem<dim>::checkpoint (const double present_time, char* timeid) const
 	{
 		char filename[1024];
 
@@ -2430,20 +2434,20 @@ namespace HMM
 		if (this_FE_process==0)
 		{
 			// Write solution vector to binary for simulation restart
-			const std::string solution_filename = (macrostatelocres + "/" + "lcts.solution.bin");
+			const std::string solution_filename = (macrostatelocres + "/" + timeid + ".solution.bin");
 			std::ofstream ofile(solution_filename);
 			displacement.block_write(ofile);
 			ofile.close();
 
-			const std::string solution_filename_veloc = (macrostatelocres + "/" + "lcts.velocity.bin");
+			const std::string solution_filename_veloc = (macrostatelocres + "/" + timeid + ".velocity.bin");
 			std::ofstream ofile_veloc(solution_filename_veloc);
 			velocity.block_write(ofile_veloc);
 			ofile_veloc.close();
 		}
 
 
-		// Output of the last converged timestep local history per processor
-		sprintf(filename, "%s/lcts.pr_%d.lhistory.bin", macrostatelocres.c_str(), this_FE_process);
+		// Output of the last converged timestep quadrature local history per processor
+		sprintf(filename, "%s/%s.pr_%d.lhistory.bin", macrostatelocres.c_str(), timeid, this_FE_process);
 		std::ofstream  lhprocoutbin(filename, std::ios_base::binary);
 
 		// Output of complete local history in a single file per processor
@@ -2482,7 +2486,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::restart_system (std::string nanostatelocin, std::string nanostatelocout, unsigned int nrepl)
+	void FEProblem<dim>::restart ()
 	{
 		char filename[1024];
 
@@ -2646,22 +2650,6 @@ namespace HMM
 						// Assigning update strain and stress tensor
 						local_quadrature_points_history[q].upd_strain=proc_lhistory[cell->active_cell_index()][q].upd_strain;
 						local_quadrature_points_history[q].new_stress=proc_lhistory[cell->active_cell_index()][q].new_stress;
-
-						// Restore box state history
-						for(unsigned int repl=1;repl<nrepl+1;repl++)
-						{
-							sprintf(filename, "%s/restart/lcts.%d.%s_%d.dump", nanostatelocin.c_str(), cell->active_cell_index(),
-									local_quadrature_points_history[0].mat.c_str(), repl);
-							std::ifstream  nanoin(filename, std::ios::binary);
-							if (nanoin.good()){
-								sprintf(filename, "%s/last.%d.%s_%d.dump", nanostatelocout.c_str(), cell->active_cell_index(),
-										local_quadrature_points_history[0].mat.c_str(), repl);
-								std::ofstream  nanoout(filename,   std::ios::binary);
-								nanoout << nanoin.rdbuf();
-								nanoin.close();
-								nanoout.close();
-							}
-						}
 					}
 				}
 			lhprocin.close();
@@ -2674,7 +2662,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::clean_transfer(unsigned int nrepl)
+	void FEProblem<dim>::clean_transfer()
 	{
 		char filename[1024];
 
@@ -2692,21 +2680,6 @@ namespace HMM
 			if (cell->is_locally_owned())
 			{
 				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-
-				for(unsigned int repl=1;repl<nrepl+1;repl++)
-				{
-					// Removing replica stiffness passing file used to average cell stiffness
-					//sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout.c_str(), cell_id, repl);
-					//remove(filename);
-
-					// Removing replica stress passing file used to average cell stress
-					sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cell_id, repl);
-					remove(filename);
-
-					// Removing replica strain passing file used to average cell stress
-					sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cell_id, repl);
-					remove(filename);
-				}
 
 				// Removing stiffness passing file
 				//sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
@@ -2736,7 +2709,7 @@ namespace HMM
 
 	private:
 		void read_inputs(std::string inputfile);
-
+		void restart (FEProblem<dim> &fe_problem);
 		void clean_temporary (FEProblem<dim> &fe_problem);
 		void set_repositories ();
 		void set_dealii_procs (int npd);
@@ -2748,7 +2721,7 @@ namespace HMM
 
 		void setup_replica_data ();
 
-		void run_single_md(char* ctime, char* ccell, const char* cmat, unsigned int repl);
+		void run_single_md(char* ctime, char* ccell, const char* cmat, unsigned int repl, std::string qpreplogloc);
 		void update_cells_with_molecular_dynamics ();
 
 		MPI_Comm 							world_communicator;
@@ -2952,8 +2925,16 @@ namespace HMM
 					int imdrun=c*nrepl + (repl);
 
 					// Allocation of a MD run to a batch of processes
-					if (lammps_pcolor == (imdrun%n_lammps_batch))
-						run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), numrepl);
+					if (lammps_pcolor == (imdrun%n_lammps_batch)){
+						std::string qpreplogloc = nanologloctmp + "/" + time_id  + "." + cell_id[c] + "." + matcellupd[c] + "_" + std::to_string(numrepl);
+
+						// Preparing directory to write MD simulation log files
+						if(this_lammps_batch_process == 0){
+							mkdir(qpreplogloc.c_str(), ACCESSPERMS);
+						}
+
+						run_single_md(time_id, cell_id[c], matcellupd[c].c_str(), numrepl, qpreplogloc);
+					}
 				}
 			}
 			hcout << std::endl;
@@ -2985,22 +2966,42 @@ namespace HMM
 
 							// Rotate stress and stiffness tensor from replica orientation to common ground
 
-							/*SymmetricTensor<4,dim> cg_loc_stiffness, loc_rep_stiffness;
-							sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout.c_str(), cell_id[c], repl);
-							read_tensor<dim>(filename, loc_rep_stiffness);
-
-							cg_loc_stiffness = rotate_tensor(loc_stiffness, replica_data[imd*nrepl+repl].rotam);
-
-							cg_loc_stiffness += cg_loc_rep_stiffness;*/
-
+							//SymmetricTensor<4,dim> cg_loc_stiffness, loc_rep_stiffness;
 							SymmetricTensor<2,dim> cg_loc_rep_stress, loc_rep_stress;
 							sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cell_id[c], numrepl);
-							read_tensor<dim>(filename, loc_rep_stress);
 
-							// Rotation of the stress tensor to common ground direction before averaging
-							cg_loc_rep_stress = rotate_tensor(loc_rep_stress, replica_data[imd*nrepl+repl].rotam);
+							if(read_tensor<dim>(filename, loc_rep_stress)){
+								/* // Rotation of the stiffness tensor to common ground direction before averaging
+								sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout.c_str(), cell_id[c], repl);
+								read_tensor<dim>(filename, loc_rep_stiffness);
 
-							cg_loc_stress += cg_loc_rep_stress;
+								cg_loc_stiffness = rotate_tensor(loc_stiffness, replica_data[imd*nrepl+repl].rotam);
+
+								cg_loc_stiffness += cg_loc_rep_stiffness;*/
+
+								// Rotation of the stress tensor to common ground direction before averaging
+								cg_loc_rep_stress = rotate_tensor(loc_rep_stress, replica_data[imd*nrepl+repl].rotam);
+
+								cg_loc_stress += cg_loc_rep_stress;
+
+								// Removing file now it has been used
+								remove(filename);
+
+								// Removing replica strain passing file used to average cell stress
+								sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cell_id[c], numrepl);
+								remove(filename);
+
+								std::string qpreplogloc = nanologloctmp + "/" + time_id  + "." + cell_id[c] + "." + matcellupd[c].c_str() + "_" + std::to_string(numrepl);
+
+								// Clean "nanoscale_logs" of the finished timestep
+								char command[1024];
+								sprintf(command, "rm -rf %s", qpreplogloc.c_str());
+								int ret = system(command);
+								if (ret!=0){
+									std::cerr << "Failed removing the log files of the MD simulations of the current step!" << std::endl;
+									exit(1);
+								}
+							}
 						}
 
 						//cg_loc_stiffness /= nrepl;
@@ -3011,7 +3012,6 @@ namespace HMM
 
 						sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id[c]);
 						write_tensor<dim>(filename, cg_loc_stress);
-
 					}
 				}
 			}
@@ -3067,7 +3067,7 @@ namespace HMM
 				MPI_Barrier(world_communicator);
 
 				// Cleaning temporary files (nanoscale logs and FE/MD data transfer)
-				clean_temporary(fe_problem);
+				if(dealii_pcolor==0) fe_problem.clean_transfer();
 
 				MPI_Barrier(world_communicator);
 
@@ -3124,7 +3124,13 @@ namespace HMM
 				freq_output_lhist, freq_output_visu);
 
 		// Saving files for restart
-		if(dealii_pcolor==0) if(timestep%freq_restart==0) fe_problem.restart_save (present_time);
+		if(dealii_pcolor==0) if(timestep%freq_restart==0){
+			char timeid[1024];
+			sprintf(timeid, "%s", "lcts");
+			fe_problem.checkpoint (present_time, timeid);
+			sprintf(timeid, "%d", timestep);
+			fe_problem.checkpoint (present_time, timeid);
+		}
 
 		MPI_Barrier(world_communicator);
 
@@ -3356,7 +3362,7 @@ namespace HMM
 
 
 	template <int dim>
-	void HMMProblem<dim>::run_single_md (char* ctime, char* ccell, const char* cmat, unsigned int repl)
+	void HMMProblem<dim>::run_single_md (char* ctime, char* ccell, const char* cmat, unsigned int repl, std::string qpreplogloc)
 	{
 		SymmetricTensor<2,dim> loc_strain;
 		SymmetricTensor<2,dim> loc_rep_stress;
@@ -3397,7 +3403,7 @@ namespace HMM
 				lammps_batch_communicator,
 				nanostatelocout,
 				nanostatelocres,
-				nanologloctmp,
+				qpreplogloc,
 				nanologlochom,
 				md_scripts_directory,
 				cmat,
@@ -3548,7 +3554,7 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::clean_temporary (FEProblem<dim> &fe_problem)
 	{
-		if(dealii_pcolor==0) fe_problem.clean_transfer (nrepl);
+		if(dealii_pcolor==0) fe_problem.clean_transfer ();
 
 		// Cleaning the log files for all the MD simulations of the current timestep
 		if (this_world_process==0)
@@ -3559,6 +3565,30 @@ namespace HMM
 			int ret = system(command);
 			if (ret!=0){
 				std::cerr << "Failed removing the log files of the MD simulations of the current step!" << std::endl;
+				exit(1);
+			}
+		}
+	}
+
+
+
+
+	template <int dim>
+	void HMMProblem<dim>::restart (FEProblem<dim> &fe_problem)
+	{
+		if(dealii_pcolor==0) fe_problem.restart ();
+
+		// Cleaning the log files for all the MD simulations of the current timestep
+		if (this_world_process==0)
+		{
+			char command[1024];
+			// Clean "nanoscale_logs" of the finished timestep
+			sprintf(command, "for ii in `ls %s/restart/ | grep -o '[^-]*$' | cut -d. -f2-`; "
+							 "do cp %s/restart/lcts.${ii} %s/last.${ii}; "
+							 "done", nanostatelocin.c_str(), nanostatelocin.c_str(), nanostatelocout.c_str());
+			int ret = system(command);
+			if (ret!=0){
+				std::cerr << "Failed to copy input restart files (lcts) of the MD simulations as current output (last)!" << std::endl;
 				exit(1);
 			}
 		}
@@ -3676,7 +3706,7 @@ namespace HMM
 		// Set the dealii communicator using a limited amount of available processors
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
-		set_dealii_procs(fenodes);
+		set_dealii_procs(fenodes*machine_ppn);
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();
@@ -3717,7 +3747,7 @@ namespace HMM
 		MPI_Barrier(world_communicator);
 
 		hcout << " Loading previous simulation data...       " << std::endl;
-		if(dealii_pcolor==0) fe_problem.restart_system (nanostatelocin, nanostatelocout, nrepl);
+		restart (fe_problem);
 		MPI_Barrier(world_communicator);
 
 		// Running the solution algorithm of the FE problem

@@ -19,7 +19,7 @@
     "temperature": 300.0,
     "timestep length": 2.0,
     "strain rate": 1.0e-4,
-    "number of sampling steps": 50,
+    "number of sampling steps": 100,
     "scripts directory": "./lammps_scripts"
   },
   "computational resources":{

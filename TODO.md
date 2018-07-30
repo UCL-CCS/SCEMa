@@ -9,7 +9,7 @@
   - see the following [slides](https://figshare.com/articles/Interfacing_Python_to_C_UCL_20_June_2018/6626639) for tutorials on interface Python and C++
 * Outputs management
   - store for each iteration (timestep), the bare minimum of information to restart the simulation (see restarting process)
-  - prepare executable to output visualization files from restart checkpoints
+  - prepare executable to output visualization files (VTK/XML) from restart checkpoints, and lammps scripts to compute time averaged variables (either global or local)
 * Improve restarting process
   - serialize global simulation state: continuum (triangulation, nodes data, cell data), atomistic (atoms position, topology)
   - finite element cell number independence (location-based? else?)

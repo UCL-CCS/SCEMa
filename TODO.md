@@ -10,6 +10,7 @@
 * Outputs management
   - store for each iteration (timestep), the bare minimum of information to restart the simulation (see restarting process)
   - prepare executable to output visualization files (VTK/XML) from restart checkpoints, and lammps scripts to compute time averaged variables (either global or local)
+  - build database (SQL, PostgreSQL, ...) from checkpoints or visualization files
 * Improve restarting process
   - serialize global simulation state: continuum (triangulation, nodes data, cell data), atomistic (atoms position, topology)
   - finite element cell number independence (location-based? else?)

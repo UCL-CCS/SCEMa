@@ -1,6 +1,7 @@
 {
   "scale-bridging":{
-    "activate md update": 1
+    "activate md update": 1,
+    "use pjm scheduler": 0
   },
   "continuum time":{
     "timestep length": 5.0e-7,
@@ -13,7 +14,8 @@
   },
   "molecular dynamics material":{
     "number of replicas": 5,
-    "list of materials": ["g0", "g1"]
+    "list of materials": ["g0", "g1"],
+    "rotation common ground vector":[1.0, 0.0, 0.0]
   },
   "molecular dynamics parameters":{
     "temperature": 300.0,

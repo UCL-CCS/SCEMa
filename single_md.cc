@@ -203,15 +203,16 @@ namespace MD
 	public:
 		MDProblem ();
 		~MDProblem ();
-		void run(std::string cid, std::string 	tid, std::string cmat,
+		void run (std::string cid, std::string 	tid, std::string cmat,
 				  std::string slocout, std::string slocres, std::string llochom,
-				  std::string qplogloc, std::string scrloc, std::string mslocout,
+				  std::string qplogloc, std::string scrloc,
+				  std::string strainif, std::string stressof,
 				  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
 				  double mdss, bool outhom, bool checksav);
 
 	private:
 
-		void lammps_straining();
+		void lammps_straining ();
 
 		MPI_Comm 							world_communicator;
 		const int 							n_world_processes;
@@ -222,8 +223,6 @@ namespace MD
 
 		SymmetricTensor<2,dim> 				loc_rep_strain;
 		SymmetricTensor<2,dim> 				loc_rep_stress;
-		SymmetricTensor<2,dim> 				init_rep_stress;
-		std::vector<double> 				init_rep_length;
 
 		std::string 						cellid;
 		std::string 						timeid;
@@ -235,7 +234,8 @@ namespace MD
 		std::string 						qpreplogloc;
 		std::string 						scriptsloc;
 
-		std::string 						macrostatelocout;
+		std::string 						straininputfile;
+		std::string 						stressoutputfile;
 
 		unsigned int 						repl;
 
@@ -318,11 +318,6 @@ namespace MD
 		// Creating LAMMPS instance
 		LAMMPS *lmp = NULL;
 		lmp = new LAMMPS(nargs,lmparg,world_communicator);
-
-		// Passing initial dimension of the box to adjust applied strain
-		sprintf(cline, "variable lxbox0 equal %f", init_rep_length[0]); lammps_command(lmp,cline);
-		sprintf(cline, "variable lybox0 equal %f", init_rep_length[1]); lammps_command(lmp,cline);
-		sprintf(cline, "variable lzbox0 equal %f", init_rep_length[2]); lammps_command(lmp,cline);
 
 		// Passing location for output as variable
 		sprintf(cline, "variable mdt string %s", cellmat.c_str()); lammps_command(lmp,cline);
@@ -473,9 +468,6 @@ namespace MD
 
 		// close down LAMMPS
 		delete lmp;
-
-		// Cleaning initial offset of stresses
-		loc_rep_stress -= init_rep_stress;
 	}
 
 
@@ -483,7 +475,8 @@ namespace MD
 	template <int dim>
 	void MDProblem<dim>::run (std::string cid, std::string 	tid, std::string cmat,
 							  std::string slocout, std::string slocres, std::string llochom,
-							  std::string qplogloc, std::string scrloc, std::string mslocout,
+							  std::string qplogloc, std::string scrloc,
+							  std::string strainif, std::string stressof,
 							  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
 							  double mdss, bool outhom, bool checksav)
 	{
@@ -496,9 +489,11 @@ namespace MD
 		statelocout = slocout;
 		statelocres = slocres;
 		loglochom = llochom;
-		qpreplogloc = scrloc;
-		scriptsloc = mslocout;
-		macrostatelocout = mslocout;
+		qpreplogloc = qplogloc;
+		scriptsloc = scrloc;
+
+		straininputfile = strainif;
+		stressoutputfile = stressof;
 
 		repl = rep;
 
@@ -512,18 +507,9 @@ namespace MD
 
 		char filename[1024];
 
-		// THE NEXT TWO FILES SHOULD BE LOADED IN REPLICADATA INSTEAD
-		// Arguments of the secant stiffness computation
-		sprintf(filename, "%s/init.%s_%d.stress", macrostatelocout.c_str(), cellmat, repl);
-		read_tensor<dim>(filename, init_rep_stress);
-
-		// Providing initial box dimension to adjust the strain tensor
-		sprintf(filename, "%s/init.%s_%d.length", macrostatelocout.c_str(), cellmat, repl);
-		read_tensor<dim>(filename, init_rep_length);
-
 		// Argument of the MD simulation: strain to apply
-		sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cellid, repl);
-		read_tensor<dim>(filename, loc_rep_strain);
+		//sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cellid, repl);
+		read_tensor<dim>(straininputfile.c_str(), loc_rep_strain);
 
 		// Then the lammps function instanciates lammps, starting from an initial
 		// microstructure and applying the complete new_strain or starting from
@@ -535,11 +521,8 @@ namespace MD
 		{
 			std::cout << " \t" << cellid <<"-"<< repl << " \t" << std::flush;
 
-			/*sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout.c_str(), cellid, repl);
-			write_tensor<dim>(filename, loc_rep_stiffness);*/
-
-			sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cellid, repl);
-			write_tensor<dim>(filename, loc_rep_stress);
+			//sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cellid, repl);
+			write_tensor<dim>(stressoutputfile.c_str(), loc_rep_stress);
 		}
 	}
 }
@@ -557,7 +540,7 @@ int main (int argc, char **argv)
 
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
-		if(argc!=17){
+		if(argc!=18){
 			std::cerr << "Wrong number of arguments, expected: "
 					  << "'./single_md cellid timeid cellmat statelocout statelocres"
 					  << "loglochom qpreplogloc scriptsloc macrostatelocout repl"
@@ -576,23 +559,25 @@ int main (int argc, char **argv)
 		std::string loglochom = argv[6];
 		std::string qpreplogloc = argv[7];
 		std::string scriptsloc = argv[8];
-		std::string macrostatelocout = argv[9];
 
-		unsigned int repl = std::stoi(argv[10]);
+		std::string straininputfile = argv[9];
+		std::string stressoutputfile = argv[10];
 
-		double md_timestep_length = std::stod(argv[11]);
-		double md_temperature = std::stod(argv[12]);
-		unsigned int md_nsteps_sample = std::stoi(argv[13]);
-		double md_strain_rate = std::stod(argv[14]);
+		unsigned int repl = std::stoi(argv[11]);
 
-		bool output_homog = std::stoi(argv[15]);
-		bool checkpoint_save = std::stoi(argv[16]);
+		double md_timestep_length = std::stod(argv[12]);
+		double md_temperature = std::stod(argv[13]);
+		unsigned int md_nsteps_sample = std::stoi(argv[14]);
+		double md_strain_rate = std::stod(argv[15]);
+
+		bool output_homog = std::stoi(argv[16]);
+		bool checkpoint_save = std::stoi(argv[17]);
 
 		MDProblem<3> md_problem ();
 
-		md_problem.run(cellid, timeid, cellmat, statelocout, statelocres, loglochom,
-					   qpreplogloc, scriptsloc, macrostatelocout, repl, md_timestep_length,
-					   md_temperature, md_nsteps_sample, md_strain_rate, output_homog, checkpoint_save);
+		/*md_problem.run(cellid, timeid, cellmat, statelocout, statelocres, loglochom,
+					   qpreplogloc, scriptsloc, straininputfile, stressoutputfile, repl, md_timestep_length,
+					   md_temperature, md_nsteps_sample, md_strain_rate, output_homog, checkpoint_save);*/
 	}
 	catch (std::exception &exc)
 	{

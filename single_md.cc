@@ -73,14 +73,32 @@ namespace MD
 	template <int dim>
 	inline
 	void
-	read_tensor (char *filename, std::vector<double> &tensor)
+	read_tensor (const char *filename, double &tensor)
 	{
 		std::ifstream ifile;
 
 		ifile.open (filename);
 		if (ifile.is_open())
 		{
-			for(unsigned int k=0;k<tensor.size();k++)
+			char line[1024];
+			if(ifile.getline(line, sizeof(line)))
+				tensor = std::strtod(line, NULL);
+			ifile.close();
+		}
+		else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+	}
+
+	template <int dim>
+	inline
+	void
+	read_tensor (const char *filename, Tensor<1,dim> &tensor)
+	{
+		std::ifstream ifile;
+
+		ifile.open (filename);
+		if (ifile.is_open())
+		{
+			for(unsigned int k=0;k<dim;k++)
 				{
 					char line[1024];
 					if(ifile.getline(line, sizeof(line)))
@@ -93,14 +111,17 @@ namespace MD
 
 	template <int dim>
 	inline
-	void
-	read_tensor (char *filename, SymmetricTensor<2,dim> &tensor)
+	bool
+	read_tensor (const char *filename, SymmetricTensor<2,dim> &tensor)
 	{
 		std::ifstream ifile;
+
+		bool load_ok = false;
 
 		ifile.open (filename);
 		if (ifile.is_open())
 		{
+			load_ok = true;
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
 				{
@@ -111,12 +132,13 @@ namespace MD
 			ifile.close();
 		}
 		else std::cout << "Unable to open" << filename << " to read it" << std::endl;
+	return load_ok;
 	}
 
 	template <int dim>
 	inline
 	void
-	read_tensor (char *filename, SymmetricTensor<4,dim> &tensor)
+	read_tensor (const char *filename, SymmetricTensor<4,dim> &tensor)
 	{
 		std::ifstream ifile;
 
@@ -140,14 +162,30 @@ namespace MD
 	template <int dim>
 	inline
 	void
-	write_tensor (char *filename, std::vector<double> &tensor)
+	write_tensor (const char *filename, double &tensor)
 	{
 		std::ofstream ofile;
 
 		ofile.open (filename);
 		if (ofile.is_open())
 		{
-			for(unsigned int k=0;k<tensor.size();k++)
+			ofile << std::setprecision(16) << tensor << std::endl;
+			ofile.close();
+		}
+		else std::cout << "Unable to open" << filename << " to write in it" << std::endl;
+	}
+
+	template <int dim>
+	inline
+	void
+	write_tensor (const char *filename, Tensor<1,dim> &tensor)
+	{
+		std::ofstream ofile;
+
+		ofile.open (filename);
+		if (ofile.is_open())
+		{
+			for(unsigned int k=0;k<dim;k++)
 					//std::cout << std::setprecision(16) << tensor[k][l] << std::endl;
 					ofile << std::setprecision(16) << tensor[k] << std::endl;
 			ofile.close();
@@ -158,7 +196,7 @@ namespace MD
 	template <int dim>
 	inline
 	void
-	write_tensor (char *filename, SymmetricTensor<2,dim> &tensor)
+	write_tensor (const char *filename, SymmetricTensor<2,dim> &tensor)
 	{
 		std::ofstream ofile;
 
@@ -177,7 +215,7 @@ namespace MD
 	template <int dim>
 	inline
 	void
-	write_tensor (char *filename, SymmetricTensor<4,dim> &tensor)
+	write_tensor (const char *filename, SymmetricTensor<4,dim> &tensor)
 	{
 		std::ofstream ofile;
 
@@ -287,19 +325,19 @@ namespace MD
 		sprintf(initdata, "%s/init.%s.bin", statelocout.c_str(), mdstate);
 
 		char straindata_last[1024];
-		sprintf(straindata_last, "%s/last.%s.%s.dump", statelocout.c_str(), cellid, mdstate);
+		sprintf(straindata_last, "%s/last.%s.%s.dump", statelocout.c_str(), cellid.c_str(), mdstate);
 		// sprintf(straindata_last, "%s/last.%s.%s.bin", statelocout.c_str(), cellid, mdstate);
 
 		char straindata_time[1024];
-		sprintf(straindata_time, "%s/%s.%s.%s.dump", statelocres.c_str(), timeid, cellid, mdstate);
+		sprintf(straindata_time, "%s/%s.%s.%s.dump", statelocres.c_str(), timeid.c_str(), cellid.c_str(), mdstate);
 		// sprintf(straindata_lcts, "%s/lcts.%s.%s.bin", statelocres.c_str(), cellid, mdstate);
 
 		char straindata_lcts[1024];
-		sprintf(straindata_lcts, "%s/lcts.%s.%s.dump", statelocres.c_str(), cellid, mdstate);
+		sprintf(straindata_lcts, "%s/lcts.%s.%s.dump", statelocres.c_str(), cellid.c_str(), mdstate);
 		// sprintf(straindata_lcts, "%s/lcts.%s.%s.bin", statelocres.c_str(), cellid, mdstate);
 
 		char homogdata_time[1024];
-		sprintf(homogdata_time, "%s/%s.%s.%s.lammpstrj", loglochom.c_str(), timeid, cellid, mdstate);
+		sprintf(homogdata_time, "%s/%s.%s.%s.lammpstrj", loglochom.c_str(), timeid.c_str(), cellid.c_str(), mdstate);
 
 		char cline[1024];
 		char cfile[1024];
@@ -505,8 +543,6 @@ namespace MD
 		output_homog = outhom;
 		checkpoint_save = checksav;
 
-		char filename[1024];
-
 		// Argument of the MD simulation: strain to apply
 		//sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cellid, repl);
 		read_tensor<dim>(straininputfile.c_str(), loc_rep_strain);
@@ -550,6 +586,11 @@ int main (int argc, char **argv)
 			exit(1);
 		}
 
+		int n_world_processes = Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD);
+		int this_world_process = Utilities::MPI::this_mpi_process(MPI_COMM_WORLD);
+		if(this_world_process == 0) std::cout << "Number of processes assigned: "
+										      << n_world_processes << std::endl;
+
 		std::string cellid = argv[1];
 		std::string timeid = argv[2];
 		std::string cellmat = argv[3];
@@ -573,11 +614,20 @@ int main (int argc, char **argv)
 		bool output_homog = std::stoi(argv[16]);
 		bool checkpoint_save = std::stoi(argv[17]);
 
-		MDProblem<3> md_problem ();
+		if(this_world_process == 0) std::cout << "List of arguments: "
+											  << cellid << " " << timeid << " " << cellmat << " " << statelocout
+											  << " " << statelocres << " " << loglochom << " " << qpreplogloc
+											  << " " << scriptsloc << " " << straininputfile << " " << stressoutputfile
+											  << " " << repl << " " << md_timestep_length << " " << md_temperature
+											  << " " << md_nsteps_sample << " " << md_strain_rate << " " << output_homog
+											  << " " << checkpoint_save
+											  << std::endl;
 
-		/*md_problem.run(cellid, timeid, cellmat, statelocout, statelocres, loglochom,
+		MDProblem<3> md_problem;
+
+		md_problem.run(cellid, timeid, cellmat, statelocout, statelocres, loglochom,
 					   qpreplogloc, scriptsloc, straininputfile, stressoutputfile, repl, md_timestep_length,
-					   md_temperature, md_nsteps_sample, md_strain_rate, output_homog, checkpoint_save);*/
+					   md_temperature, md_nsteps_sample, md_strain_rate, output_homog, checkpoint_save);
 	}
 	catch (std::exception &exc)
 	{

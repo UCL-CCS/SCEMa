@@ -106,6 +106,7 @@ namespace HMM
 		Tensor<1,dim> init_length;
 		Tensor<2,dim> rotam;
 		SymmetricTensor<2,dim> init_stress;
+		SymmetricTensor<4,dim> init_stiff;
 	};
 
 	template <int dim>
@@ -2636,16 +2637,17 @@ namespace HMM
 	public:
 		MMDProblem (MPI_Comm mcomm, int pcolor);
 		~MMDProblem ();
-		void init_mmd (int sstp, double mdtlength, double mdtemp, int nss, double strr,
+		void init (int sstp, double mdtlength, double mdtemp, int nss, double strr,
 				   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
-				   std::string nlogloctmp,std::string nloglochom, std::string mslocin, std::string mslocout, std::string mdsdir,
+				   std::string nlogloctmp,std::string nloglochom, std::string mslocout, std::string mdsdir,
 				   int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
 				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups);
-		void update_mmd (int tstp, double ptime, int nstp);
+		void update (int tstp, double ptime, int nstp);
 
 	private:
 		void restart ();
 		void setup_replica_data();
+		void average_replica_data();
 		void initialize_replicas ();
 
 		void set_md_procs (int nmdruns);
@@ -2710,7 +2712,6 @@ namespace HMM
 		bool 								output_homog;
 		bool 								checkpoint_save;
 
-		std::string                         macrostatelocin;
 		std::string                         macrostatelocout;
 
 		std::string                         nanostatelocin;
@@ -2875,7 +2876,64 @@ namespace HMM
 							<< replica_data[imd*nrepl+irep].mat.c_str() << " replica #"
 							<< replica_data[imd*nrepl+irep].repl << std::endl;
 				}
+
+				// Load replica initial stiffness
+				char filenameinstiff[1024];
+				sprintf(filenameinstiff, "%s/init.%s_%d.stiff", nanostatelocin.c_str(),
+						replica_data[imd*nrepl+irep].mat.c_str(), replica_data[imd*nrepl+irep].repl);
+				bool statestiff_exists = file_exists(filenameinstiff);
+				if (statestiff_exists){
+					read_tensor<dim>(filenameinstiff, replica_data[imd*nrepl+irep].init_stiff);
+				}
+				else{
+					std::cerr << "Missing equilibrated initial length data for material "
+							<< replica_data[imd*nrepl+irep].mat.c_str() << " replica #"
+							<< replica_data[imd*nrepl+irep].repl << std::endl;
+				}
 			}
+	}
+
+
+
+
+
+	template <int dim>
+	void MMDProblem<dim>::average_replica_data ()
+	{
+		for(unsigned int imd=0;imd<mdtype.size();imd++)
+		{
+			SymmetricTensor<4,dim> initial_stiffness_tensor;
+			initial_stiffness_tensor = 0.;
+
+			double initial_density = 0.;
+
+			for(unsigned int repl=0;repl<nrepl;repl++)
+			{
+				SymmetricTensor<4,dim> 				cg_initial_rep_stiffness_tensor;
+
+				// Rotate tensor from replica orientation to common ground
+				cg_initial_rep_stiffness_tensor =
+					rotate_tensor(replica_data[imd*nrepl+repl].init_stiff, replica_data[imd*nrepl+repl].rotam);
+
+				// Averaging tensors in the common ground referential
+				initial_stiffness_tensor += cg_initial_rep_stiffness_tensor;
+
+				// Averaging density over replicas
+				initial_density += replica_data[imd*nrepl+repl].rho;
+			}
+
+			initial_stiffness_tensor /= nrepl;
+			initial_density /= nrepl;
+
+			char macrofilenameout[1024];
+			sprintf(macrofilenameout, "%s/init.%s.stiff", macrostatelocout.c_str(),
+					mdtype[imd].c_str());
+			write_tensor<dim>(macrofilenameout, initial_stiffness_tensor);
+
+			sprintf(macrofilenameout, "%s/init.%s.density", macrostatelocout.c_str(),
+					mdtype[imd].c_str());
+			write_tensor<dim>(macrofilenameout, initial_density);
+		}
 	}
 
 
@@ -2905,36 +2963,19 @@ namespace HMM
 					// Offset replica number because in filenames, replicas start at 1
 					int numrepl = repl+1;
 
-					SymmetricTensor<4,dim> 				initial_stiffness_tensor;
-
-					char macrofilenamein[1024];
-					sprintf(macrofilenamein, "%s/init.%s_%d.stiff", macrostatelocin.c_str(), mdt.c_str(), numrepl);
-					char macrofilenameout[1024];
-					sprintf(macrofilenameout, "%s/init.%s_%d.stiff", macrostatelocout.c_str(), mdt.c_str(), numrepl);
-					bool macrostate_exists = file_exists(macrofilenamein);
-
 					char nanofilenamein[1024];
 					sprintf(nanofilenamein, "%s/init.%s_%d.bin", nanostatelocin.c_str(), mdt.c_str(), numrepl);
 					char nanofilenameout[1024];
 					sprintf(nanofilenameout, "%s/init.%s_%d.bin", nanostatelocout.c_str(), mdt.c_str(), numrepl);
 					bool nanostate_exists = file_exists(nanofilenamein);
 
-					if(!macrostate_exists || !nanostate_exists){
+					if(!nanostate_exists){
 						if(this_md_batch_process == 0)
-							std::cerr << "Missing equilibrated initial data for material " << mdt.c_str() << " replica #" << numrepl << " ("
-									  << "stiffness file: " << macrostate_exists
-									  << " binary state file: " << nanostate_exists
-									  << ")"<< std::endl;
+							std::cerr << "Missing equilibrated initial data for material " << mdt.c_str() << " replica #" << numrepl << std::endl;
 						MPI_Abort(mmd_communicator, 1);
 					}
 					else{
 						if(this_md_batch_process == 0){
-							std::ifstream  macroin(macrofilenamein, std::ios::binary);
-							std::ofstream  macroout(macrofilenameout,   std::ios::binary);
-							macroout << macroin.rdbuf();
-							macroin.close();
-							macroout.close();
-
 							std::ifstream  nanoin(nanofilenamein, std::ios::binary);
 							std::ofstream  nanoout(nanofilenameout,   std::ios::binary);
 							nanoout << nanoin.rdbuf();
@@ -2943,62 +2984,6 @@ namespace HMM
 						}
 					}
 				}
-			}
-		}
-
-		MPI_Barrier(mmd_communicator);
-
-		if(this_md_batch_process == 0){
-			for(unsigned int imd=0;imd<mdtype.size();imd++)
-			{
-				SymmetricTensor<4,dim> initial_stiffness_tensor;
-				initial_stiffness_tensor = 0.;
-
-				double initial_density = 0.;
-
-				// type of MD box (so far PE or PNC)
-				std::string mdt = mdtype[imd];
-
-				for(unsigned int repl=0;repl<nrepl;repl++)
-				{
-					char macrofilenamein[1024];
-					sprintf(macrofilenamein, "%s/init.%s_%d.stiff", macrostatelocout.c_str(), mdt.c_str(), repl+1);
-
-					SymmetricTensor<4,dim> 				initial_rep_stiffness_tensor;
-					SymmetricTensor<4,dim> 				cg_initial_rep_stiffness_tensor;
-
-					read_tensor<dim>(macrofilenamein, initial_rep_stiffness_tensor);
-
-					// Rotate tensor from replica orientation to common ground
-					cg_initial_rep_stiffness_tensor =
-							rotate_tensor(initial_rep_stiffness_tensor, replica_data[imd*nrepl+repl].rotam);
-
-					// Averaging tensors in the common ground referential
-					initial_stiffness_tensor += cg_initial_rep_stiffness_tensor;
-
-					// Debugs...
-					/*SymmetricTensor<4,dim> 				orig_cg_initial_rep_stiffness_tensor;
-					orig_cg_initial_rep_stiffness_tensor =
-												rotate_tensor(cg_initial_rep_stiffness_tensor, transpose(replica_data[imd*nrepl+repl].rotam));
-					char macrofilenameout[1024];
-					sprintf(macrofilenameout, "%s/init.%s_%d.stiff_cg", macrostatelocout.c_str(), mdt.c_str(), repl+1);
-					write_tensor<dim>(macrofilenameout, cg_initial_rep_stiffness_tensor);
-					sprintf(macrofilenameout, "%s/init.%s_%d.stiff_cg_orig", macrostatelocout.c_str(), mdt.c_str(), repl+1);
-					write_tensor<dim>(macrofilenameout, orig_cg_initial_rep_stiffness_tensor);*/
-
-					// Averaging density over replicas
-					initial_density += replica_data[imd*nrepl+repl].rho;
-				}
-
-				initial_stiffness_tensor /= nrepl;
-				initial_density /= nrepl;
-
-				char macrofilenameout[1024];
-				sprintf(macrofilenameout, "%s/init.%s.stiff", macrostatelocout.c_str(), mdt.c_str());
-				write_tensor<dim>(macrofilenameout, initial_stiffness_tensor);
-
-				sprintf(macrofilenameout, "%s/init.%s.density", macrostatelocout.c_str(), mdt.c_str());
-				write_tensor<dim>(macrofilenameout, initial_density);
 			}
 		}
 	}
@@ -3183,8 +3168,7 @@ namespace HMM
 				if (md_batch_pcolor == (imdrun%n_md_batches)){
 
 					std::string exec_name = "mpirun ./single_md";
-					std::string command = exec_name
-											+" "+cell_id[c]+" "+time_id+" "+cell_mat[c]
+					std::string args_list = cell_id[c]+" "+time_id+" "+cell_mat[c]
 											+" "+nanostatelocout+" "+nanostatelocres+" "+nanologlochom
 											+" "+qpreplogloc[imdrun]+" "+md_scripts_directory
 											+" "+straininputfile[imdrun]
@@ -3196,7 +3180,9 @@ namespace HMM
 											+" "+std::to_string(md_strain_rate)
 											+" "+std::to_string(output_homog)
 											+" "+std::to_string(checkpoint_save);
+					std::string redir_output = "> " + qpreplogloc[imdrun] + "/out.single_md";
 
+					std::string command = exec_name+" "+args_list+" "+redir_output;
 					int ret = system(command.c_str());
 					if (ret!=0){
 						std::cerr << "Failed executing the md simulation: " << command << std::endl;
@@ -3294,9 +3280,9 @@ namespace HMM
 
 
 	template <int dim>
-	void MMDProblem<dim>::init_mmd (int sstp, double mdtlength, double mdtemp, int nss, double strr,
+	void MMDProblem<dim>::init (int sstp, double mdtlength, double mdtemp, int nss, double strr,
 			   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
-			   std::string nlogloctmp,std::string nloglochom, std::string mslocin, std::string mslocout,
+			   std::string nlogloctmp,std::string nloglochom, std::string mslocout,
 			   std::string mdsdir, int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
 			   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups){
 
@@ -3314,7 +3300,6 @@ namespace HMM
 		nanologloctmp = nlogloctmp;
 		nanologlochom = nloglochom;
 
-		macrostatelocin = mslocin;
 		macrostatelocout = mslocout;
 		md_scripts_directory = mdsdir;
 
@@ -3332,11 +3317,12 @@ namespace HMM
 
 		restart ();
 		setup_replica_data();
+		average_replica_data();
 		initialize_replicas ();
 	}
 
 	template <int dim>
-	void MMDProblem<dim>::update_mmd (int tstp, double ptime, int nstp){
+	void MMDProblem<dim>::update (int tstp, double ptime, int nstp){
 		present_time = ptime;
 		timestep = tstp;
 		newtonstep = nstp;
@@ -3661,6 +3647,7 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::do_timestep (FEProblem<dim> &fe_problem, MMDProblem<dim> &mmd_problem)
 	{
+
 		// Updating time variable
 		present_time += fe_timestep_length;
 		++timestep;
@@ -3676,6 +3663,7 @@ namespace HMM
 
 		// Initialisation of timestep variables
 		if(fe_pcolor==0) fe_problem.beginstep(timestep, present_time);
+
 		MPI_Barrier(world_communicator);
 
 		// Solving iteratively the current timestep
@@ -3689,7 +3677,7 @@ namespace HMM
 
 			MPI_Barrier(world_communicator);
 
-			if(mmd_pcolor==0) mmd_problem.update_mmd(timestep, present_time, newtonstep);
+			if(mmd_pcolor==0) mmd_problem.update(timestep, present_time, newtonstep);
 			MPI_Barrier(world_communicator);
 
 			if(fe_pcolor==0) continue_newton = fe_problem.check();
@@ -3736,10 +3724,10 @@ namespace HMM
 		end_time = end_timestep*fe_timestep_length; //4000.0 > 66% final strain
 
 		hcout << " Initialization of the Multiple Molecular Dynamics problem...       " << std::endl;
-		if(mmd_pcolor==0) mmd_problem.init_mmd(start_timestep, md_timestep_length, md_temperature,
+		if(mmd_pcolor==0) mmd_problem.init(start_timestep, md_timestep_length, md_temperature,
 											   md_nsteps_sample, md_strain_rate, nanostatelocin,
 											   nanostatelocout, nanostatelocres, nanologloc,
-											   nanologloctmp, nanologlochom, macrostatelocin, macrostatelocout,
+											   nanologloctmp, nanologlochom, macrostatelocout,
 											   md_scripts_directory, freq_checkpoint, freq_output_homog,
 											   batch_nnodes_min, machine_ppn, mdtype, cg_dir, nrepl,
 											   use_pjm_scheduler);
@@ -3759,8 +3747,9 @@ namespace HMM
 
 		// Running the solution algorithm of the FE problem
 		hcout << "Beginning of incremental solution algorithm:       " << std::endl;
-		while (present_time < end_time)
-			do_timestep (fe_problem, mmd_problem);
+		while (present_time < end_time){
+			do_timestep(fe_problem, mmd_problem);
+		}
 	}
 }
 

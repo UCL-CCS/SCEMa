@@ -1,0 +1,71 @@
+# This file is for a LAMMPS simulation created by James Suter
+# The system is polyethane, using the CVFF forcefield
+# the simulation will heat up to 500K, cooldown to 200K and then perform unixial stretching in the x direction
+
+## Should we optimize the lammps call depending on the computer setup?
+## suffix OMP
+
+# Number of time steps used for sampling
+#variable nss equal 50
+
+##  -------------------------------------------
+#   Calculate the stress-strain curve for uniaxial extension in the x direction
+#
+##  Setting to display thermodynamical information on the system every 500 steps
+#thermo          500
+#
+##  Setting the type of thermodynamical information to be printed: T, P, energies, dimesions, V, stress tensor
+#thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz
+#
+##  Setting the syntax of the printed thermodynamical information
+#thermo_modify   flush yes line multi format float %g format 3 %15.8g
+#
+##  Printing evolution of stress for comparison
+#variable pt equal "step"
+#variable pp equal "press"
+#variable p0 equal "pxx"
+#variable p1 equal "pyy"
+#variable p2 equal "pzz"
+#variable p3 equal "pe"
+#variable p4 equal "ke"
+#variable p5 equal "temp"
+#variable p6 equal "lx"
+#variable p7 equal "ly"
+#variable p8 equal "lz"
+#variable p9 equal "vol"
+#
+##  Compute current stress using sampling over time and fixed NVT conditions
+#fix 1e all print 1 "${pt} ${pp} ${p0} ${p1} ${p2} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8} ${p9}" file ${loco}/press_evol.dat screen no
+
+#
+print "dir: ${dir} - orientation: ${ori}"
+#
+#fix stress1 all ave/time 1 ${nav} ${nav} c_thermo_press[*] file ${loco}/ave_${nav}_${dir}_${delta}.dat
+#fix stress2 all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running file ${loco}/ave_run_${nav}_${dir}_${delta}.dat
+#
+#variable nav equal ${nss}/1000
+#fix stress3 all ave/time 1 ${nav} ${nav} c_thermo_press[*] file ${loco}/ave_${nav}_${dir}_${delta}.dat
+#fix stress4 all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running file ${loco}/ave_run_${nav}_${dir}_${delta}.dat
+
+#  Setting printing position information on all atoms every nss steps PE_stress_strain_x.xyz
+#  file specifying atom type 1, 2 and 3 with names respectively C, C and H  (identical as
+#  previous with different file name)
+#if "${nss} > 10000" then "variable ndump equal ${nss}/1000" else "variable ndump equal ${nss}/10"
+#dump            xyz_dump all xyz ${ndump}    ${loco}/PE_atom_${dir}_${ori}.xyz
+#dump_modify     xyz_dump element  C C H
+
+#  Setting a Verlet time solution algorithm/integrator
+run_style       verlet
+#  Setting 2fs timesteps for a Verlet time solution algorithm/integrator
+timestep        ${dts} # 2fs - when used with SHAKE
+
+#  Apply fixed NVT and let the system fluctuate during MD
+#fix             3 all nvt temp 200.0 200.0 100.0
+
+#  Running a molecular dynamics simulation for 100000 timesteps
+run             ${nss}
+
+#  Releasing fix constraints
+#unfix 3
+
+#undump            xyz_dump

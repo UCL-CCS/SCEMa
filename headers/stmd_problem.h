@@ -1,5 +1,5 @@
-#ifndef MD_PROBLEM_H
-#define MD_PROBLEM_H
+#ifndef STMD_PROBLEM_H
+#define STMD_PROBLEM_H
 
 #include <fstream>
 #include <iostream>
@@ -33,12 +33,12 @@ namespace HMM
 
 
 	template <int dim>
-	class MDProblem
+	class STMDProblem
 	{
 	public:
-		MDProblem (MPI_Comm mdcomm, int pcolor);
-		~MDProblem ();
-		void run (std::string cid, std::string 	tid, std::string cmat,
+		STMDProblem (MPI_Comm mdcomm, int pcolor);
+		~STMDProblem ();
+		void strain (std::string cid, std::string 	tid, std::string cmat,
 				  std::string slocout, std::string slocres, std::string llochom,
 				  std::string qplogloc, std::string scrloc,
 				  std::string strainif, std::string stressof,
@@ -47,7 +47,7 @@ namespace HMM
 
 	private:
 
-		void lammps_straining ();
+		void lammps_straining();
 
 		MPI_Comm 							md_batch_communicator;
 		const int 							md_batch_n_processes;
@@ -87,7 +87,7 @@ namespace HMM
 
 
 	template <int dim>
-	MDProblem<dim>::MDProblem (MPI_Comm mdcomm, int pcolor)
+	STMDProblem<dim>::STMDProblem (MPI_Comm mdcomm, int pcolor)
 	:
 		md_batch_communicator (mdcomm),
 		md_batch_n_processes (Utilities::MPI::n_mpi_processes(md_batch_communicator)),
@@ -99,7 +99,7 @@ namespace HMM
 
 
 	template <int dim>
-	MDProblem<dim>::~MDProblem ()
+	STMDProblem<dim>::~STMDProblem ()
 	{}
 
 
@@ -109,7 +109,7 @@ namespace HMM
 	// by a subset of processes N, we should automatically see lammps be
 	// parallelized on the N processes.
 	template <int dim>
-	void MDProblem<dim>::lammps_straining ()
+	void STMDProblem<dim>::lammps_straining ()
 	{
 		//char locff[1024]; /*reaxff*/
 		//sprintf(locff, "%s/ffield.reax.2", scriptsloc.c_str(); /*reaxff*/
@@ -148,7 +148,7 @@ namespace HMM
 		lmparg[2] = (char *) "none";
 		lmparg[3] = (char *) "-log";
 		lmparg[4] = new char[1024];
-		sprintf(lmparg[4], "%s/log.%s_stress_strain", qpreplogloc.c_str(), cellmat.c_str());
+		sprintf(lmparg[4], "%s/log.stress_strain", qpreplogloc.c_str());
 
 		// Creating LAMMPS instance
 		LAMMPS *lmp = NULL;
@@ -243,7 +243,7 @@ namespace HMM
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
 
 		// Creating LAMMPS instance
-		sprintf(lmparg[4], "%s/log.%s_homogenization", qpreplogloc.c_str(), cellmat.c_str());
+		sprintf(lmparg[4], "%s/log.homogenization", qpreplogloc.c_str());
 		lmp = new LAMMPS(nargs,lmparg,md_batch_communicator);
 
 		//sprintf(cline, "variable locf string %s", locff); lammps_command(lmp,cline); /*reaxff*/
@@ -308,7 +308,7 @@ namespace HMM
 
 
 	template <int dim>
-	void MDProblem<dim>::run (std::string cid, std::string 	tid, std::string cmat,
+	void STMDProblem<dim>::strain (std::string cid, std::string 	tid, std::string cmat,
 							  std::string slocout, std::string slocres, std::string llochom,
 							  std::string qplogloc, std::string scrloc,
 							  std::string strainif, std::string stressof,

@@ -37,7 +37,7 @@
 
 // Specifically built header files
 #include "headers/read_write.h"
-#include "headers/md_problem.h"
+#include "headers/stmd_problem.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -104,9 +104,9 @@ int main (int argc, char **argv)
 											  << " " << checkpoint_save
 											  << std::endl;
 
-		MDProblem<3> md_problem (MPI_COMM_WORLD, 0);
+		STMDProblem<3> stmd_problem (MPI_COMM_WORLD, 0);
 
-		md_problem.run(cellid, timeid, cellmat, statelocout, statelocres, loglochom,
+		stmd_problem.strain(cellid, timeid, cellmat, statelocout, statelocres, loglochom,
 					   qpreplogloc, scriptsloc, straininputfile, stressoutputfile, repl, md_timestep_length,
 					   md_temperature, md_nsteps_sample, md_strain_rate, output_homog, checkpoint_save);
 	}

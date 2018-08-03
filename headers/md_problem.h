@@ -1,5 +1,5 @@
-#ifndef MDPROBLEM_H
-#define MDPROBLEM_H
+#ifndef MD_PROBLEM_H
+#define MD_PROBLEM_H
 
 #include <fstream>
 #include <iostream>
@@ -26,7 +26,7 @@
 // Specifically built header files
 #include "read_write.h"
 
-namespace MD
+namespace HMM
 {
 	using namespace dealii;
 	using namespace LAMMPS_NS;

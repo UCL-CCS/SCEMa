@@ -37,7 +37,7 @@
 
 // Specifically built header files
 #include "headers/read_write.h"
-#include "headers/mdproblem.h"
+#include "headers/md_problem.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -53,7 +53,7 @@ int main (int argc, char **argv)
 {
 	try
 	{
-		using namespace MD;
+		using namespace HMM;
 
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
@@ -104,7 +104,7 @@ int main (int argc, char **argv)
 											  << " " << checkpoint_save
 											  << std::endl;
 
-		MD::MDProblem<3> md_problem (MPI_COMM_WORLD, 0);
+		MDProblem<3> md_problem (MPI_COMM_WORLD, 0);
 
 		md_problem.run(cellid, timeid, cellmat, statelocout, statelocres, loglochom,
 					   qpreplogloc, scriptsloc, straininputfile, stressoutputfile, repl, md_timestep_length,

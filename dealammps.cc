@@ -33,6 +33,11 @@
 #include "boost/foreach.hpp"
 //#include "boost/filesystem.hpp"
 
+// Specifically built header files
+#include "headers/read_write.h"
+#include "headers/tensor_calc.h"
+#include "headers/mdproblem.h"
+
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
 // which are later redefined in petsc headers
@@ -80,10 +85,6 @@
 #include <deal.II/base/symmetric_tensor.h>
 #include <deal.II/grid/filtered_iterator.h>
 #include <deal.II/base/mpi.h>
-
-// Specifically built header files
-#include "headers/read_write.h"
-#include "headers/tensor_calc.h"
 
 namespace HMM
 {
@@ -2750,7 +2751,10 @@ namespace HMM
 				// Allocation of a MD run to a batch of processes
 				if (md_batch_pcolor == (imdrun%n_md_batches)){
 
-					std::string exec_name = "mpirun ./single_md";
+					// Executing from an external MPI_Communicator (avoids failure of the main communicator
+					// when the specific/external communicator fails)
+					// Does not work as OpenMPI cannot be started from an existing OpenMPI run...
+					/*std::string exec_name = "mpirun ./single_md";
 					std::string args_list = cell_id[c]+" "+time_id+" "+cell_mat[c]
 											+" "+nanostatelocout+" "+nanostatelocres+" "+nanologlochom
 											+" "+qpreplogloc[imdrun]+" "+md_scripts_directory
@@ -2770,8 +2774,15 @@ namespace HMM
 					if (ret!=0){
 						std::cerr << "Failed executing the md simulation: " << command << std::endl;
 						exit(1);
-					}
-					//run_single_md(time_id, cell_id[c].c_str(), cell_mat[c].c_str(), numrepl, qpreplogloc[imdrun]);
+					}*/
+
+					// Executing directly from the current MPI_Communicator (not fault tolerant)
+					MD::MDProblem<3> md_problem (md_batch_communicator, md_batch_pcolor);
+
+					md_problem.run(cell_id[c], time_id, cell_mat[c], nanostatelocout, nanostatelocres,
+								   nanologlochom, qpreplogloc[imdrun], md_scripts_directory, straininputfile[imdrun],
+								   stressoutputfile[imdrun], numrepl, md_timestep_length, md_temperature,
+								   md_nsteps_sample, md_strain_rate, output_homog, checkpoint_save);
 				}
 			}
 		}

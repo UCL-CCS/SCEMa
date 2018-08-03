@@ -1,6 +1,21 @@
 #ifndef TENSOR_CALC_H
 #define TENSOR_CALC_H
 
+#include <deal.II/fe/fe_tools.h>
+#include <deal.II/fe/fe_dgq.h>
+#include <deal.II/lac/vector.h>
+#include <deal.II/lac/full_matrix.h>
+#include <deal.II/fe/fe_values.h>
+#include <deal.II/fe/fe_system.h>
+#include <deal.II/fe/fe_q.h>
+#include <deal.II/base/symmetric_tensor.h>
+
+// To avoid conflicts...
+// pointers.h in input.h defines MIN and MAX
+// which are later redefined in petsc headers
+#undef  MIN
+#undef  MAX
+
 using namespace dealii;
 
 template <int dim>

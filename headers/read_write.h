@@ -3,6 +3,8 @@
 
 #include "boost/property_tree/ptree.hpp"
 
+#include <deal.II/base/symmetric_tensor.h>
+
 using namespace dealii;
 
 void bptree_print(boost::property_tree::ptree const& pt)

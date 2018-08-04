@@ -36,7 +36,7 @@
 // Specifically built header files
 #include "headers/read_write.h"
 #include "headers/tensor_calc.h"
-#include "headers/mmd_problem.h"
+#include "headers/eqmd_sync.h"
 #include "headers/fe_problem.h"
 
 // To avoid conflicts...
@@ -105,7 +105,7 @@ namespace HMM
 		void set_global_communicators ();
 		void set_repositories ();
 
-		MMDProblem<dim> 					*mmd_problem = NULL;
+		EQMDSync<dim> 						*mmd_problem = NULL;
 
 		MPI_Comm 							world_communicator;
 		const int 							n_world_processes;
@@ -309,7 +309,7 @@ namespace HMM
 		set_repositories();
 
 		// Instantiation of the MMD Problem
-		if(mmd_pcolor==0) mmd_problem = new MMDProblem<dim> (mmd_communicator, mmd_pcolor);
+		if(mmd_pcolor==0) mmd_problem = new EQMDSync<dim> (mmd_communicator, mmd_pcolor);
 
 		MPI_Barrier(world_communicator);
 
@@ -339,7 +339,7 @@ int main (int argc, char **argv)
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
 		if(argc!=2){
-			std::cerr << "Wrong number of arguments, expected: './dealammps inputs_emd.json', but argc is " << argc << std::endl;
+			std::cerr << "Wrong number of arguments, expected: './dealammps inputs_equilammps.json', but argc is " << argc << std::endl;
 			exit(1);
 		}
 

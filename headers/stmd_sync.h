@@ -1,5 +1,5 @@
-#ifndef MMD_PROBLEM_H
-#define MMD_PROBLEM_H
+#ifndef STMD_SYNC_H
+#define STMD_SYNC_H
 
 #include <fstream>
 #include <iostream>
@@ -54,11 +54,11 @@ namespace HMM
 
 
 	template <int dim>
-	class MMDProblem
+	class STMDSync
 	{
 	public:
-		MMDProblem (MPI_Comm mcomm, int pcolor);
-		~MMDProblem ();
+		STMDSync (MPI_Comm mcomm, int pcolor);
+		~STMDSync ();
 		void init (int sstp, double mdtlength, double mdtemp, int nss, double strr, std::string ffi,
 				   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 				   std::string nlogloctmp,std::string nloglochom, std::string mslocout, std::string mdsdir,
@@ -66,19 +66,12 @@ namespace HMM
 				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups);
 		void update (int tstp, double ptime, int nstp);
 
-		void equilibrate (double mdtlength, double mdtemp, int nss, int nse, double strr, double stra,
-				   std::string ffi, std::string nslocin, std::string nlogloc,
-				   std::string nlogloctmp,
-				   std::string mdsdir, unsigned int bnmin, unsigned int mppn,
-				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups);
-
 	private:
 		void restart ();
 
 		void set_md_procs (int nmdruns);
 
 		void load_replica_generation_data();
-		void set_replica_equilibration_names();
 		void load_replica_equilibration_data();
 
 		void average_replica_data();
@@ -92,8 +85,6 @@ namespace HMM
 		//void execute_pjm_md_simulations();
 
 		void store_md_simulations();
-
-		void equilibrate_replicas ();
 
 		MPI_Comm 							mmd_communicator;
 		MPI_Comm 							md_batch_communicator;
@@ -136,9 +127,7 @@ namespace HMM
 		double								md_timestep_length;
 		double								md_temperature;
 		int									md_nsteps_sample;
-		int									md_nsteps_equil;
 		double								md_strain_rate;
-		double								md_strain_ampl;
 		std::string							md_force_field;
 
 		int									freq_checkpoint;
@@ -164,7 +153,7 @@ namespace HMM
 
 
 	template <int dim>
-	MMDProblem<dim>::MMDProblem (MPI_Comm mcomm, int pcolor)
+	STMDSync<dim>::STMDSync (MPI_Comm mcomm, int pcolor)
 	:
 		mmd_communicator (mcomm),
 		mmd_n_processes (Utilities::MPI::n_mpi_processes(mmd_communicator)),
@@ -176,14 +165,14 @@ namespace HMM
 
 
 	template <int dim>
-	MMDProblem<dim>::~MMDProblem ()
+	STMDSync<dim>::~STMDSync ()
 	{}
 
 
 
 
 	template <int dim>
-	void MMDProblem<dim>::restart ()
+	void STMDSync<dim>::restart ()
 	{
 		// Could distribute that command over available processes
 		// Cleaning the log files for all the MD simulations of the current timestep
@@ -211,7 +200,7 @@ namespace HMM
 	// [as close as possible to n_world_processes], and (iv) n_lammps_processes_per_batch the number of processes provided to one lammps
 	// testing [NT divided by n_lammps_batch the number of concurrent testing boxes].
 	template <int dim>
-	void MMDProblem<dim>::set_md_procs (int nmdruns)
+	void STMDSync<dim>::set_md_procs (int nmdruns)
 	{
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
@@ -259,7 +248,7 @@ namespace HMM
 
 
 	template <int dim>
-	void MMDProblem<dim>::load_replica_generation_data ()
+	void STMDSync<dim>::load_replica_generation_data ()
 	{
 	    using boost::property_tree::ptree;
 
@@ -342,10 +331,10 @@ namespace HMM
 
 
 
-
 	template <int dim>
-	void MMDProblem<dim>::set_replica_equilibration_names ()
+	void STMDSync<dim>::load_replica_equilibration_data ()
 	{
+
 		// Number of MD simulations at this iteration...
 		int nmdruns = mdtype.size()*nrepl;
 
@@ -374,14 +363,6 @@ namespace HMM
 				qpreplogloc[imdrun] = nanologloctmp + "/init" + "." + mdtype[imdt] + "_" + std::to_string(numrepl);
 			}
 		}
-	}
-
-
-
-
-	template <int dim>
-	void MMDProblem<dim>::load_replica_equilibration_data ()
-	{
 
 		for(unsigned int imd=0; imd<mdtype.size(); imd++)
 			for(unsigned int irep=0; irep<nrepl; irep++){
@@ -446,7 +427,7 @@ namespace HMM
 
 
 	template <int dim>
-	void MMDProblem<dim>::average_replica_data ()
+	void STMDSync<dim>::average_replica_data ()
 	{
 		for(unsigned int imd=0;imd<mdtype.size();imd++)
 		{
@@ -487,7 +468,7 @@ namespace HMM
 
 
 	template <int dim>
-	void MMDProblem<dim>::prepare_md_simulations()
+	void STMDSync<dim>::prepare_md_simulations()
 	{
 		// Check list of files corresponding to current "time_id"
 		ncupd = 0;
@@ -592,7 +573,7 @@ namespace HMM
 
 
 	template <int dim>
-	void MMDProblem<dim>::execute_inside_md_simulations()
+	void STMDSync<dim>::execute_inside_md_simulations()
 	{
 		// Computing cell state update running one simulation per MD replica (basic job scheduling and executing)
 		mcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
@@ -653,7 +634,7 @@ namespace HMM
 
 
 	template <int dim>
-	void MMDProblem<dim>::store_md_simulations()
+	void STMDSync<dim>::store_md_simulations()
 	{
 		// Averaging stiffness and stress per cell over replicas
 		for (unsigned int c=0; c<ncupd; ++c)
@@ -735,7 +716,7 @@ namespace HMM
 
 
 	template <int dim>
-	void MMDProblem<dim>::init (int sstp, double mdtlength, double mdtemp, int nss, double strr, std::string ffi,
+	void STMDSync<dim>::init (int sstp, double mdtlength, double mdtemp, int nss, double strr, std::string ffi,
 			   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 			   std::string nlogloctmp,std::string nloglochom, std::string mslocout,
 			   std::string mdsdir, int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
@@ -773,13 +754,12 @@ namespace HMM
 
 		restart ();
 		load_replica_generation_data();
-		set_replica_equilibration_names();
 		load_replica_equilibration_data();
 		average_replica_data();
 	}
 
 	template <int dim>
-	void MMDProblem<dim>::update (int tstp, double ptime, int nstp){
+	void STMDSync<dim>::update (int tstp, double ptime, int nstp){
 		present_time = ptime;
 		timestep = tstp;
 		newtonstep = nstp;
@@ -811,82 +791,6 @@ namespace HMM
 			MPI_Barrier(mmd_communicator);
 			store_md_simulations();
 		}
-	}
-
-
-
-
-
-	template <int dim>
-	void MMDProblem<dim>::equilibrate_replicas ()
-	{
-		// Number of MD simulations at this iteration...
-		int nmdruns = mdtype.size()*nrepl;
-
-		// Dispatch of the available processes on to different groups for parallel
-		// update of quadrature points
-		set_md_procs(nmdruns);
-
-		for(unsigned int imdt=0;imdt<mdtype.size();imdt++)
-		{
-			for(unsigned int repl=0;repl<nrepl;repl++)
-			{
-				int imdrun=imdt*nrepl + (repl);
-				if (md_batch_pcolor == (imdrun%n_md_batches))
-				{
-					// Offset replica number because in filenames, replicas start at 1
-					int numrepl = repl+1;
-
-					mkdir(qpreplogloc[imdrun].c_str(), ACCESSPERMS);
-
-					// Executing directly from the current MPI_Communicator (not fault tolerant)
-					EQMDProblem<3> eqmd_problem (md_batch_communicator, md_batch_pcolor);
-
-					eqmd_problem.equil(mdtype[imdt], nanostatelocin,
-								   qpreplogloc[imdrun], md_scripts_directory,
-								   lengthoutputfile[imdrun], stressoutputfile[imdrun],
-								   stiffoutputfile[imdrun], systemoutputfile[imdrun],
-								   numrepl, md_timestep_length, md_temperature,
-								   md_nsteps_sample, md_nsteps_equil, md_strain_rate,
-								   md_strain_ampl, md_force_field);
-				}
-			}
-		}
-	}
-
-	template <int dim>
-	void MMDProblem<dim>::equilibrate (double mdtlength, double mdtemp, int nss, int nse, double strr, double stra,
-			   std::string ffi, std::string nslocin, std::string nlogloc,
-			   std::string nlogloctmp,
-			   std::string mdsdir, unsigned int bnmin, unsigned int mppn,
-			   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups){
-
-		md_timestep_length = mdtlength;
-		md_temperature = mdtemp;
-		md_nsteps_sample = nss;
-		md_nsteps_equil = nse;
-		md_strain_rate = strr;
-		md_strain_ampl = stra;
-		md_force_field = ffi;
-
-		nanostatelocin = nslocin;
-		nanologloc = nlogloc;
-		nanologloctmp = nlogloctmp;
-
-		md_scripts_directory = mdsdir;
-
-		batch_nnodes_min = bnmin;
-		machine_ppn = mppn;
-
-		mdtype = mdt;
-		cg_dir = cgd;
-		nrepl = nr;
-
-		use_pjm_scheduler = ups;
-
-		load_replica_generation_data();
-		set_replica_equilibration_names();
-		equilibrate_replicas();
 	}
 }
 

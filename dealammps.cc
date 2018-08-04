@@ -36,7 +36,7 @@
 // Specifically built header files
 #include "headers/read_write.h"
 #include "headers/tensor_calc.h"
-#include "headers/mmd_problem.h"
+#include "headers/stmd_sync.h"
 #include "headers/fe_problem.h"
 
 // To avoid conflicts...
@@ -107,7 +107,7 @@ namespace HMM
 
 		void do_timestep ();
 
-		MMDProblem<dim> 					*mmd_problem = NULL;
+		STMDSync<dim> 						*mmd_problem = NULL;
 		FEProblem<dim> 						*fe_problem = NULL;
 
 		MPI_Comm 							world_communicator;
@@ -449,7 +449,7 @@ namespace HMM
 		set_repositories();
 
 		// Instantiation of the MMD Problem
-		if(mmd_pcolor==0) mmd_problem = new MMDProblem<dim> (mmd_communicator, mmd_pcolor);
+		if(mmd_pcolor==0) mmd_problem = new STMDSync<dim> (mmd_communicator, mmd_pcolor);
 
 		// Instantiation of the FE problem
 		if(fe_pcolor==0) fe_problem = new FEProblem<dim> (fe_communicator, fe_pcolor, fe_degree, quadrature_formula);
@@ -505,7 +505,7 @@ int main (int argc, char **argv)
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
 		if(argc!=2){
-			std::cerr << "Wrong number of arguments, expected: './dealammps inputs_hmm.json', but argc is " << argc << std::endl;
+			std::cerr << "Wrong number of arguments, expected: './dealammps inputs_dealammps.json', but argc is " << argc << std::endl;
 			exit(1);
 		}
 

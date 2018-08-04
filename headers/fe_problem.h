@@ -1371,7 +1371,7 @@ namespace HMM
 				//   (i) all cells,
 				//  (ii) cells in given location,
 				// (iii) cells based on their id
-				if (activate_md_update && cell->active_cell_index() == 100)
+				if (activate_md_update)
 				//if (activate_md_update && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
 				/*if (activate_md_update && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
 					|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487

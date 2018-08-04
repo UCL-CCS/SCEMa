@@ -135,6 +135,7 @@ namespace HMM
 		int									md_nsteps_equil;
 		double								md_strain_rate;
 		double								md_strain_ampl;
+		std::string							md_force_field;
 
 		std::string                         nanostatelocin;
 		std::string							nanostatelocout;
@@ -187,7 +188,6 @@ namespace HMM
 
 		// Atomic input, output, restart and log location
 		nanostatelocin = bptree_read(pt, "directory structure", "nanoscale input");
-		nanostatelocout = bptree_read(pt, "directory structure", "nanoscale output");
 		nanologloc = bptree_read(pt, "directory structure", "nanoscale log");
 
 		// Molecular dynamics material data
@@ -217,6 +217,7 @@ namespace HMM
 		md_nsteps_equil = std::stoi(bptree_read(pt, "molecular dynamics parameters", "number of equilibration steps"));
 		md_strain_rate = std::stod(bptree_read(pt, "molecular dynamics parameters", "strain rate"));
 		md_strain_ampl = std::stod(bptree_read(pt, "molecular dynamics parameters", "strain amplitude"));
+		md_force_field = bptree_read(pt, "molecular dynamics parameters", "force field");
 		md_scripts_directory = bptree_read(pt, "molecular dynamics parameters", "scripts directory");
 
 		// Computational resources
@@ -237,11 +238,11 @@ namespace HMM
 		hcout << " - MD deformation amplitude for homogenization of stiffness: "<< md_strain_ampl << std::endl;
 		hcout << " - MD number of sampling steps: "<< md_nsteps_sample << std::endl;
 		hcout << " - MD number of equilibration steps: "<< md_nsteps_equil << std::endl;
+		hcout << " - MD force field type: "<< md_force_field << std::endl;
 		hcout << " - MD scripts directory (contains in.set, in.strain, ELASTIC/, ffield parameters): "<< md_scripts_directory << std::endl;
 		hcout << " - Number of cores per node on the machine: "<< machine_ppn << std::endl;
 		hcout << " - Minimum number of nodes per MD simulation: "<< batch_nnodes_min << std::endl;
-			hcout << " - MD input directory: "<< nanostatelocin << std::endl;
-		hcout << " - MD output directory: "<< nanostatelocout << std::endl;
+		hcout << " - MD input directory: "<< nanostatelocin << std::endl;
 		hcout << " - MD log directory: "<< nanologloc << std::endl;
 	}
 
@@ -276,7 +277,6 @@ namespace HMM
 			exit(1);
 		}
 
-		mkdir(nanostatelocout.c_str(), ACCESSPERMS);
 		mkdir(nanologloc.c_str(), ACCESSPERMS);
 		nanologloctmp = nanologloc+"/tmp"; mkdir(nanologloctmp.c_str(), ACCESSPERMS);
 
@@ -316,7 +316,7 @@ namespace HMM
 		hcout << " Equilibration of Multiple Molecular Dynamics systems...       " << std::endl;
 		if(mmd_pcolor==0) mmd_problem->equilibrate(md_timestep_length, md_temperature,
 											   md_nsteps_sample, md_nsteps_equil, md_strain_rate, md_strain_ampl,
-											   nanostatelocin, nanostatelocout, nanologloc,
+											   md_force_field, nanostatelocin, nanologloc,
 											   nanologloctmp,
 											   md_scripts_directory,
 											   batch_nnodes_min, machine_ppn, mdtype, cg_dir, nrepl,

@@ -54,12 +54,14 @@ variable lz1 equal ${p8}
 
 #  Correction of the strain rates due to the fact that the initial length
 #  is updated after each run...
-variable ceeps_00 equal ${eeps_00}*${lxbox0}/${lx1}
-variable ceeps_11 equal ${eeps_11}*${lybox0}/${ly1}
-variable ceeps_22 equal ${eeps_22}*${lzbox0}/${lz1}
-variable ceeps_01 equal ${eeps_01}*${lzbox0}/${lz1}
-variable ceeps_02 equal ${eeps_02}*${lybox0}/${ly1}
-variable ceeps_12 equal ${eeps_12}*${lxbox0}/${lx1}
+#  eeps is not a real strain as it has been multiplied in the HMM code
+#  by the initial length of the box
+variable ceeps_00 equal ${eeps_00}/${lx1}
+variable ceeps_11 equal ${eeps_11}/${ly1}
+variable ceeps_22 equal ${eeps_22}/${lz1}
+variable ceeps_01 equal ${eeps_01}/${lz1}
+variable ceeps_02 equal ${eeps_02}/${ly1}
+variable ceeps_12 equal ${eeps_12}/${lx1}
 
 #  Compute current stress using sampling over time and fixed NVT conditions
 #fix 1e all print 1 "${pt} ${pp} ${p0} ${p1} ${p2} ${p10} ${p11} ${p12} ${p3} ${p4} ${p5} ${p6} ${p7} ${p8} ${p9} ${evdwl} ${ecoul} ${eatom} ${ebond} ${eangle} ${edihed}" file ${loco}/${mdt}_strain_press_evol.dat screen no

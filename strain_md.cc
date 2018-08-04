@@ -57,11 +57,11 @@ int main (int argc, char **argv)
 
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
-		if(argc!=18){
+		if(argc!=19){
 			std::cerr << "Wrong number of arguments, expected: "
 					  << "'./single_md cellid timeid cellmat statelocout statelocres"
 					  << "loglochom qpreplogloc scriptsloc macrostatelocout repl"
-					  << "md_timestep_length md_temperature md_nsteps_sample md_strain_rate"
+					  << "md_timestep_length md_temperature md_nsteps_sample md_strain_rate md_force_field"
 					  << "output_homog checkpoint_save'"
 					  << ", but argc is " << argc << std::endl;
 			exit(1);
@@ -91,24 +91,25 @@ int main (int argc, char **argv)
 		double md_temperature = std::stod(argv[13]);
 		unsigned int md_nsteps_sample = std::stoi(argv[14]);
 		double md_strain_rate = std::stod(argv[15]);
+		std::string md_force_field = argv[16];
 
-		bool output_homog = std::stoi(argv[16]);
-		bool checkpoint_save = std::stoi(argv[17]);
+		bool output_homog = std::stoi(argv[17]);
+		bool checkpoint_save = std::stoi(argv[18]);
 
 		if(this_world_process == 0) std::cout << "List of arguments: "
 											  << cellid << " " << timeid << " " << cellmat << " " << statelocout
 											  << " " << statelocres << " " << loglochom << " " << qpreplogloc
 											  << " " << scriptsloc << " " << straininputfile << " " << stressoutputfile
 											  << " " << repl << " " << md_timestep_length << " " << md_temperature
-											  << " " << md_nsteps_sample << " " << md_strain_rate << " " << output_homog
-											  << " " << checkpoint_save
+											  << " " << md_nsteps_sample << " " << md_strain_rate << " " << md_force_field
+											  << " " << output_homog << " " << checkpoint_save
 											  << std::endl;
 
 		STMDProblem<3> stmd_problem (MPI_COMM_WORLD, 0);
 
 		stmd_problem.strain(cellid, timeid, cellmat, statelocout, statelocres, loglochom,
 					   qpreplogloc, scriptsloc, straininputfile, stressoutputfile, repl, md_timestep_length,
-					   md_temperature, md_nsteps_sample, md_strain_rate, output_homog, checkpoint_save);
+					   md_temperature, md_nsteps_sample, md_strain_rate, md_force_field, output_homog, checkpoint_save);
 	}
 	catch (std::exception &exc)
 	{

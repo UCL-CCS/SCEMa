@@ -155,6 +155,7 @@ namespace HMM
 		double								md_temperature;
 		int									md_nsteps_sample;
 		double								md_strain_rate;
+		std::string							md_force_field;
 
 		int									freq_checkpoint;
 		int									freq_output_visu;
@@ -264,6 +265,7 @@ namespace HMM
 		md_temperature = std::stod(bptree_read(pt, "molecular dynamics parameters", "temperature"));
 		md_nsteps_sample = std::stoi(bptree_read(pt, "molecular dynamics parameters", "number of sampling steps"));
 		md_strain_rate = std::stod(bptree_read(pt, "molecular dynamics parameters", "strain rate"));
+		md_force_field = bptree_read(pt, "molecular dynamics parameters", "force field");
 		md_scripts_directory = bptree_read(pt, "molecular dynamics parameters", "scripts directory");
 
 		// Computational resources
@@ -295,6 +297,7 @@ namespace HMM
 		hcout << " - MD thermostat temperature: "<< md_temperature << std::endl;
 		hcout << " - MD deformation rate: "<< md_strain_rate << std::endl;
 		hcout << " - MD number of sampling steps: "<< md_nsteps_sample << std::endl;
+		hcout << " - MD force field type: "<< md_force_field << std::endl;
 		hcout << " - MD scripts directory (contains in.set, in.strain, ELASTIC/, ffield parameters): "<< md_scripts_directory << std::endl;
 		hcout << " - Number of cores per node on the machine: "<< machine_ppn << std::endl;
 		hcout << " - Number of nodes for FEM simulation: "<< fenodes << std::endl;
@@ -460,7 +463,7 @@ namespace HMM
 
 		hcout << " Initialization of the Multiple Molecular Dynamics problem...       " << std::endl;
 		if(mmd_pcolor==0) mmd_problem->init(start_timestep, md_timestep_length, md_temperature,
-											   md_nsteps_sample, md_strain_rate, nanostatelocin,
+											   md_nsteps_sample, md_strain_rate, md_force_field, nanostatelocin,
 											   nanostatelocout, nanostatelocres, nanologloc,
 											   nanologloctmp, nanologlochom, macrostatelocout,
 											   md_scripts_directory, freq_checkpoint, freq_output_homog,

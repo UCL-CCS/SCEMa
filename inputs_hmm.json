@@ -22,7 +22,8 @@
     "timestep length": 2.0,
     "strain rate": 1.0e-4,
     "number of sampling steps": 100,
-    "scripts directory": "./lammps_scripts"
+    "scripts directory": "./lammps_scripts_opls",
+    "force field": "opls"
   },
   "computational resources":{
     "machine cores per node": 16,

@@ -44,7 +44,7 @@ namespace HMM
 				  std::string qplogloc, std::string scrloc,
 				  std::string lengthof, std::string stressof, std::string stiffof, std::string systeof,
 				  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
-				  unsigned int mdnse, double mdss, double mdsa);
+				  unsigned int mdnse, double mdss, double mdsa, std::string mdff);
 
 	private:
 
@@ -80,6 +80,7 @@ namespace HMM
 		unsigned int 						md_nsteps_equil;
 		double								md_strain_rate;
 		double								md_strain_ampl;
+		std::string							md_force_field;
 
 	};
 
@@ -113,6 +114,11 @@ namespace HMM
 	template <int dim>
 	void EQMDProblem<dim>::lammps_equilibration ()
 	{
+		char locff[1024]; /*reaxff*/
+		if (md_force_field == "reax"){
+			sprintf(locff, "%s/ffield.reax.2", scriptsloc.c_str()); /*reaxff*/
+		}
+
 		// Name of nanostate binary files
 		char mdstate[1024];
 		sprintf(mdstate, "%s_%d", cellmat.c_str(), repl);
@@ -146,6 +152,11 @@ namespace HMM
 		sprintf(cline, "variable mdt string %s", cellmat.c_str()); lammps_command(lmp,cline);
 		sprintf(cline, "variable locd string %s", locdata); lammps_command(lmp,cline);
 		sprintf(cline, "variable loco string %s", qpreplogloc.c_str()); lammps_command(lmp,cline);
+
+		if (md_force_field == "reax"){
+			sprintf(cline, "variable locf string %s", locff); /*reaxff*/
+			lammps_command(lmp,cline); /*reaxff*/
+		}
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
@@ -197,13 +208,6 @@ namespace HMM
 				<< "Saving state data...       " << std::endl;
 		sprintf(cline, "write_restart %s", systemoutputfile.c_str()); lammps_command(lmp,cline);
 
-		for(unsigned int k=0;k<dim;k++)
-			for(unsigned int l=k;l<dim;l++)
-			{
-				sprintf(cline, "variable eeps_%d%d equal %.6e", k, l, 0.0);
-				lammps_command(lmp,cline);
-			}
-
 		mdcout << "(MD - init - type " << cellmat << " - repl " << repl << ") "
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;
 
@@ -240,45 +244,53 @@ namespace HMM
 				sprintf(vcoef, "pp%d%d", k+1, l+1);
 				loc_rep_stress[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*(-1.0)*1.01325e+05;
 			}
+		}
 
-			// Using a routine based on the example ELASTIC/ to compute the stiffness tensor
-			sprintf(cfile, "%s/%s", scriptsloc.c_str(), "ELASTIC/in.homog.lammps");
-			lammps_file(lmp,cfile);
-
-			// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
-			// by LAMMPS and conversion from GPa to Pa
-			SymmetricTensor<2,2*dim> tmp;
-			for(unsigned int k=0;k<2*dim;k++)
-				for(unsigned int l=k;l<2*dim;l++)
-				{
-					char vcoef[1024];
-					sprintf(vcoef, "C%d%dall", k+1, l+1);
-					tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
-				}
-
-			// Write test... (on the data returned by lammps)
-
-			// Conversion of the 6x6 Voigt Stiffness Tensor into the 3x3x3x3
-			// Standard Stiffness Tensor
-			for(unsigned int i=0;i<2*dim;i++)
+		// Using a routine based on the example ELASTIC/ to compute the stiffness tensor
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
 			{
-				int k, l;
-				if     (i==(3+0)){k=0; l=1;}
-				else if(i==(3+1)){k=0; l=2;}
-				else if(i==(3+2)){k=1; l=2;}
-				else  /*(i<3)*/  {k=i; l=i;}
+				sprintf(cline, "variable eeps_%d%d equal %.6e", k, l, 0.0);
+				lammps_command(lmp,cline);
+			}
+
+		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "ELASTIC/in.homog.lammps");
+		lammps_file(lmp,cfile);
+
+		// Filling the 6x6 Voigt Sitffness tensor with its computed as variables
+		// by LAMMPS and conversion from GPa to Pa
+		SymmetricTensor<2,2*dim> tmp;
+		for(unsigned int k=0;k<2*dim;k++){
+			for(unsigned int l=k;l<2*dim;l++)
+			{
+				char vcoef[1024];
+				sprintf(vcoef, "C%d%dall", k+1, l+1);
+				tmp[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*1.0e+09;
+			}
+		}
+
+		// Write test... (on the data returned by lammps)
+
+		// Conversion of the 6x6 Voigt Stiffness Tensor into the 3x3x3x3
+		// Standard Stiffness Tensor
+		for(unsigned int i=0;i<2*dim;i++)
+		{
+			int k, l;
+			if     (i==(3+0)){k=0; l=1;}
+			else if(i==(3+1)){k=0; l=2;}
+			else if(i==(3+2)){k=1; l=2;}
+			else  /*(i<3)*/  {k=i; l=i;}
 
 
-				for(unsigned int j=0;j<2*dim;j++)
-				{
-					int m, n;
-					if     (j==(3+0)){m=0; n=1;}
-					else if(j==(3+1)){m=0; n=2;}
-					else if(j==(3+2)){m=1; n=2;}
-					else  /*(j<3)*/  {m=j; n=j;}
+			for(unsigned int j=0;j<2*dim;j++)
+			{
+				int m, n;
+				if     (j==(3+0)){m=0; n=1;}
+				else if(j==(3+1)){m=0; n=2;}
+				else if(j==(3+2)){m=1; n=2;}
+				else  /*(j<3)*/  {m=j; n=j;}
 
-					loc_rep_stiff[k][l][m][n]=tmp[i][j];
-				}
+				loc_rep_stiff[k][l][m][n]=tmp[i][j];
 			}
 		}
 
@@ -299,7 +311,7 @@ namespace HMM
 							  std::string qplogloc, std::string scrloc,
 							  std::string lengthof, std::string stressof, std::string stiffof, std::string systof,
 							  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
-							  unsigned int mdnse, double mdss, double mdsa)
+							  unsigned int mdnse, double mdss, double mdsa, std::string mdff)
 	{
 		cellmat = cmat;
 
@@ -320,6 +332,14 @@ namespace HMM
 		md_nsteps_equil = mdnse;
 		md_strain_rate = mdss;
 		md_strain_ampl = mdsa;
+		md_force_field = mdff;
+
+		if (md_force_field != "opls" && md_force_field != "reax"){
+			std::cerr << "Error: Force field is " << md_force_field
+					  << " but only 'opls' and 'reax' are implemented... "
+					  << std::endl;
+			exit(1);
+		}
 
 		// Then the lammps function instanciates lammps, starting from an initial
 		// microstructure and applying the complete new_strain or starting from

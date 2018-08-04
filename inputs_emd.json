@@ -14,16 +14,15 @@
     "strain amplitude": 0.2,
     "number of sampling steps": 100,
     "number of equilibration steps": 10000,
-    "scripts directory": "./lammps_scripts"
+    "scripts directory": "./lammps_scripts_opls",
+    "force field": "opls"
   },
   "computational resources":{
     "machine cores per node": 16,
     "minimum nodes per MD simulation": 3
   },
   "directory structure":{
-    "nanoscale input": "./nanoscale_input",
-    "nanoscale output": "./nanoscale_output",
-    "nanoscale restart": "./nanoscale_restart",
-    "nanoscale log": "./nanoscale_log"
+    "nanoscale input": "./replicas_input",
+    "nanoscale log": "./replicas_log"
   }
 }

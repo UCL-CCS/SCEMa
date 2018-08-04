@@ -59,7 +59,7 @@ namespace HMM
 	public:
 		MMDProblem (MPI_Comm mcomm, int pcolor);
 		~MMDProblem ();
-		void init (int sstp, double mdtlength, double mdtemp, int nss, double strr,
+		void init (int sstp, double mdtlength, double mdtemp, int nss, double strr, std::string ffi,
 				   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 				   std::string nlogloctmp,std::string nloglochom, std::string mslocout, std::string mdsdir,
 				   int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
@@ -67,7 +67,7 @@ namespace HMM
 		void update (int tstp, double ptime, int nstp);
 
 		void equilibrate (double mdtlength, double mdtemp, int nss, int nse, double strr, double stra,
-				   std::string nslocin, std::string nslocout, std::string nlogloc,
+				   std::string ffi, std::string nslocin, std::string nlogloc,
 				   std::string nlogloctmp,
 				   std::string mdsdir, unsigned int bnmin, unsigned int mppn,
 				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups);
@@ -139,6 +139,7 @@ namespace HMM
 		int									md_nsteps_equil;
 		double								md_strain_rate;
 		double								md_strain_ampl;
+		std::string							md_force_field;
 
 		int									freq_checkpoint;
 		int									freq_output_homog;
@@ -623,6 +624,7 @@ namespace HMM
 											+" "+std::to_string(md_temperature)
 											+" "+std::to_string(md_nsteps_sample)
 											+" "+std::to_string(md_strain_rate)
+											+" "+std::to_string(md_force_field)
 											+" "+std::to_string(output_homog)
 											+" "+std::to_string(checkpoint_save);
 					std::string redir_output = "> " + qpreplogloc[imdrun] + "/out.single_md";
@@ -640,7 +642,8 @@ namespace HMM
 					stmd_problem.strain(cell_id[c], time_id, cell_mat[c], nanostatelocout, nanostatelocres,
 								   nanologlochom, qpreplogloc[imdrun], md_scripts_directory, straininputfile[imdrun],
 								   stressoutputfile[imdrun], numrepl, md_timestep_length, md_temperature,
-								   md_nsteps_sample, md_strain_rate, output_homog, checkpoint_save);
+								   md_nsteps_sample, md_strain_rate, md_force_field,
+								   output_homog, checkpoint_save);
 				}
 			}
 		}
@@ -732,7 +735,7 @@ namespace HMM
 
 
 	template <int dim>
-	void MMDProblem<dim>::init (int sstp, double mdtlength, double mdtemp, int nss, double strr,
+	void MMDProblem<dim>::init (int sstp, double mdtlength, double mdtemp, int nss, double strr, std::string ffi,
 			   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 			   std::string nlogloctmp,std::string nloglochom, std::string mslocout,
 			   std::string mdsdir, int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
@@ -744,6 +747,7 @@ namespace HMM
 		md_temperature = mdtemp;
 		md_nsteps_sample = nss;
 		md_strain_rate = strr;
+		md_force_field = ffi;
 
 		nanostatelocin = nslocin;
 		nanostatelocout = nslocout;
@@ -843,7 +847,8 @@ namespace HMM
 								   lengthoutputfile[imdrun], stressoutputfile[imdrun],
 								   stiffoutputfile[imdrun], systemoutputfile[imdrun],
 								   numrepl, md_timestep_length, md_temperature,
-								   md_nsteps_sample, md_nsteps_equil, md_strain_rate, md_strain_ampl);
+								   md_nsteps_sample, md_nsteps_equil, md_strain_rate,
+								   md_strain_ampl, md_force_field);
 				}
 			}
 		}
@@ -851,7 +856,7 @@ namespace HMM
 
 	template <int dim>
 	void MMDProblem<dim>::equilibrate (double mdtlength, double mdtemp, int nss, int nse, double strr, double stra,
-			   std::string nslocin, std::string nslocout, std::string nlogloc,
+			   std::string ffi, std::string nslocin, std::string nlogloc,
 			   std::string nlogloctmp,
 			   std::string mdsdir, unsigned int bnmin, unsigned int mppn,
 			   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups){
@@ -862,9 +867,9 @@ namespace HMM
 		md_nsteps_equil = nse;
 		md_strain_rate = strr;
 		md_strain_ampl = stra;
+		md_force_field = ffi;
 
 		nanostatelocin = nslocin;
-		nanostatelocout = nslocout;
 		nanologloc = nlogloc;
 		nanologloctmp = nlogloctmp;
 

@@ -5,6 +5,15 @@
 ## Should we optimize the lammps call depending on the computer setup?
 ## suffix OMP
 
+
+variable eb      equal "ebond"
+variable ea      equal "epair"
+variable ev      equal "eangle"
+variable et      equal "edihed"
+variable ew      equal "evdwl"
+variable ep      equal "ecoul"
+
+
 ##  -------------------------------------------
 #   Calculate the stress-strain curve for uniaxial extension in the x direction
 
@@ -12,7 +21,7 @@
 thermo          500
 
 #  Setting the type of thermodynamical information to be printed: T, P, energies, dimesions, V, stress tensor
-thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz
+thermo_style    custom step cpu temp press pe ke evdwl ecoul epair ebond eangle edihed lx ly lz vol pxx pyy pzz pxy pxz pyz v_eb v_ev v_et v_ew v_ep
 
 #  Setting the syntax of the printed thermodynamical information
 thermo_modify   flush yes line multi format float %g format 3 %15.8g

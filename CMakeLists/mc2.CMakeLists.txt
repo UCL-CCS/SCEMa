@@ -1,0 +1,61 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
+
+FIND_PACKAGE(deal.II 8.5 QUIET
+  HINTS /gpfs/work/pr53zu/di36yax2/opt/dealii-8.5.0_mumps/
+  )
+IF(NOT ${deal.II_FOUND})
+  MESSAGE(FATAL_ERROR "\n"
+    "*** Could not locate a (sufficiently recent) version of deal.II. ***\n\n"
+    "You may want to either pass a flag -DDEAL_II_DIR=/path/to/deal.II to cmake\n"
+    "or set an environment variable \"DEAL_II_DIR\" that contains this path."
+    )
+ENDIF()
+
+DEAL_II_INITIALIZE_CACHED_VARIABLES()
+
+PROJECT(dealammps)
+
+ADD_EXECUTABLE(dealammps dealammps.cc)
+DEAL_II_SETUP_TARGET(dealammps)
+
+ADD_EXECUTABLE(equilammps equilammps.cc)
+DEAL_II_SETUP_TARGET(equilammps)
+
+ADD_EXECUTABLE(strain_md strain_md.cc)
+DEAL_II_SETUP_TARGET(strain_md)
+
+## Include LAMMPS sources repository
+INCLUDE_DIRECTORIES(
+  /gpfs/work/pr53zu/di36yax2/source/lammps-17Nov16/src/
+  )
+
+## Include BOOST sources repository
+FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
+INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+
+## Include LAMMPS library shared .so (or static .a)
+TARGET_LINK_LIBRARIES(dealammps /gpfs/work/pr53zu/di36yax2/source/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(equilammps /gpfs/work/pr53zu/di36yax2/source/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(strain_md /gpfs/work/pr53zu/di36yax2/source/lammps-17Nov16/src/liblammps.so)
+
+TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(equilammps LINK_PUBLIC ${Boost_LIBRARIES})
+
+## Create additional targets to the standard DEAL.II targets
+## Use "aprun" as follow: e.g "make aprun NTHR=24"
+ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
+                             DEPENDS buildclean
+                             COMMAND rm
+                             ARGS -rf CMakeFiles cmake_install.cmake CMakeCache.txt Makefile
+  )
+
+ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
+                             DEPENDS outclean
+                             COMMAND rm
+                             ARGS -rf dealammps equilammps strain_md
+  )
+
+ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"
+                           COMMAND rm
+                           ARGS -rf core output.* error.* log.* *_log *_output *_restart
+  )

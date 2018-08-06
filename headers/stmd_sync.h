@@ -781,12 +781,18 @@ namespace HMM
 
 			// Run python script that runs all the MD jobs located in json file
 			std::cout << "       Calling QCG-PM..." << std::endl;
+			// This command will ask for its specific allocation outside of the present one
 			sprintf(command,
 					"sbatch -p fast -Q -W -A compatpsnc2 -N %d --ntasks-per-node 28 -t 01:00:00 "
 					"--wrap='/opt/exp_soft/plgrid/qcg-appscripts-eagle/tools/qcg-pilotmanager/qcg-pm-service "
 					"--exschema slurm --file --file-path=%s'",
 					total_node_allocation,
 					fullfile);
+			// This one will be run inside the present allocation
+			/*sprintf(command,
+					"/opt/exp_soft/plgrid/qcg-appscripts-eagle/tools/qcg-pilotmanager/qcg-pm-service "
+					"--exschema slurm --file --file-path=%s",
+					fullfile);*/
 			int ret = system(command);
 			if (ret!=0){
 				std::cout << "Failed completing the MD updates via QCG-PM" << std::endl;

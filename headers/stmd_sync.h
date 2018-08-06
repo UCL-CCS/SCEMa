@@ -80,9 +80,9 @@ namespace HMM
 
 		void execute_inside_md_simulations();
 
-		//void write_proc_job_list_json(list_proc_jobs_json, time_id, max_nodes_per_md);
-		//void concatenate_job_list(list_jobs_json);
-		//void execute_pjm_md_simulations();
+		void write_proc_job_list_json(int max_nodes_per_md, char* filename_out);
+		void concatenate_job_list(char* filename_out, char* filenamebase);
+		void execute_pjm_md_simulations();
 
 		void store_md_simulations();
 
@@ -129,6 +129,8 @@ namespace HMM
 		int									md_nsteps_sample;
 		double								md_strain_rate;
 		std::string							md_force_field;
+
+		std::vector<std::vector<std::string> > md_args;
 
 		int									freq_checkpoint;
 		int									freq_output_homog;
@@ -509,6 +511,11 @@ namespace HMM
 			qpreplogloc.resize(nmdruns,"");
 			straininputfile.resize(nmdruns,"");
 			stressoutputfile.resize(nmdruns,"");
+			md_args.resize(nmdruns);
+		    for( auto &it : md_args )
+		    {
+		        it.clear();
+		    }
 
 			// Setting up batch of processes
 			set_md_procs(nmdruns);
@@ -563,6 +570,26 @@ namespace HMM
 
 							// Preparing directory to write MD simulation log files
 							mkdir(qpreplogloc[imdrun].c_str(), ACCESSPERMS);
+
+							// Setting argument list for strain_md executable
+							md_args[imdrun].push_back(cell_id[c]);
+							md_args[imdrun].push_back(time_id);
+							md_args[imdrun].push_back(cell_mat[c]);
+							md_args[imdrun].push_back(nanostatelocout);
+							md_args[imdrun].push_back(nanostatelocres);
+							md_args[imdrun].push_back(nanologlochom);
+							md_args[imdrun].push_back(qpreplogloc[imdrun]);
+							md_args[imdrun].push_back(md_scripts_directory);
+							md_args[imdrun].push_back(straininputfile[imdrun]);
+							md_args[imdrun].push_back(stressoutputfile[imdrun]);
+							md_args[imdrun].push_back(std::to_string(numrepl));
+							md_args[imdrun].push_back(std::to_string(md_timestep_length));
+							md_args[imdrun].push_back(std::to_string(md_temperature));
+							md_args[imdrun].push_back(std::to_string(md_nsteps_sample));
+							md_args[imdrun].push_back(std::to_string(md_strain_rate));
+							md_args[imdrun].push_back(md_force_field);
+							md_args[imdrun].push_back(std::to_string(output_homog));
+							md_args[imdrun].push_back(std::to_string(checkpoint_save));
 						}
 					}
 				}
@@ -595,22 +622,17 @@ namespace HMM
 					// when the specific/external communicator fails)
 					// Does not work as OpenMPI cannot be started from an existing OpenMPI run...
 					/*std::string exec_name = "mpirun ./single_md";
-					std::string args_list = cell_id[c]+" "+time_id+" "+cell_mat[c]
-											+" "+nanostatelocout+" "+nanostatelocres+" "+nanologlochom
-											+" "+qpreplogloc[imdrun]+" "+md_scripts_directory
-											+" "+straininputfile[imdrun]
-											+" "+stressoutputfile[imdrun]
-											+" "+std::to_string(numrepl)
-											+" "+std::to_string(md_timestep_length)
-											+" "+std::to_string(md_temperature)
-											+" "+std::to_string(md_nsteps_sample)
-											+" "+std::to_string(md_strain_rate)
-											+" "+std::to_string(md_force_field)
-											+" "+std::to_string(output_homog)
-											+" "+std::to_string(checkpoint_save);
-					std::string redir_output = "> " + qpreplogloc[imdrun] + "/out.single_md";
 
-					std::string command = exec_name+" "+args_list+" "+redir_output;
+					// Writting the argument list to be passed to the strain_md executable directly
+					std::vector<std::string> args_list_separator = " ";
+					std::string args_list;
+					for (int i=0; i<md_args[imdrun].size(); i++){
+						args_list += args_list_separator+md_args[i];
+					}
+
+					std::string redir_output = " > " + qpreplogloc[imdrun] + "/out.single_md";
+
+					std::string command = exec_name+args_list+redir_output;
 					int ret = system(command.c_str());
 					if (ret!=0){
 						std::cerr << "Failed executing the md simulation: " << command << std::endl;
@@ -629,6 +651,151 @@ namespace HMM
 			}
 		}
 		mcout << std::endl;
+	}
+
+
+	template <int dim>
+	void STMDSync<dim>::write_proc_job_list_json(int max_nodes_per_md, char* filename_out)
+	{
+		std::ofstream output_file(filename_out, std::ios_base::trunc);
+
+		// Preparing strain input file for each replica
+		for (unsigned int c=0; c<ncupd; ++c)
+		{
+			for(unsigned int repl=0;repl<nrepl;repl++)
+			{
+				// Offset replica number because in filenames, replicas start at 1
+				int numrepl = repl+1;
+
+				// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
+				int imdrun=c*nrepl + (repl);
+
+				if (md_batch_pcolor == (imdrun%n_md_batches)){
+					if(this_md_batch_process == 0){
+
+						// Writting the argument list to be passed to the JSON file
+						std::string args_list_separator = ", ";
+						std::string args_list = "[ \"./strain_md\"";
+						for (unsigned int i=0; i<md_args[imdrun].size(); i++){
+							args_list += args_list_separator+"\""+md_args[imdrun][i]+"\"";
+						}
+						args_list += "]";
+
+						// Write json file containing each simulation and its parameters
+						// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
+						output_file<<"   { " <<std::endl;
+						output_file<<"      \"name\": \"mdrun_cell"<< cell_id[c] << "_repl" << numrepl << " \", " <<std::endl;
+						output_file<<"      \"execution\": { " <<std::endl;
+						output_file<<"         \"exec\": \"mpirun\", " <<std::endl;
+						output_file<<"         \"args\": " << args_list << ", " <<std::endl;
+						output_file<<"         \"stdout\": \"" << qpreplogloc[imdrun] << "/${jname}.stdout\", " <<std::endl;
+						output_file<<"         \"stderr\": \"" << qpreplogloc[imdrun] << "/${jname}.stderr\"" <<std::endl;
+						output_file<<"      }, " <<std::endl;
+						output_file<<"      \"resources\": { " <<std::endl;
+						output_file<<"         \"numNodes\": { " <<std::endl;
+						output_file<<"            \"min\": "<< 1 << ", " <<std::endl;
+						output_file<<"            \"max\": "<< max_nodes_per_md << "" <<std::endl;
+						output_file<<"         }, " <<std::endl;
+						output_file<<"         \"wt\": \"20m\"" <<std::endl;
+						output_file<<"      } " <<std::endl;
+						output_file<<"   }, " <<std::endl;
+					}
+				}
+			}
+		}
+		output_file.close();
+	}
+
+
+
+
+	template <int dim>
+	void STMDSync<dim>::concatenate_job_list(char* filename_out, char* filenamebase)
+	{
+		std::ofstream output_file(filename_out, std::ios_base::trunc);
+
+		char filename[1024];
+
+		output_file<<"["<<std::endl;
+		output_file<<"{"<<std::endl;
+		output_file<<"   \"request\": \"submit\", "<<std::endl;
+		output_file<<"   \"jobs\": [ "<<std::endl;
+
+		// append each proc file content
+		for(int proc=0;proc<mmd_n_processes;proc++){
+			sprintf(filename, "%s.%d.json", filenamebase, proc);
+			std::ifstream  prlist(filename);
+			if (prlist.good()){
+				std::string line;
+				// Check if list of the current proc is empty or contains cells to update
+				if (prlist.peek() != std::ifstream::traits_type::eof()){
+					// Compute number of cells in local history ()
+					while(getline(prlist, line)){
+						output_file << line << std::endl;
+					}
+				}
+				prlist.close();
+			}
+		}
+
+		// Remove the last useless comma :)
+		long pos = output_file.tellp();
+		output_file.seekp (pos-3);
+		output_file<<""<<std::endl;
+
+		// Append with the control statement
+		output_file<<"   ]"<<std::endl;
+		output_file<<"},"<<std::endl;
+		output_file<<"{"<<std::endl;
+		output_file<<"   \"request\": \"control\", "<<std::endl;
+		output_file<<"   \"command\": \"finishAfterAllTasksDone\" "<<std::endl;
+		output_file<<"}"<<std::endl;
+		output_file<<"]"<<std::endl;
+
+		std::cout << "       Finished writing .json file" << std::endl;
+
+		output_file.close();
+	}
+
+
+
+	template <int dim>
+	void STMDSync<dim>::execute_pjm_md_simulations()
+	{
+		int max_nodes_per_md = 20;
+		int total_node_allocation = 200;
+
+		char filenamebase[1024], filename[1024], command[1024];
+		sprintf(filenamebase, "%s/list_md_jobs", nanostatelocout.c_str());
+
+		// Writing the JSON file contents separately for each processor
+		sprintf(filename, "%s.%d.json", filenamebase, this_mmd_process);
+		write_proc_job_list_json(max_nodes_per_md, filename);
+
+		MPI_Barrier(mmd_communicator);
+
+		if(this_mmd_process==0){
+			char fullfile[1024];
+			sprintf(fullfile, "%s.json", filenamebase);
+			concatenate_job_list(fullfile, filenamebase);
+
+			// Run python script that runs all the MD jobs located in json file
+			std::cout << "       Calling QCG-PM..." << std::endl;
+			sprintf(command,
+					"sbatch -p fast -Q -W -A compatpsnc2 -N %d --ntasks-per-node 28 -t 01:00:00 "
+					"--wrap='/opt/exp_soft/plgrid/qcg-appscripts-eagle/tools/qcg-pilotmanager/qcg-pm-service "
+					"--exschema slurm --file --file-path=%s'",
+					total_node_allocation,
+					fullfile);
+			int ret = system(command);
+			if (ret!=0){
+				std::cout << "Failed completing the MD updates via QCG-PM" << std::endl;
+				//std::cerr << "Failed completing the MD updates via QCG-PM" << std::endl;
+				//exit(1);
+			}
+
+			std::cout << "       Completion signal from QCG-PM received!" << std::endl;
+		}
 	}
 
 
@@ -768,6 +935,7 @@ namespace HMM
 		cell_mat.clear();
 		time_id = std::to_string(timestep)+"-"+std::to_string(newtonstep);
 		qpreplogloc.clear();
+		md_args.clear();
 
 		// Should the homogenization trajectory file be saved?
 		if (timestep%freq_output_homog==0) output_homog = true;
@@ -780,9 +948,7 @@ namespace HMM
 		MPI_Barrier(mmd_communicator);
 		if (ncupd>0){
 			if(use_pjm_scheduler){
-				std::cerr << "PJM not implemented yet..." << std::endl;
-				exit(1);
-				//execute_pjm_md_simulations();
+				execute_pjm_md_simulations();
 			}
 			else{
 				execute_inside_md_simulations();

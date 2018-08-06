@@ -693,7 +693,7 @@ namespace HMM
 						output_file<<"      }, " <<std::endl;
 						output_file<<"      \"resources\": { " <<std::endl;
 						output_file<<"         \"numNodes\": { " <<std::endl;
-						output_file<<"            \"min\": "<< 1 << ", " <<std::endl;
+						output_file<<"            \"min\": "<< batch_nnodes_min << ", " <<std::endl;
 						output_file<<"            \"max\": "<< max_nodes_per_md << "" <<std::endl;
 						output_file<<"         }, " <<std::endl;
 						output_file<<"         \"wt\": \"20m\"" <<std::endl;
@@ -951,6 +951,7 @@ namespace HMM
 		else checkpoint_save = false;
 
 		prepare_md_simulations();
+
 		MPI_Barrier(mmd_communicator);
 		if (ncupd>0){
 			if(use_pjm_scheduler){

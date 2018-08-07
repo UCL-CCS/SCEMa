@@ -947,7 +947,7 @@ namespace HMM
 		if (timestep%freq_output_homog==0) output_homog = true;
 		else output_homog = false;
 
-		if (timestep%freq_output_homog==0) checkpoint_save = true;
+		if (timestep%freq_checkpoint==0) checkpoint_save = true;
 		else checkpoint_save = false;
 
 		prepare_md_simulations();

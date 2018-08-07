@@ -377,7 +377,7 @@ namespace HMM
 					read_tensor<dim>(lengthoutputfile[imdrun].c_str(), replica_data[imdrun].init_length);
 				}
 				else{
-					std::cerr << "Missing equilibrated initial stress data for material "
+					std::cerr << "Missing equilibrated initial length data for material "
 							<< replica_data[imdrun].mat.c_str() << " replica #"
 							<< replica_data[imdrun].repl << std::endl;
 				}
@@ -388,7 +388,7 @@ namespace HMM
 					read_tensor<dim>(stressoutputfile[imdrun].c_str(), replica_data[imdrun].init_stress);
 				}
 				else{
-					std::cerr << "Missing equilibrated initial length data for material "
+					std::cerr << "Missing equilibrated initial stress data for material "
 							<< replica_data[imdrun].mat.c_str() << " replica #"
 							<< replica_data[imdrun].repl << std::endl;
 				}
@@ -399,7 +399,7 @@ namespace HMM
 					read_tensor<dim>(stiffoutputfile[imdrun].c_str(), replica_data[imdrun].init_stiff);
 				}
 				else{
-					std::cerr << "Missing equilibrated initial length data for material "
+					std::cerr << "Missing equilibrated initial stiffness data for material "
 							<< replica_data[imdrun].mat.c_str() << " replica #"
 							<< replica_data[imdrun].repl << std::endl;
 				}
@@ -658,8 +658,6 @@ namespace HMM
 	template <int dim>
 	void STMDSync<dim>::write_proc_job_list_json(int max_nodes_per_md, char* filename_out)
 	{
-		std::ofstream output_file(filename_out, std::ios_base::trunc);
-
 		// Preparing strain input file for each replica
 		for (unsigned int c=0; c<ncupd; ++c)
 		{
@@ -675,20 +673,28 @@ namespace HMM
 					if(this_md_batch_process == 0){
 
 						// Writting the argument list to be passed to the JSON file
-						std::string args_list_separator = ", ";
-						std::string args_list = "[ \"./strain_md\"";
+						std::string args_list_separator = " ";
+						std::string args_list = "./strain_md";
 						for (unsigned int i=0; i<md_args[imdrun].size(); i++){
-							args_list += args_list_separator+"\""+md_args[imdrun][i]+"\"";
+							args_list += args_list_separator+md_args[imdrun][i];
 						}
-						args_list += "]";
+						args_list += "";
+
+						std::string scriptfile = nanostatelocout + "/" + "bash_cell"+cell_id[c]
+																 +"_repl"+std::to_string(numrepl)+".sh";
+						std::ofstream bash_script(scriptfile, std::ios_base::trunc);
+						bash_script << "mpirun " << args_list;
+						bash_script.close();
+
+						std::ofstream output_file(filename_out, std::ios_base::trunc);
 
 						// Write json file containing each simulation and its parameters
 						// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
 						output_file<<"   { " <<std::endl;
 						output_file<<"      \"name\": \"mdrun_cell"<< cell_id[c] << "_repl" << numrepl << "\", " <<std::endl;
 						output_file<<"      \"execution\": { " <<std::endl;
-						output_file<<"         \"exec\": \"mpirun\", " <<std::endl;
-						output_file<<"         \"args\": " << args_list << ", " <<std::endl;
+						output_file<<"         \"exec\": \"bash\", " <<std::endl;
+						output_file<<"         \"args\": \"" << scriptfile << "\", " <<std::endl;
 						output_file<<"         \"stdout\": \"" << qpreplogloc[imdrun] << "/${jname}.stdout\", " <<std::endl;
 						output_file<<"         \"stderr\": \"" << qpreplogloc[imdrun] << "/${jname}.stderr\"" <<std::endl;
 						output_file<<"      }, " <<std::endl;
@@ -700,11 +706,12 @@ namespace HMM
 						output_file<<"         \"wt\": \"20m\"" <<std::endl;
 						output_file<<"      } " <<std::endl;
 						output_file<<"   }, " <<std::endl;
+
+						output_file.close();
 					}
 				}
 			}
 		}
-		output_file.close();
 	}
 
 
@@ -829,6 +836,8 @@ namespace HMM
 
 				for(unsigned int repl=0;repl<nrepl;repl++)
 				{
+					// Offset replica number because in filenames, replicas start at 1
+					int numrepl = repl+1;
 
 					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
 					int imdrun=c*nrepl + (repl);
@@ -861,6 +870,12 @@ namespace HMM
 
 						// Removing replica strain passing file used to average cell stress
 						remove(straininputfile[imdrun].c_str());
+
+						if (use_pjm_scheduler){
+							std::string scriptfile = nanostatelocout + "/" + "bash_cell"+cell_id[c]
+																	 +"_repl"+std::to_string(numrepl)+".sh";
+							remove(scriptfile.c_str());
+						}
 
 						// Clean "nanoscale_logs" of the finished timestep
 						char command[1024];

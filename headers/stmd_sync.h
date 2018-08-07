@@ -543,6 +543,7 @@ namespace HMM
 						stressoutputfile[imdrun] = macrostatelocout + "/last." + cell_id[c] + "." + std::to_string(numrepl) + ".stress";
 						qpreplogloc[imdrun] = nanologloctmp + "/" + time_id  + "." + cell_id[c] + "." + cell_mat[c] + "_" + std::to_string(numrepl);
 
+						// Operations on disk, need only to be done by one of the processes of the batch
 						if(this_md_batch_process == 0){
 
 							SymmetricTensor<2,dim> loc_rep_strain, cg_loc_rep_strain;
@@ -570,27 +571,27 @@ namespace HMM
 
 							// Preparing directory to write MD simulation log files
 							mkdir(qpreplogloc[imdrun].c_str(), ACCESSPERMS);
-
-							// Setting argument list for strain_md executable
-							md_args[imdrun].push_back(cell_id[c]);
-							md_args[imdrun].push_back(time_id);
-							md_args[imdrun].push_back(cell_mat[c]);
-							md_args[imdrun].push_back(nanostatelocout);
-							md_args[imdrun].push_back(nanostatelocres);
-							md_args[imdrun].push_back(nanologlochom);
-							md_args[imdrun].push_back(qpreplogloc[imdrun]);
-							md_args[imdrun].push_back(md_scripts_directory);
-							md_args[imdrun].push_back(straininputfile[imdrun]);
-							md_args[imdrun].push_back(stressoutputfile[imdrun]);
-							md_args[imdrun].push_back(std::to_string(numrepl));
-							md_args[imdrun].push_back(std::to_string(md_timestep_length));
-							md_args[imdrun].push_back(std::to_string(md_temperature));
-							md_args[imdrun].push_back(std::to_string(md_nsteps_sample));
-							md_args[imdrun].push_back(std::to_string(md_strain_rate));
-							md_args[imdrun].push_back(md_force_field);
-							md_args[imdrun].push_back(std::to_string(output_homog));
-							md_args[imdrun].push_back(std::to_string(checkpoint_save));
 						}
+
+						// Setting argument list for strain_md executable
+						md_args[imdrun].push_back(cell_id[c]);
+						md_args[imdrun].push_back(time_id);
+						md_args[imdrun].push_back(cell_mat[c]);
+						md_args[imdrun].push_back(nanostatelocout);
+						md_args[imdrun].push_back(nanostatelocres);
+						md_args[imdrun].push_back(nanologlochom);
+						md_args[imdrun].push_back(qpreplogloc[imdrun]);
+						md_args[imdrun].push_back(md_scripts_directory);
+						md_args[imdrun].push_back(straininputfile[imdrun]);
+						md_args[imdrun].push_back(stressoutputfile[imdrun]);
+						md_args[imdrun].push_back(std::to_string(numrepl));
+						md_args[imdrun].push_back(std::to_string(md_timestep_length));
+						md_args[imdrun].push_back(std::to_string(md_temperature));
+						md_args[imdrun].push_back(std::to_string(md_nsteps_sample));
+						md_args[imdrun].push_back(std::to_string(md_strain_rate));
+						md_args[imdrun].push_back(md_force_field);
+						md_args[imdrun].push_back(std::to_string(output_homog));
+						md_args[imdrun].push_back(std::to_string(checkpoint_save));
 					}
 				}
 			}

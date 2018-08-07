@@ -658,6 +658,8 @@ namespace HMM
 	template <int dim>
 	void STMDSync<dim>::write_proc_job_list_json(int max_nodes_per_md, char* filename_out)
 	{
+		std::ofstream output_file(filename_out, std::ios_base::trunc);
+
 		// Preparing strain input file for each replica
 		for (unsigned int c=0; c<ncupd; ++c)
 		{
@@ -686,8 +688,6 @@ namespace HMM
 						bash_script << "mpirun " << args_list;
 						bash_script.close();
 
-						std::ofstream output_file(filename_out, std::ios_base::trunc);
-
 						// Write json file containing each simulation and its parameters
 						// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
 						output_file<<"   { " <<std::endl;
@@ -706,12 +706,12 @@ namespace HMM
 						output_file<<"         \"wt\": \"20m\"" <<std::endl;
 						output_file<<"      } " <<std::endl;
 						output_file<<"   }, " <<std::endl;
-
-						output_file.close();
 					}
 				}
 			}
 		}
+
+		output_file.close();
 	}
 
 

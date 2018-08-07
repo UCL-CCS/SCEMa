@@ -685,7 +685,7 @@ namespace HMM
 						// Write json file containing each simulation and its parameters
 						// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
 						output_file<<"   { " <<std::endl;
-						output_file<<"      \"name\": \"mdrun_cell"<< cell_id[c] << "_repl" << numrepl << " \", " <<std::endl;
+						output_file<<"      \"name\": \"mdrun_cell"<< cell_id[c] << "_repl" << numrepl << "\", " <<std::endl;
 						output_file<<"      \"execution\": { " <<std::endl;
 						output_file<<"         \"exec\": \"mpirun\", " <<std::endl;
 						output_file<<"         \"args\": " << args_list << ", " <<std::endl;

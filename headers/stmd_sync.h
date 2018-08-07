@@ -817,71 +817,69 @@ namespace HMM
 				if(cell_mat[c]==mdtype[i])
 					imd=i;
 
-			if (md_batch_pcolor == int(c%n_md_batches))
+			if (this_mmd_process == int(c%mmd_n_processes))
 			{
 				// Write the new stress and stiffness tensors into two files, respectively
 				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
-				if(this_md_batch_process == 0)
+
+				//SymmetricTensor<4,dim> cg_loc_stiffness;
+				SymmetricTensor<2,dim> cg_loc_stress;
+				char filename[1024];
+
+				for(unsigned int repl=0;repl<nrepl;repl++)
 				{
-					//SymmetricTensor<4,dim> cg_loc_stiffness;
-					SymmetricTensor<2,dim> cg_loc_stress;
-					char filename[1024];
 
-					for(unsigned int repl=0;repl<nrepl;repl++)
-					{
+					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
+					int imdrun=c*nrepl + (repl);
 
-						// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
-						int imdrun=c*nrepl + (repl);
+					// Rotate stress and stiffness tensor from replica orientation to common ground
 
-						// Rotate stress and stiffness tensor from replica orientation to common ground
+					//SymmetricTensor<4,dim> cg_loc_stiffness, loc_rep_stiffness;
+					SymmetricTensor<2,dim> cg_loc_rep_stress, loc_rep_stress;
+					//sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cell_id[c].c_str(), numrepl);
 
-						//SymmetricTensor<4,dim> cg_loc_stiffness, loc_rep_stiffness;
-						SymmetricTensor<2,dim> cg_loc_rep_stress, loc_rep_stress;
-						//sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cell_id[c].c_str(), numrepl);
+					if(read_tensor<dim>(stressoutputfile[imdrun].c_str(), loc_rep_stress)){
+						/* // Rotation of the stiffness tensor to common ground direction before averaging
+						sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout.c_str(), cell_id[c], repl);
+						read_tensor<dim>(filename, loc_rep_stiffness);
 
-						if(read_tensor<dim>(stressoutputfile[imdrun].c_str(), loc_rep_stress)){
-							/* // Rotation of the stiffness tensor to common ground direction before averaging
-							sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout.c_str(), cell_id[c], repl);
-							read_tensor<dim>(filename, loc_rep_stiffness);
+						cg_loc_stiffness = rotate_tensor(loc_stiffness, replica_data[imd*nrepl+repl].rotam);
 
-							cg_loc_stiffness = rotate_tensor(loc_stiffness, replica_data[imd*nrepl+repl].rotam);
+						cg_loc_stiffness += cg_loc_rep_stiffness;*/
 
-							cg_loc_stiffness += cg_loc_rep_stiffness;*/
+						// Removing initial stress from the current stress
+						loc_rep_stress -= replica_data[imd*nrepl+repl].init_stress;
 
-							// Removing initial stress from the current stress
-							loc_rep_stress -= replica_data[imd*nrepl+repl].init_stress;
+						// Rotation of the stress tensor to common ground direction before averaging
+						cg_loc_rep_stress = rotate_tensor(loc_rep_stress, replica_data[imd*nrepl+repl].rotam);
 
-							// Rotation of the stress tensor to common ground direction before averaging
-							cg_loc_rep_stress = rotate_tensor(loc_rep_stress, replica_data[imd*nrepl+repl].rotam);
+						cg_loc_stress += cg_loc_rep_stress;
 
-							cg_loc_stress += cg_loc_rep_stress;
+						// Removing file now it has been used
+						remove(stressoutputfile[imdrun].c_str());
 
-							// Removing file now it has been used
-							remove(stressoutputfile[imdrun].c_str());
+						// Removing replica strain passing file used to average cell stress
+						remove(straininputfile[imdrun].c_str());
 
-							// Removing replica strain passing file used to average cell stress
-							remove(straininputfile[imdrun].c_str());
-
-							// Clean "nanoscale_logs" of the finished timestep
-							char command[1024];
-							sprintf(command, "rm -rf %s", qpreplogloc[imdrun].c_str());
-							int ret = system(command);
-							if (ret!=0){
-								std::cerr << "Failed removing the log files of the MD simulations of the current step!" << std::endl;
-								exit(1);
-							}
+						// Clean "nanoscale_logs" of the finished timestep
+						char command[1024];
+						sprintf(command, "rm -rf %s", qpreplogloc[imdrun].c_str());
+						int ret = system(command);
+						if (ret!=0){
+							std::cout << "Failed removing the log files of the MD simulation: " << qpreplogloc[imdrun] << std::endl;
 						}
 					}
-
-					//cg_loc_stiffness /= nrepl;
-					cg_loc_stress /= nrepl;
-
-					/*sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id[c].c_str());
-					write_tensor<dim>(filename, cg_loc_stiffness);*/
-
-					sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id[c].c_str());
-					write_tensor<dim>(filename, cg_loc_stress);
 				}
+
+				//cg_loc_stiffness /= nrepl;
+				cg_loc_stress /= nrepl;
+
+				/*sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id[c].c_str());
+				write_tensor<dim>(filename, cg_loc_stiffness);*/
+
+				sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id[c].c_str());
+				write_tensor<dim>(filename, cg_loc_stress);
+
 			}
 		}
 

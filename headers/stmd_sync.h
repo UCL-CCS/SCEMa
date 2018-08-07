@@ -694,7 +694,7 @@ namespace HMM
 						output_file<<"      \"name\": \"mdrun_cell"<< cell_id[c] << "_repl" << numrepl << "\", " <<std::endl;
 						output_file<<"      \"execution\": { " <<std::endl;
 						output_file<<"         \"exec\": \"bash\", " <<std::endl;
-						output_file<<"         \"args\": \"" << scriptfile << "\", " <<std::endl;
+						output_file<<"         \"args\": [\"" << scriptfile << "\"], " <<std::endl;
 						output_file<<"         \"stdout\": \"" << qpreplogloc[imdrun] << "/${jname}.stdout\", " <<std::endl;
 						output_file<<"         \"stderr\": \"" << qpreplogloc[imdrun] << "/${jname}.stderr\"" <<std::endl;
 						output_file<<"      }, " <<std::endl;

@@ -34,7 +34,7 @@
     "checkpoint frequency": 5,
     "visualisation output frequency": 1,
     "analytics output frequency": 1,
-    "homogenization output frequency": 1
+    "homogenization output frequency": 1000
   },
   "directory structure":{
     "macroscale input": "./macroscale_input",

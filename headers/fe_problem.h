@@ -1724,7 +1724,7 @@ namespace HMM
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					lhprocout << timestep
-							<< present_time
+							<< "," << present_time
 							<< "," << cell->active_cell_index()
 							<< "," << q
 							<< "," << local_qp_hist[q].mat.c_str();

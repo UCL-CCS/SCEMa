@@ -198,8 +198,11 @@ namespace HMM
 		void clean_transfer();
 
 		Vector<double>  compute_internal_forces () const;
+		std::vector< std::vector< Vector<double> > >
+		compute_history_projection_from_qp_to_nodes (FE_DGQ<dim> &history_fe, DoFHandler<dim> &history_dof_handler, std::string stensor) const;
 		void output_lhistory ();
-		void output_visualisation ();
+		void output_visualisation_solution ();
+		void output_visualisation_history ();
 		void output_results ();
 		void checkpoint (char* timeid) const;
 
@@ -232,6 +235,9 @@ namespace HMM
 
 		FESystem<dim>        				fe;
 		const QGauss<dim>   				quadrature_formula;
+
+		FE_DGQ<dim>     					history_fe;
+		DoFHandler<dim> 					history_dof_handler;
 
 		ConstraintMatrix     				hanging_node_constraints;
 		std::vector<PointHistory<dim> > 	quadrature_point_history;
@@ -286,7 +292,9 @@ namespace HMM
 		triangulation(FE_communicator),
 		dof_handler (triangulation),
 		fe (FE_Q<dim>(fe_deg), dim),
-		quadrature_formula (quad_for)
+		quadrature_formula (quad_for),
+		history_fe (1),
+		history_dof_handler (triangulation)
 	{}
 
 
@@ -356,6 +364,8 @@ namespace HMM
 		dof_handler.distribute_dofs (fe);
 		locally_owned_dofs = dof_handler.locally_owned_dofs();
 		DoFTools::extract_locally_relevant_dofs (dof_handler,locally_relevant_dofs);
+
+		history_dof_handler.distribute_dofs (history_fe);
 
 		n_local_cells
 		= GridTools::count_cells_with_subdomain_association (triangulation,
@@ -1684,6 +1694,69 @@ namespace HMM
 
 
 
+
+	template <int dim>
+	std::vector< std::vector< Vector<double> > >
+	FEProblem<dim>::compute_history_projection_from_qp_to_nodes (FE_DGQ<dim> &history_fe, DoFHandler<dim> &history_dof_handler, std::string stensor) const
+	{
+		std::vector< std::vector< Vector<double> > >
+		             history_field (dim, std::vector< Vector<double> >(dim)),
+		             local_history_values_at_qpoints (dim, std::vector< Vector<double> >(dim)),
+		             local_history_fe_values (dim, std::vector< Vector<double> >(dim));
+		for (unsigned int i=0; i<dim; i++)
+		  for (unsigned int j=0; j<dim; j++)
+		  {
+		    history_field[i][j].reinit(history_dof_handler.n_dofs());
+		    local_history_values_at_qpoints[i][j].reinit(quadrature_formula.size());
+		    local_history_fe_values[i][j].reinit(history_fe.dofs_per_cell);
+		  }
+		FullMatrix<double> qpoint_to_dof_matrix (history_fe.dofs_per_cell,
+		                                         quadrature_formula.size());
+		FETools::compute_projection_from_quadrature_points_matrix
+		          (history_fe,
+		           quadrature_formula, quadrature_formula,
+		           qpoint_to_dof_matrix);
+		typename DoFHandler<dim>::active_cell_iterator cell = dof_handler.begin_active(),
+		                                               endc = dof_handler.end(),
+		                                               dg_cell = history_dof_handler.begin_active();
+		for (; cell!=endc; ++cell, ++dg_cell)
+		  {
+		    PointHistory<dim> *local_quadrature_points_history
+		           = reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+		    Assert (local_quadrature_points_history >=
+		                &quadrature_point_history.front(),
+		                ExcInternalError());
+		    Assert (local_quadrature_points_history <
+		                &quadrature_point_history.back(),
+		                ExcInternalError());
+		    for (unsigned int i=0; i<dim; i++)
+		      for (unsigned int j=0; j<dim; j++)
+		      {
+		        for (unsigned int q=0; q<quadrature_formula.size(); ++q){
+		        	if (stensor == "strain"){
+		        		local_history_values_at_qpoints[i][j](q)
+				                   = local_quadrature_points_history[q].new_strain[i][j];
+		        	}
+		        	else if(stensor == "stress"){
+		        		local_history_values_at_qpoints[i][j](q)
+				                   = local_quadrature_points_history[q].new_stress[i][j];
+		        	}
+		        	else{
+		        		std::cerr << "Error: Neither 'stress' nor 'strain' to be projected to DOFs..." << std::endl;
+		        	}
+		        }
+		        qpoint_to_dof_matrix.vmult (local_history_fe_values[i][j],
+		                                    local_history_values_at_qpoints[i][j]);
+		        dg_cell->set_dof_values (local_history_fe_values[i][j],
+		                                 history_field[i][j]);
+		      }
+		  }
+
+		return history_field;
+	}
+
+
+
 	template <int dim>
 	void FEProblem<dim>::output_lhistory ()
 	{
@@ -1750,213 +1823,207 @@ namespace HMM
 
 
 	template <int dim>
-		void FEProblem<dim>::output_visualisation ()
-		{
-			// Data structure for VTK output
-			DataOut<dim> data_out;
-			data_out.attach_dof_handler (dof_handler);
+	void FEProblem<dim>::output_visualisation_history ()
+	{
+		// Data structure for VTK output
+		DataOut<dim> data_out;
+		data_out.attach_dof_handler (history_dof_handler);
 
-			// Output of displacement as a vector
-			std::vector<DataComponentInterpretation::DataComponentInterpretation>
-			data_component_interpretation
-			(dim, DataComponentInterpretation::component_is_part_of_vector);
-			std::vector<std::string>  displacement_names (dim, "displacement");
-			data_out.add_data_vector (displacement,
-					displacement_names,
-					DataOut<dim>::type_dof_data,
-					data_component_interpretation);
+		// Output of the cell norm of the averaged strain tensor over quadrature
+		// points as a scalar
+		std::vector<std::string> stensor_proj;
+		stensor_proj.push_back("strain");
+		stensor_proj.push_back("stress");
 
-			// Output of velocity as a vector
-			std::vector<std::string>  velocity_names (dim, "velocity");
-			data_out.add_data_vector (velocity,
-					velocity_names,
-					DataOut<dim>::type_dof_data,
-					data_component_interpretation);
+		std::vector<std::vector< std::vector< Vector<double> > > > tensor_proj;
 
-			// Output of the cell averaged striffness over quadrature
-			// points as a scalar in direction 0000, 1111 and 2222
-			std::vector<Vector<double> > avg_stiff (dim,
-					Vector<double>(triangulation.n_active_cells()));
-			for (int i=0;i<dim;++i){
-				{
-					typename Triangulation<dim>::active_cell_iterator
-					cell = triangulation.begin_active(),
-					endc = triangulation.end();
-					for (; cell!=endc; ++cell)
-						if (cell->is_locally_owned())
-						{
-							double accumulated_stiffi = 0.;
-							for (unsigned int q=0;q<quadrature_formula.size();++q)
-								accumulated_stiffi += reinterpret_cast<PointHistory<dim>*>
-									(cell->user_pointer())[q].new_stiff[i][i][i][i];
-
-							avg_stiff[i](cell->active_cell_index()) = accumulated_stiffi/quadrature_formula.size();
-						}
-						else avg_stiff[i](cell->active_cell_index()) = -1e+20;
-				}
-				std::string si = std::to_string(i);
-				std::string name = "stiffness_"+si+si+si+si;
-				data_out.add_data_vector (avg_stiff[i], name);
-			}
-
-
-			// Output of the cell id
-			Vector<double> cell_ids (triangulation.n_active_cells());
-			{
-				typename Triangulation<dim>::active_cell_iterator
-				cell = triangulation.begin_active(),
-				endc = triangulation.end();
-				for (; cell!=endc; ++cell)
-					if (cell->is_locally_owned())
-					{
-						cell_ids(cell->active_cell_index())
-								= cell->active_cell_index();
-					}
-					else cell_ids(cell->active_cell_index()) = -1;
-			}
-			data_out.add_data_vector (cell_ids, "cellID");
-
-
-			// Output of the cell norm of the averaged strain tensor over quadrature
-			// points as a scalar
-			Vector<double> norm_of_strain (triangulation.n_active_cells());
-			{
-				typename Triangulation<dim>::active_cell_iterator
-				cell = triangulation.begin_active(),
-				endc = triangulation.end();
-				for (; cell!=endc; ++cell)
-					if (cell->is_locally_owned())
-					{
-						SymmetricTensor<2,dim> accumulated_strain;
-						for (unsigned int q=0;q<quadrature_formula.size();++q)
-							accumulated_strain += reinterpret_cast<PointHistory<dim>*>
-						(cell->user_pointer())[q].new_strain;
-
-						norm_of_strain(cell->active_cell_index())
-						= (accumulated_strain / quadrature_formula.size()).norm();
-					}
-					else norm_of_strain(cell->active_cell_index()) = -1e+20;
-			}
-			data_out.add_data_vector (norm_of_strain, "norm_of_strain");
-
-			// Output of the cell norm of the averaged stress tensor over quadrature
-			// points as a scalar
-			Vector<double> norm_of_stress (triangulation.n_active_cells());
-			{
-				typename Triangulation<dim>::active_cell_iterator
-				cell = triangulation.begin_active(),
-				endc = triangulation.end();
-				for (; cell!=endc; ++cell)
-					if (cell->is_locally_owned())
-					{
-						SymmetricTensor<2,dim> accumulated_stress;
-						for (unsigned int q=0;q<quadrature_formula.size();++q)
-							accumulated_stress += reinterpret_cast<PointHistory<dim>*>
-						(cell->user_pointer())[q].new_stress;
-
-						norm_of_stress(cell->active_cell_index())
-						= (accumulated_stress / quadrature_formula.size()).norm();
-					}
-					else norm_of_stress(cell->active_cell_index()) = -1e+20;
-			}
-			data_out.add_data_vector (norm_of_stress, "norm_of_stress");
-
-			// Output of the cell XX-component of the averaged stress tensor over quadrature
-			// points as a scalar
-			Vector<double> xx_stress (triangulation.n_active_cells());
-			{
-				typename Triangulation<dim>::active_cell_iterator
-				cell = triangulation.begin_active(),
-				endc = triangulation.end();
-				for (; cell!=endc; ++cell)
-					if (cell->is_locally_owned())
-					{
-						SymmetricTensor<2,dim> accumulated_stress;
-						for (unsigned int q=0;q<quadrature_formula.size();++q)
-							accumulated_stress += reinterpret_cast<PointHistory<dim>*>
-						(cell->user_pointer())[q].new_stress;
-
-						xx_stress(cell->active_cell_index())
-						= (accumulated_stress[0][0] / quadrature_formula.size());
-					}
-					else xx_stress(cell->active_cell_index()) = -1e+20;
-			}
-			data_out.add_data_vector (xx_stress, "stress_00");
-
-			// Output of the cell YY-component of the averaged stress tensor over quadrature
-			// points as a scalar
-			Vector<double> yy_stress (triangulation.n_active_cells());
-			{
-				typename Triangulation<dim>::active_cell_iterator
-				cell = triangulation.begin_active(),
-				endc = triangulation.end();
-				for (; cell!=endc; ++cell)
-					if (cell->is_locally_owned())
-					{
-						SymmetricTensor<2,dim> accumulated_stress;
-						for (unsigned int q=0;q<quadrature_formula.size();++q)
-							accumulated_stress += reinterpret_cast<PointHistory<dim>*>
-						(cell->user_pointer())[q].new_stress;
-
-						yy_stress(cell->active_cell_index())
-						= (accumulated_stress[1][1] / quadrature_formula.size());
-					}
-					else yy_stress(cell->active_cell_index()) = -1e+20;
-			}
-			data_out.add_data_vector (yy_stress, "stress_11");
-
-			// Output of the partitioning of the mesh on processors
-			std::vector<types::subdomain_id> partition_int (triangulation.n_active_cells());
-			GridTools::get_subdomain_association (triangulation, partition_int);
-			const Vector<double> partitioning(partition_int.begin(),
-					partition_int.end());
-			data_out.add_data_vector (partitioning, "partitioning");
-
-			data_out.build_patches ();
-
-			// Grouping spatially partitioned outputs
-			std::string filename = macrologloc + "/" + "solution-" + Utilities::int_to_string(timestep,4)
-			+ "." + Utilities::int_to_string(this_FE_process,3)
-			+ ".vtu";
-			AssertThrow (n_FE_processes < 1000, ExcNotImplemented());
-
-			std::ofstream output (filename.c_str());
-			data_out.write_vtu (output);
-
-			if (this_FE_process==0)
-			{
-				std::vector<std::string> filenames_loc;
-				for (int i=0; i<n_FE_processes; ++i)
-					filenames_loc.push_back ("solution-" + Utilities::int_to_string(timestep,4)
-				+ "." + Utilities::int_to_string(i,3)
-				+ ".vtu");
-
-				const std::string
-				visit_master_filename = (macrologloc + "/" + "solution-" +
-						Utilities::int_to_string(timestep,4) +
-						".visit");
-				std::ofstream visit_master (visit_master_filename.c_str());
-				//data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
-				DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
-
-				const std::string
-				pvtu_master_filename = (macrologloc + "/" + "solution-" +
-						Utilities::int_to_string(timestep,4) +
-						".pvtu");
-				std::ofstream pvtu_master (pvtu_master_filename.c_str());
-				data_out.write_pvtu_record (pvtu_master, filenames_loc);
-
-				static std::vector<std::pair<double,std::string> > times_and_names;
-				const std::string
-							pvtu_master_filename_loc = ("solution-" +
-									Utilities::int_to_string(timestep,4) +
-									".pvtu");
-				times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename_loc));
-				std::ofstream pvd_output (macrologloc + "/" + "solution.pvd");
-				//data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
-				DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
-			}
+		for(unsigned int i=0; i<stensor_proj.size(); i++){
+			tensor_proj.push_back(compute_history_projection_from_qp_to_nodes (history_fe, history_dof_handler, stensor_proj[i]));
+			data_out.add_data_vector (tensor_proj[i][0][0], stensor_proj[i]+"_xx");
+			data_out.add_data_vector (tensor_proj[i][1][1], stensor_proj[i]+"_yy");
+			data_out.add_data_vector (tensor_proj[i][2][2], stensor_proj[i]+"_zz");
+			data_out.add_data_vector (tensor_proj[i][0][1], stensor_proj[i]+"_xy");
+			data_out.add_data_vector (tensor_proj[i][0][2], stensor_proj[i]+"_xz");
+			data_out.add_data_vector (tensor_proj[i][1][2], stensor_proj[i]+"_yz");
 		}
+
+		data_out.build_patches ();
+
+		// Grouping spatially partitioned outputs
+		std::string filename = macrologloc + "/" + "history-" + Utilities::int_to_string(timestep,4)
+		+ "." + Utilities::int_to_string(this_FE_process,3)
+		+ ".vtu";
+		AssertThrow (n_FE_processes < 1000, ExcNotImplemented());
+
+		std::ofstream output (filename.c_str());
+		data_out.write_vtu (output);
+
+		if (this_FE_process==0)
+		{
+			std::vector<std::string> filenames_loc;
+			for (int i=0; i<n_FE_processes; ++i)
+				filenames_loc.push_back ("history-" + Utilities::int_to_string(timestep,4)
+			+ "." + Utilities::int_to_string(i,3)
+			+ ".vtu");
+
+			const std::string
+			visit_master_filename = (macrologloc + "/" + "history-" +
+					Utilities::int_to_string(timestep,4) +
+					".visit");
+			std::ofstream visit_master (visit_master_filename.c_str());
+			//data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
+			DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
+
+			const std::string
+			pvtu_master_filename = (macrologloc + "/" + "history-" +
+					Utilities::int_to_string(timestep,4) +
+					".pvtu");
+			std::ofstream pvtu_master (pvtu_master_filename.c_str());
+			data_out.write_pvtu_record (pvtu_master, filenames_loc);
+
+			static std::vector<std::pair<double,std::string> > times_and_names;
+			const std::string
+						pvtu_master_filename_loc = ("history-" +
+								Utilities::int_to_string(timestep,4) +
+								".pvtu");
+			times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename_loc));
+			std::ofstream pvd_output (macrologloc + "/" + "history.pvd");
+			//data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
+			DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
+		}
+	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::output_visualisation_solution ()
+	{
+		// Data structure for VTK output
+		DataOut<dim> data_out;
+		data_out.attach_dof_handler (dof_handler);
+
+		// Output of displacement as a vector
+		std::vector<DataComponentInterpretation::DataComponentInterpretation>
+		data_component_interpretation
+		(dim, DataComponentInterpretation::component_is_part_of_vector);
+		std::vector<std::string>  displacement_names (dim, "displacement");
+		data_out.add_data_vector (displacement,
+				displacement_names,
+				DataOut<dim>::type_dof_data,
+				data_component_interpretation);
+
+		// Output of velocity as a vector
+		std::vector<std::string>  velocity_names (dim, "velocity");
+		data_out.add_data_vector (velocity,
+				velocity_names,
+				DataOut<dim>::type_dof_data,
+				data_component_interpretation);
+
+
+		// Output of internal forces as a vector
+		Vector<double> fint = compute_internal_forces ();
+		std::vector<std::string>  fint_names (dim, "fint");
+		data_out.add_data_vector (velocity,
+				fint_names,
+				DataOut<dim>::type_dof_data,
+				data_component_interpretation);
+
+		// Output of the cell averaged striffness over quadrature
+		// points as a scalar in direction 0000, 1111 and 2222
+		std::vector<Vector<double> > avg_stiff (dim,
+				Vector<double>(triangulation.n_active_cells()));
+		for (int i=0;i<dim;++i){
+			{
+				typename Triangulation<dim>::active_cell_iterator
+				cell = triangulation.begin_active(),
+				endc = triangulation.end();
+				for (; cell!=endc; ++cell)
+					if (cell->is_locally_owned())
+					{
+						double accumulated_stiffi = 0.;
+						for (unsigned int q=0;q<quadrature_formula.size();++q)
+							accumulated_stiffi += reinterpret_cast<PointHistory<dim>*>
+								(cell->user_pointer())[q].new_stiff[i][i][i][i];
+
+						avg_stiff[i](cell->active_cell_index()) = accumulated_stiffi/quadrature_formula.size();
+					}
+					else avg_stiff[i](cell->active_cell_index()) = -1e+20;
+			}
+			std::string si = std::to_string(i);
+			std::string name = "stiffness_"+si+si+si+si;
+			data_out.add_data_vector (avg_stiff[i], name);
+		}
+
+
+		// Output of the cell id
+		Vector<double> cell_ids (triangulation.n_active_cells());
+		{
+			typename Triangulation<dim>::active_cell_iterator
+			cell = triangulation.begin_active(),
+			endc = triangulation.end();
+			for (; cell!=endc; ++cell)
+				if (cell->is_locally_owned())
+				{
+					cell_ids(cell->active_cell_index())
+							= cell->active_cell_index();
+				}
+				else cell_ids(cell->active_cell_index()) = -1;
+		}
+		data_out.add_data_vector (cell_ids, "cellID");
+
+		// Output of the partitioning of the mesh on processors
+		std::vector<types::subdomain_id> partition_int (triangulation.n_active_cells());
+		GridTools::get_subdomain_association (triangulation, partition_int);
+		const Vector<double> partitioning(partition_int.begin(),
+				partition_int.end());
+		data_out.add_data_vector (partitioning, "partitioning");
+
+		data_out.build_patches ();
+
+		// Grouping spatially partitioned outputs
+		std::string filename = macrologloc + "/" + "solution-" + Utilities::int_to_string(timestep,4)
+		+ "." + Utilities::int_to_string(this_FE_process,3)
+		+ ".vtu";
+		AssertThrow (n_FE_processes < 1000, ExcNotImplemented());
+
+		std::ofstream output (filename.c_str());
+		data_out.write_vtu (output);
+
+		if (this_FE_process==0)
+		{
+			std::vector<std::string> filenames_loc;
+			for (int i=0; i<n_FE_processes; ++i)
+				filenames_loc.push_back ("solution-" + Utilities::int_to_string(timestep,4)
+			+ "." + Utilities::int_to_string(i,3)
+			+ ".vtu");
+
+			const std::string
+			visit_master_filename = (macrologloc + "/" + "solution-" +
+					Utilities::int_to_string(timestep,4) +
+					".visit");
+			std::ofstream visit_master (visit_master_filename.c_str());
+			//data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
+			DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
+
+			const std::string
+			pvtu_master_filename = (macrologloc + "/" + "solution-" +
+					Utilities::int_to_string(timestep,4) +
+					".pvtu");
+			std::ofstream pvtu_master (pvtu_master_filename.c_str());
+			data_out.write_pvtu_record (pvtu_master, filenames_loc);
+
+			static std::vector<std::pair<double,std::string> > times_and_names;
+			const std::string
+						pvtu_master_filename_loc = ("solution-" +
+								Utilities::int_to_string(timestep,4) +
+								".pvtu");
+			times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename_loc));
+			std::ofstream pvd_output (macrologloc + "/" + "solution.pvd");
+			//data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
+			DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
+		}
+	}
 
 
 
@@ -1967,7 +2034,10 @@ namespace HMM
 		if(timestep%freq_output_lhist==0) output_lhistory ();
 
 		// Output visualisation files for paraview
-		if(timestep%freq_output_visu==0) output_visualisation();
+		if(timestep%freq_output_visu==0){
+			output_visualisation_history();
+			output_visualisation_solution();
+		}
 	}
 
 

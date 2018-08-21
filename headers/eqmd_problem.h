@@ -230,7 +230,7 @@ namespace HMM
 		sprintf(cline, "variable up equal %f", md_strain_ampl); lammps_command(lmp,cline);
 
 		// Using a routine based on the example ELASTIC/ to compute the stress tensor
-		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "ELASTIC/in.elastic.lammps");
+		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "ELASTIC/in.homogenization.lammps");
 		lammps_file(lmp,cfile);
 
 		// Filling 3x3 stress tensor and conversion from ATM to Pa
@@ -254,7 +254,7 @@ namespace HMM
 				lammps_command(lmp,cline);
 			}
 
-		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "ELASTIC/in.homog.lammps");
+		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "ELASTIC/in.modulus.lammps");
 		lammps_file(lmp,cfile);
 
 		// Filling the 6x6 Voigt Sitffness tensor with its computed as variables

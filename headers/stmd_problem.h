@@ -310,7 +310,7 @@ namespace HMM
 		sprintf(cline, "variable nssample  equal %d", md_nsteps_sample); lammps_command(lmp,cline);
 
 		// Using a routine based on the example ELASTIC/ to compute the stress tensor
-		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "ELASTIC/in.elastic.lammps");
+		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "ELASTIC/in.homogenization.lammps");
 		lammps_file(lmp,cfile);
 
 		// Filling 3x3 stress tensor and conversion from ATM to Pa

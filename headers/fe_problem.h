@@ -1719,38 +1719,54 @@ namespace HMM
 		typename DoFHandler<dim>::active_cell_iterator cell = dof_handler.begin_active(),
 		                                               endc = dof_handler.end(),
 		                                               dg_cell = history_dof_handler.begin_active();
-		for (; cell!=endc; ++cell, ++dg_cell)
-		  {
-		    PointHistory<dim> *local_quadrature_points_history
-		           = reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
-		    Assert (local_quadrature_points_history >=
-		                &quadrature_point_history.front(),
-		                ExcInternalError());
-		    Assert (local_quadrature_points_history <
-		                &quadrature_point_history.back(),
-		                ExcInternalError());
-		    for (unsigned int i=0; i<dim; i++)
-		      for (unsigned int j=0; j<dim; j++)
-		      {
-		        for (unsigned int q=0; q<quadrature_formula.size(); ++q){
-		        	if (stensor == "strain"){
-		        		local_history_values_at_qpoints[i][j](q)
-				                   = local_quadrature_points_history[q].new_strain[i][j];
-		        	}
-		        	else if(stensor == "stress"){
-		        		local_history_values_at_qpoints[i][j](q)
-				                   = local_quadrature_points_history[q].new_stress[i][j];
-		        	}
-		        	else{
-		        		std::cerr << "Error: Neither 'stress' nor 'strain' to be projected to DOFs..." << std::endl;
-		        	}
-		        }
-		        qpoint_to_dof_matrix.vmult (local_history_fe_values[i][j],
-		                                    local_history_values_at_qpoints[i][j]);
-		        dg_cell->set_dof_values (local_history_fe_values[i][j],
-		                                 history_field[i][j]);
-		      }
-		  }
+		for (; cell!=endc; ++cell, ++dg_cell){
+			if (cell->is_locally_owned()){
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
+				for (unsigned int i=0; i<dim; i++){
+					for (unsigned int j=0; j<dim; j++)
+					{
+						for (unsigned int q=0; q<quadrature_formula.size(); ++q){
+							if (stensor == "strain"){
+								local_history_values_at_qpoints[i][j](q)
+				                		   = local_quadrature_points_history[q].new_strain[i][j];
+							}
+							else if(stensor == "stress"){
+								local_history_values_at_qpoints[i][j](q)
+				                		   = local_quadrature_points_history[q].new_stress[i][j];
+							}
+							else{
+								std::cerr << "Error: Neither 'stress' nor 'strain' to be projected to DOFs..." << std::endl;
+							}
+						}
+						qpoint_to_dof_matrix.vmult (local_history_fe_values[i][j],
+								local_history_values_at_qpoints[i][j]);
+						dg_cell->set_dof_values (local_history_fe_values[i][j],
+								history_field[i][j]);
+					}
+				}
+			}
+			else{
+				for (unsigned int i=0; i<dim; i++){
+					for (unsigned int j=0; j<dim; j++)
+					{
+						for (unsigned int q=0; q<quadrature_formula.size(); ++q){
+							local_history_values_at_qpoints[i][j](q) = -1e+20;
+						}
+						qpoint_to_dof_matrix.vmult (local_history_fe_values[i][j],
+								local_history_values_at_qpoints[i][j]);
+						dg_cell->set_dof_values (local_history_fe_values[i][j],
+								history_field[i][j]);
+					}
+				}
+			}
+		}
 
 		return history_field;
 	}

@@ -37,7 +37,8 @@
 #include "headers/read_write.h"
 #include "headers/tensor_calc.h"
 #include "headers/stmd_sync.h"
-#include "headers/fe_problem.h"
+//#include "headers/fe_problem.h"
+#include "headers/fe_problem_hopk.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX

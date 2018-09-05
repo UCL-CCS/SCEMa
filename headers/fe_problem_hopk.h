@@ -259,10 +259,10 @@ namespace HMM
 
 		double 								ll;
 		double 								lls;
-		double 								hh;
-		double								hhs;
+		double 								ww;
 		double 								bb;
-		double								diam_wght;
+		double								cc;
+		double								diam_weight;
 
 		std::vector<std::string> 			mdtype;
 		Tensor<1,dim> 						cg_dir;
@@ -311,12 +311,12 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::make_grid ()
 	{
-		ll=0.150;
-		lls=0.125;
-		hh=0.100;
-		hhs=0.075;
-		bb=0.005;
-		diam_wght=0.020;
+		ll=0.100;
+		lls=0.080;
+		ww=0.020;
+		bb=0.006;
+		cc=0.010;
+		diam_weight=0.001;
 
 		char filename[1024];
 		sprintf(filename, "%s/mesh.tria", macrostatelocin.c_str());
@@ -330,10 +330,10 @@ namespace HMM
 		}
 		else{
 			dcout << "    Creation of triangulation..." << std::endl;
-			Point<dim> pp1 (-ll/2.,-hh/2.,-bb/2.);
-			Point<dim> pp2 (ll/2.,hh/2.,bb/2.);
+			Point<dim> pp1 (0.,-ww/2.,-bb/2.);
+			Point<dim> pp2 (ll/2.,ww/2.,bb/2.);
 			std::vector< unsigned int > reps (dim);
-			reps[0] = 45; reps[1] = 30; reps[2] = 2;
+			reps[0] = 25; reps[1] = 10; reps[2] = 3;
 			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
 
 			//triangulation.refine_global (1);
@@ -828,10 +828,10 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::set_boundary_values()
 	{
-		double tacc_vsupport = 1.0e8; // acceleration of the boundary m/s-2
+		double tacc_vsupport = 2.0e8; // acceleration of the boundary m/s-2
 
 		double tvel_time=0.0*fe_timestep_length;
-		double acc_time=10.0*fe_timestep_length + fe_timestep_length*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
+		double acc_time=50.0*fe_timestep_length + fe_timestep_length*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
 
 		bool is_loaded = true;
 
@@ -890,35 +890,34 @@ namespace HMM
 					}
 
 					double dcwght=sqrt((cell->face(face)->vertex(v)(0) - 0.)*(cell->face(face)->vertex(v)(0) - 0.)
-							+ (cell->face(face)->vertex(v)(1) - 0.)*(cell->face(face)->vertex(v)(1) - 0.));
+							+ (cell->face(face)->vertex(v)(2) - 0.)*(cell->face(face)->vertex(v)(2) - 0.));
 
 					if(is_loaded){
-						if ((dcwght < diam_wght/2.) && (cell->face(face)->vertex(v)(2) - bb/2.) < eps/3.){
+						if ((dcwght < diam_weight/2. + eps/3.) && (cell->face(face)->vertex(v)(1) - ww/2.) < eps/3.){
 							value = -1.0*inc_vsupport;
-							component = 2;
+							component = 1;
 							load_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
 							boundary_values.insert(std::pair<types::global_dof_index, double>
 							(cell->face(face)->vertex_dof_index (v, component), value));
 						}
 					}
 
-					if ((fabs(cell->face(face)->vertex(v)(0)) > lls/2.
-							|| fabs(cell->face(face)->vertex(v)(1)) > hhs/2.)
-						  && ((cell->face(face)->vertex(v)(2) - -bb/2.) < eps/3.)){
+					if (fabs(cell->face(face)->vertex(v)(0) - lls/2.) < eps/3.
+					      && fabs(cell->face(face)->vertex(v)(1) - -ww/2.) < eps/3.){
 						value = 0.;
-						component = 2;
+						component = 1;
 						supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
 						boundary_values.insert(std::pair<types::global_dof_index, double>
 						(cell->face(face)->vertex_dof_index (v, component), value));
 					}
 
-					/*if (fabs(cell->face(face)->vertex(v)(1) - 0.) < eps/3. && cell->face(face)->vertex(v)(0) < (ww - aa)){
+					if (fabs(cell->face(face)->vertex(v)(0) - 0.) < eps/3. && cell->face(face)->vertex(v)(1) > (-ww/2 + cc - eps/3.)){
 						value = 0.;
-						component = 1;
+						component = 0;
 						clmp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
 						boundary_values.insert(std::pair<types::global_dof_index, double>
 						(cell->face(face)->vertex_dof_index (v, component), value));
-					}*/
+					}
 				}
 			}
 		}

@@ -536,13 +536,14 @@ namespace HMM
 					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
 					int imdrun=c*nrepl + (repl);
 
+                                        // Setting up location for temporary log outputs of md simulation, input strains and output stresses
+                                        straininputfile[imdrun] = macrostatelocout + "/last." + cell_id[c] + "." + std::to_string(numrepl) + ".upstrain";
+                                        stressoutputfile[imdrun] = macrostatelocout + "/last." + cell_id[c] + "." + std::to_string(numrepl) + ".stress";
+                                        qpreplogloc[imdrun] = nanologloctmp + "/" + time_id  + "." + cell_id[c] + "." + cell_mat[c] + "_" + std::to_string(numrepl);
+
 					// Allocation of a MD run to a batch of processes
 					if (md_batch_pcolor == (imdrun%n_md_batches)){
-						// Setting up location for temporary log outputs of md simulation, input strains and output stresses
-						straininputfile[imdrun] = macrostatelocout + "/last." + cell_id[c] + "." + std::to_string(numrepl) + ".upstrain";
-						stressoutputfile[imdrun] = macrostatelocout + "/last." + cell_id[c] + "." + std::to_string(numrepl) + ".stress";
-						qpreplogloc[imdrun] = nanologloctmp + "/" + time_id  + "." + cell_id[c] + "." + cell_mat[c] + "_" + std::to_string(numrepl);
-
+						
 						// Operations on disk, need only to be done by one of the processes of the batch
 						if(this_md_batch_process == 0){
 

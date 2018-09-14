@@ -592,6 +592,12 @@ namespace HMM
 		Assert (history_index == quadrature_point_history.size(),
 				ExcInternalError());
 
+		// Create file with mdtype of qptid to update at timeid
+		std::ofstream omatfile;
+		char mat_local_filename[1024];
+		sprintf(mat_local_filename, "%s/cell_id_mat.%d.list", macrostatelocout.c_str(), this_FE_process);
+		omatfile.open (mat_local_filename);
+
 		// Load the microstructure
 		dcout << "    Loading microstructure..." << std::endl;
 		std::vector<Vector<double> > structure_data;
@@ -642,7 +648,27 @@ namespace HMM
 							local_quadrature_points_history[q].rho = densities[imd];
 						}
 				}
+				omatfile << cell->active_cell_index() << " " << local_quadrature_points_history[0].mat << std::endl;
 			}
+
+		// Creating list of cell id/material mapping
+		if (this_FE_process == 0){
+			std::ifstream infile;
+			std::ofstream outfile;
+			std::string iline;
+
+			sprintf(filename, "%s/cell_id_mat.list", macrostatelocout.c_str());
+			outfile.open (filename);
+			for (int ip=0; ip<n_FE_processes; ip++){
+				char local_filename[1024];
+				sprintf(local_filename, "%s/cell_id_mat.%d.list", macrostatelocout.c_str(), ip);
+				infile.open (local_filename);
+				while (getline(infile, iline)) outfile << iline << std::endl;
+				infile.close();
+				remove(local_filename);
+			}
+			outfile.close();
+		}
 	}
 
 

@@ -1,18 +1,36 @@
 # DeaLAMMPS
-HMM implementation featuring Deal.II (FE) and LAMMPS (MD).
+Heterogenous Multiscale Method implementation featuring Deal.II (FE) and LAMMPS (MD). Works (at least) Deal.II/8.4.1 or above, and LAMMPS/17Nov16 compiled with RIGID package.
 
-Works (at least) Deal.II/8.4.1 or above, and LAMMPS/17Nov16 compiled with RIGID package.
+Continuum mechanics equilibrium equations are solved on the basis of a linear elastic material. Non-linear stress/strain beahvior is captured running MD simulations of a sample of material subject to the continuum strain when needed. 
+
+A database is populated with the stress/strain history computed using MD simulations. When sufficiently filled, the database is used to infer the induced stress given a current strain history. Such technique reduces rapidly and drastically the number of MD simulations to run.
+
+## Compile and run:
+After installing separately LAMMPS and Deal.II, and building your MD input lammps data file.
+```sh
+cd /path/to/DeaLAMMPS
+mkdir build
+cmake ../
+./dealammps inputs_hmm.json
+```
+Additionally, a FE mesh can be imported from a GMSH file, and most of the parameters of the simulation can be found in dealammps.cc
 
 ## Summary of work:
 
-### 1. Parallelization implementation
+### Setting up the Finite Element simulation
+Includes solving quasi-static or dynamic equilibrium of continuum mechanics, solve equilibrium incrementally, generate or import a mesh from gmsh, assign heterogenous materials properties.
 
-### 2. Stiffness computation
+### Constitutive behaviour (strain/stress relation)
+Includes linear relation, MD simulation based relation, or statistically infered relation
 
-### 3. Standard virtual testing box
+### FE/MD Coupling
+Includes passing down a macroscale strain, and transfering up an homogenized stress and/or stiffness tensor
 
-### 4. Linear elastic domain
+### MD jobs scheduler
+Includes splitting the processors adequately in between MD jobs, and Pilotjob.
 
-### 5. Database of Microstates
+### Database of mechanical states
+Includes storing stress/strain space trajectories
 
-### 6. Scheduling and Message Passing
+### Error quantification
+Includes investigating the error at each scale and the propagation between the two.

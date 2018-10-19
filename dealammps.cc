@@ -43,6 +43,7 @@
 // the mesh+BC in different headers)
 //#include "headers/fe_problem_dropweight.h"
 #include "headers/fe_problem_hopk.h"
+//#include "headers/fe-spline_problem_hopk.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX

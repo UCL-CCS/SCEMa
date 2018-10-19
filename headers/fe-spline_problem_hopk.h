@@ -22,6 +22,9 @@
 #include "read_write.h"
 #include "tensor_calc.h"
 
+// Reduction model based on spline comparison
+#include "../spline/strain2spline.h"
+
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
 // which are later redefined in petsc headers
@@ -88,9 +91,11 @@ namespace HMM
 		SymmetricTensor<2,dim> inc_strain;
 		SymmetricTensor<2,dim> upd_strain;
 		SymmetricTensor<2,dim> newton_strain;
+		MatHistPredict::Strain6D hist_strain;
 		bool to_be_updated;
 
 		// Characteristics
+		unsigned int qpid;
 		double rho;
 		std::string mat;
 		Tensor<2,dim> rotam;
@@ -192,6 +197,11 @@ namespace HMM
 		void update_incremental_variables ();
 		void update_strain_quadrature_point_history
 		(const Vector<double>& displacement_update);
+		void check_strain_quadrature_point_history();
+		void spline_building();
+		void spline_comparison();
+		void history_analysis();
+		void write_md_updates_list();
 
 		void update_stress_quadrature_point_history
 		(const Vector<double>& displacement_update);
@@ -266,6 +276,10 @@ namespace HMM
 
 		std::vector<std::string> 			mdtype;
 		Tensor<1,dim> 						cg_dir;
+
+		int 								num_spline_points;
+		int 								min_num_steps_before_spline;
+		double								acceptable_diff_threshold;
 
 		std::string                         macrostatelocin;
 		std::string                         macrostatelocout;
@@ -625,6 +639,10 @@ namespace HMM
 					local_quadrature_points_history[q].upd_strain = 0;
 					local_quadrature_points_history[q].to_be_updated = false;
 					local_quadrature_points_history[q].new_stress = 0;
+					local_quadrature_points_history[q].qpid = cell->active_cell_index()*quadrature_formula.size() + q;
+
+					// Tell strain history object what cell ID it belongs to
+					local_quadrature_points_history[q].hist_strain.set_ID(local_quadrature_points_history[q].qpid);
 
 					// Assign microstructure to the current cell (so far, mdtype
 					// and rotation from global to common ground direction)
@@ -647,8 +665,8 @@ namespace HMM
 							// Apply composite density (by averaging over replicas of given material)
 							local_quadrature_points_history[q].rho = densities[imd];
 						}
+					omatfile << local_quadrature_points_history[q].qpid << " " << local_quadrature_points_history[q].mat << std::endl;
 				}
-				omatfile << cell->active_cell_index() << " " << local_quadrature_points_history[0].mat << std::endl;
 			}
 
 		// Creating list of cell id/material mapping
@@ -1302,18 +1320,6 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::update_strain_quadrature_point_history(const Vector<double>& displacement_update)
 	{
-		// Create file with qptid to update at timeid
-		std::ofstream ofile;
-		char update_local_filename[1024];
-		sprintf(update_local_filename, "%s/last.%d.qpupdates", macrostatelocout.c_str(), this_FE_process);
-		ofile.open (update_local_filename);
-
-		// Create file with mdtype of qptid to update at timeid
-		std::ofstream omatfile;
-		char mat_update_local_filename[1024];
-		sprintf(mat_update_local_filename, "%s/last.%d.matqpupdates", macrostatelocout.c_str(), this_FE_process);
-		omatfile.open (mat_update_local_filename);
-
 		// Preparing requirements for strain update
 		FEValues<dim> fe_values (fe, quadrature_formula,
 				update_values | update_gradients);
@@ -1321,15 +1327,12 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		if (newtonstep > 0) dcout << "        " << "...checking quadrature points requiring update..." << std::endl;
-
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
 			{
-				SymmetricTensor<2,dim> newton_strain_tensor, avg_upd_strain_tensor;
-				SymmetricTensor<2,dim> avg_new_strain_tensor, avg_new_stress_tensor;
+				SymmetricTensor<2,dim> newton_strain_tensor;
 
 				PointHistory<dim> *local_quadrature_points_history
 				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
@@ -1342,10 +1345,6 @@ namespace HMM
 				fe_values.reinit (cell);
 				fe_values.get_function_gradients (displacement_update,
 						displacement_update_grads);
-
-				avg_upd_strain_tensor = 0.;
-				avg_new_strain_tensor = 0.;
-				avg_new_stress_tensor = 0.;
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
@@ -1366,72 +1365,264 @@ namespace HMM
 					local_quadrature_points_history[q].new_strain += local_quadrature_points_history[q].newton_strain;
 					local_quadrature_points_history[q].upd_strain += local_quadrature_points_history[q].newton_strain;
 
-					for(unsigned int k=0;k<dim;k++)
-						for(unsigned int l=k;l<dim;l++){
-							avg_upd_strain_tensor[k][l] += local_quadrature_points_history[q].upd_strain[k][l];
-							avg_new_strain_tensor[k][l] += local_quadrature_points_history[q].new_strain[k][l];
-							avg_new_stress_tensor[k][l] += local_quadrature_points_history[q].new_stress[k][l];
-						}
-				}
-
-				for(unsigned int k=0;k<dim;k++)
-					for(unsigned int l=k;l<dim;l++){
-						avg_upd_strain_tensor[k][l] /= quadrature_formula.size();
-						avg_new_strain_tensor[k][l] /= quadrature_formula.size();
-						avg_new_stress_tensor[k][l] /= quadrature_formula.size();
+					// Add current strain to strain history
+					if(newtonstep>0){
+						local_quadrature_points_history[q].hist_strain.add_current_strain(
+									local_quadrature_points_history[q].new_strain[0][0],
+									local_quadrature_points_history[q].new_strain[1][1],
+									local_quadrature_points_history[q].new_strain[2][2],
+									local_quadrature_points_history[q].new_strain[0][1],
+									local_quadrature_points_history[q].new_strain[0][2],
+									local_quadrature_points_history[q].new_strain[1][2]);
+						local_quadrature_points_history[q].hist_strain.set_ID_to_get_results_from(local_quadrature_points_history[q].qpid);
 					}
-
-				// Uncomment one on the 4 following "if" statement to derive stress tensor from MD for:
-				//   (i) all cells,
-				//  (ii) cells in given location,
-				// (iii) cells based on their id
-				if (activate_md_update
-				    // otherwise MD simulation unecessary, because no significant volume change and MD will fail
-                                    && avg_upd_strain_tensor.norm() > 1.0e-10
-					)
-				//if (activate_md_update && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
-				/*if (activate_md_update && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
-					|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487
-					|| cell->active_cell_index() == 2488 || cell->active_cell_index() == 2489))*/ // For debug...
-				{
-					for (unsigned int qc=0; qc<quadrature_formula.size(); ++qc)
-						local_quadrature_points_history[qc].to_be_updated = true;
-
-					// The cell will get its stress from MD, but should it run an MD simulation?
-					if (true
-						// in case of extreme straining with reaxff
-						/*&& !(avg_new_stress_tensor.norm() < 1.0e8 && avg_new_strain_tensor.norm() > 3.0)*/
-						){
-						std::cout << "           "
-								<< " cell "<< cell->active_cell_index()
-								<< " upd norm " << avg_upd_strain_tensor.norm()
-								<< " total norm " << avg_new_strain_tensor.norm()
-								<< " total stress norm " << avg_new_stress_tensor.norm()
-								<< std::endl;
-
-						// Write strains since last update in a file named ./macrostate_storage/last.cellid-qid.strain
-						char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
-						char filename[1024];
-
-						SymmetricTensor<2,dim> rot_avg_upd_strain_tensor;
-
-						rot_avg_upd_strain_tensor =
-									rotate_tensor(avg_upd_strain_tensor, local_quadrature_points_history[0].rotam);
-
-						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id);
-						write_tensor<dim>(filename, rot_avg_upd_strain_tensor);
-
-						ofile << cell_id << std::endl;
-						omatfile << local_quadrature_points_history[0].mat << std::endl;
-					}
-				}
-				else{
-					for (unsigned int qc=0; qc<quadrature_formula.size(); ++qc)
-						local_quadrature_points_history[qc].to_be_updated = false;
 				}
 			}
-		ofile.close();
+	}
+
+
+
+
+	// The necessity for update and the subsequent spline analysis should be conducted in another class, which would
+	// be provided with the strain state of all the QPs at each time step.
+	// Maybe worth doing that in the spline class
+	template <int dim>
+	void FEProblem<dim>::check_strain_quadrature_point_history()
+	{
+		if (newtonstep > 0) dcout << "        " << "...checking quadrature points requiring update based on current strain..." << std::endl;
+
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				SymmetricTensor<2,dim> newton_strain_tensor;
+
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
+
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+				{
+
+					// Uncomment one on the 4 following "if" statement to derive stress tensor from MD for:
+					//   (i) all cells,
+					//  (ii) cells in given location,
+					// (iii) cells based on their id
+					if (activate_md_update
+						// otherwise MD simulation unecessary, because no significant volume change and MD will fail
+										&& local_quadrature_points_history[q].upd_strain.norm() > 1.0e-10
+						)
+					//if (activate_md_update && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
+					/*if (activate_md_update && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
+						|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487
+						|| cell->active_cell_index() == 2488 || cell->active_cell_index() == 2489))*/ // For debug...
+					{
+						local_quadrature_points_history[q].to_be_updated = true;
+					}
+					else{
+						local_quadrature_points_history[q].to_be_updated = false;
+					}
+				}
+			}
+	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::spline_building()
+	{
+		dcout << "           " << "...building splines..." << std::endl;
+
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
+
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+				{
+					local_quadrature_points_history[q].hist_strain.splinify(num_spline_points);
+
+				}
+			}
+	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::spline_comparison()
+	{
+		dcout << "           " << "...computing similarity of splines..." << std::endl;
+
+		// Building vector of (updateable) histories of cells on rank
+		std::vector<MatHistPredict::Strain6D*> histories;
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
+
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+				{
+					if(local_quadrature_points_history[q].to_be_updated)
+					{
+						histories.push_back(&local_quadrature_points_history[q].hist_strain);
+						//local_quadrature_points_history[q].hist_strain.print();
+					}
+				}
+			}
+
+		// Launch MPI communication to compare strain histories on this rank with histories on all other ranks (including this one).
+		// Results will be stored in the Strain6D objects - a vector of all other similar strain histories (i.e. within the given threshold difference).
+		MatHistPredict::compare_histories_with_all_ranks(histories, acceptable_diff_threshold, FE_communicator);
+
+		for(uint32_t i=0; i < histories.size(); i++) {
+			char outhistfname[1024];
+			sprintf(outhistfname, "%s/last.%d.similar_hist", macrostatelocout.c_str(), histories[i]->get_ID());
+			histories[i]->most_similar_histories_to_file(outhistfname);
+
+			sprintf(outhistfname, "%s/last.%d.all_similar_hist", macrostatelocout.c_str(), histories[i]->get_ID());
+			histories[i]->all_similar_histories_to_file(outhistfname);
+
+			/*sprintf(outhistfname, "%s/%d.%d.all_similar_hist", macrostatelocout.c_str(), timestep_no, histories[i]->get_ID());
+			histories[i]->all_similar_histories_to_file(outhistfname);*/
+		}
+
+		dcout << "           " << "...computing quadrature points reduced dependencies..." << std::endl;
+		// Use networkx to coarsegrain the strain similarity graph, outputting the final list of cells to update using MD (jobs_to_run.csv),
+		// and where to get the stress results for the cells to be updated (mapping.csv). Script must run on only one rank.
 		MPI_Barrier(FE_communicator);
+		if(this_FE_process == 0) {
+			char command[1024];
+			sprintf(command,
+					"python ../spline/coarsegrain_dependency_network.py %s %s/mapping.csv %d",
+					macrostatelocout.c_str(),
+					macrostatelocout.c_str(),
+					triangulation.n_active_cells()*quadrature_formula.size()
+					);
+			int ret = system(command);
+			if (ret!=0){
+				std::cerr << "Failed completing coarse-graining of the update list dependency!" << std::endl;
+				exit(1);
+			}
+		}
+		MPI_Barrier(FE_communicator);
+
+		for(uint32_t i=0; i < histories.size(); i++) {
+			char mappingfname[1024];
+			sprintf(mappingfname, "%s/mapping.csv", macrostatelocout.c_str());
+			histories[i]->read_coarsegrain_dependency_mapping(mappingfname);
+		}
+	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::history_analysis()
+	{
+		dcout << "        " << "...comparing strain history of quadrature points to be updated..." << std::endl;
+
+		acceptable_diff_threshold = 0.000001;
+
+		// Fit spline to all histories, and determine similarity graph (over all ranks)
+		if(timestep > min_num_steps_before_spline) {
+			spline_building();
+			spline_comparison();
+		}
+	}
+
+
+
+
+	template <int dim>
+	void FEProblem<dim>::write_md_updates_list()
+	{
+		// Create file with qptid to update at timeid
+		std::ofstream ofile;
+		char update_local_filename[1024];
+		sprintf(update_local_filename, "%s/last.%d.qpupdates", macrostatelocout.c_str(), this_FE_process);
+		ofile.open (update_local_filename);
+
+		// Create file with mdtype of qptid to update at timeid
+		std::ofstream omatfile;
+		char mat_update_local_filename[1024];
+		sprintf(mat_update_local_filename, "%s/last.%d.matqpupdates", macrostatelocout.c_str(), this_FE_process);
+		omatfile.open (mat_update_local_filename);
+
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell)
+			if (cell->is_locally_owned())
+			{
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
+
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+					if(local_quadrature_points_history[q].to_be_updated
+							&& local_quadrature_points_history[q].hist_strain.run_new_md())
+					{
+						// The cell will get its stress from MD, but should it run an MD simulation?
+						if (true
+							// in case of extreme straining with reaxff
+							/*&& !(avg_new_stress_tensor.norm() < 1.0e8 && avg_new_strain_tensor.norm() > 3.0)*/
+							){
+							std::cout << "           "
+									<< " cell_id "<< cell->active_cell_index()
+									<< " upd norm " << local_quadrature_points_history[q].upd_strain.norm()
+									<< " total norm " << local_quadrature_points_history[q].new_strain.norm()
+									<< " total stress norm " << local_quadrature_points_history[q].new_stress.norm()
+									<< std::endl;
+
+							// Write strains since last update in a file named ./macrostate_storage/last.cellid-qid.strain
+							char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].qpid);
+							char filename[1024];
+
+							SymmetricTensor<2,dim> rot_avg_upd_strain_tensor;
+
+							rot_avg_upd_strain_tensor =
+										rotate_tensor(local_quadrature_points_history[q].upd_strain, local_quadrature_points_history[q].rotam);
+
+							sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id);
+							write_tensor<dim>(filename, rot_avg_upd_strain_tensor);
+
+							ofile << cell_id << std::endl;
+							omatfile << local_quadrature_points_history[q].mat << std::endl;
+
+						}
+					}
+
+			}
 
 		// Gathering in a single file all the quadrature points to be updated...
 		// Might be worth replacing indivual local file writings by a parallel vector of string
@@ -1451,15 +1642,6 @@ namespace HMM
 				infile.close();
 			}
 			outfile.close();
-
-                        char alltime_update_filename[1024];
-                        sprintf(alltime_update_filename, "%s/alltime_cellupdates.dat", macrologloc.c_str());
-                        outfile.open (alltime_update_filename, std::ofstream::app);
-                        if(timestep==start_timestep && newtonstep==1) outfile << "timestep,newtonstep,cell" << std::endl;
-                        infile.open (update_filename);
-                        while (getline(infile, iline)) outfile << timestep << "," << newtonstep << "," << iline << std::endl;
-                        infile.close();
-                        outfile.close();
 
 			sprintf(update_filename, "%s/last.matqpupdates", macrostatelocout.c_str());
 			outfile.open (update_filename);
@@ -1510,11 +1692,12 @@ namespace HMM
 						displacement_update_grads);
 
 				// Restore the new stiffness tensors from ./macroscale_state/out/last.cellid-qid.stiff
-				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
 				char filename[1024];
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
+					char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].hist_strain.get_ID_to_update_from());
+
 					if (newtonstep == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
 					if (local_quadrature_points_history[q].to_be_updated){
@@ -1616,19 +1799,27 @@ namespace HMM
 				cell != dof_handler.end(); ++cell)
 			if (cell->is_locally_owned())
 			{
-				char cell_id[1024]; sprintf(cell_id, "%d", cell->active_cell_index());
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
 
-				// Removing stiffness passing file
-				//sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
-				//remove(filename);
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q){
+					char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].qpid);
 
-				// Removing stress passing file
-				sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id);
-				remove(filename);
+					if(local_quadrature_points_history[q].to_be_updated
+							&& local_quadrature_points_history[q].hist_strain.run_new_md()){
+						// Removing stiffness passing file
+						//sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
+						//remove(filename);
 
-				// Removing updstrain passing file
-				sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id);
-				remove(filename);
+						// Removing stress passing file
+						sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id);
+						remove(filename);
+
+						// Removing updstrain passing file
+						sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id);
+						remove(filename);
+					}
+				}
 			}
 	}
 
@@ -1787,7 +1978,7 @@ namespace HMM
 
 		if (cursor_position == 0)
 		{
-			lhprocout << "timestep,time,cell,qpoint,material";
+			lhprocout << "timestep,time,qpid,cell,qpoint,material";
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
 					lhprocout << "," << "strain_" << k << l;
@@ -1816,6 +2007,7 @@ namespace HMM
 				{
 					lhprocout << timestep
 							<< "," << present_time
+							<< "," << local_qp_hist[q].qpid
 							<< "," << cell->active_cell_index()
 							<< "," << q
 							<< "," << local_qp_hist[q].mat.c_str();
@@ -2212,6 +2404,12 @@ namespace HMM
 		dcout << "    Updating quadrature point data..." << std::endl;
 
 		update_strain_quadrature_point_history(newton_update_displacement);
+
+		check_strain_quadrature_point_history();
+		history_analysis();
+
+		MPI_Barrier(FE_communicator);
+		write_md_updates_list();
 
 	}
 

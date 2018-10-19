@@ -1321,8 +1321,6 @@ namespace HMM
 		displacement_update_grads (quadrature_formula.size(),
 				std::vector<Tensor<1,dim> >(dim));
 
-		char time_id[1024]; sprintf(time_id, "%d-%d", timestep, newtonstep);
-
 		if (newtonstep > 0) dcout << "        " << "...checking quadrature points requiring update..." << std::endl;
 
 		for (typename DoFHandler<dim>::active_cell_iterator

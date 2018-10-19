@@ -1,9 +1,3 @@
-SET(TARGET "dealammps")
-
-SET(TARGET_SRC
-  ${TARGET}.cc
-  )
-
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.5 QUIET
@@ -19,27 +13,36 @@ ENDIF()
 
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
-PROJECT(${TARGET})
+PROJECT(dealammps)
 
-DEAL_II_INVOKE_AUTOPILOT()
+ADD_EXECUTABLE(dealammps dealammps.cc)
+DEAL_II_SETUP_TARGET(dealammps)
+
+ADD_EXECUTABLE(equilammps equilammps.cc)
+DEAL_II_SETUP_TARGET(equilammps)
+
+ADD_EXECUTABLE(strain_md strain_md.cc)
+DEAL_II_SETUP_TARGET(strain_md)
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
   /gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/
   )
 
-## Include LAMMPS library shared (or static)
-SET(CMAKE_CXX_FLAGS "/gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/liblammps.so")
-#SET(CMAKE_CXX_FLAGS "/gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/liblammps.a")
+## Include BOOST sources repository
+FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
+INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+
+## Include LAMMPS library shared .so (or static .a)
+TARGET_LINK_LIBRARIES(dealammps /gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(equilammps /gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(strain_md /gpfs/work/pr92ge/di36yax/source/lammps-17Nov16/src/liblammps.so)
+
+TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(equilammps LINK_PUBLIC ${Boost_LIBRARIES})
 
 ## Create additional targets to the standard DEAL.II targets
 ## Use "aprun" as follow: e.g "make aprun NTHR=24"
-ADD_CUSTOM_TARGET(aprun COMMENT "Run in parallel with ${CMAKE_BUILD_TYPE} configuration"
-                      DEPENDS ${TARGET}
-                      COMMAND @echo "... APRUN on $(NTHR) threads ..."
-                      COMMAND aprun -n $(NTHR) ${TARGET}
-  )
-
 ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
                              DEPENDS buildclean
                              COMMAND rm
@@ -49,7 +52,7 @@ ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
 ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
                              DEPENDS outclean
                              COMMAND rm
-                             ARGS -rf ${TARGET}
+                             ARGS -rf dealammps equilammps strain_md
   )
 
 ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"

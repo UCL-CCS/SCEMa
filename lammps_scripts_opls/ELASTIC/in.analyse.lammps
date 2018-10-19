@@ -1,0 +1,95 @@
+# Compute elastic constant tensor for a crystal
+#
+# Written by Aidan Thompson (Sandia, athomps@sandia.gov)
+#
+#  This script uses the following three include files.
+#
+#   init.mod.lammps      (must be modified for different crystal structures)
+# 	       	  Define units, deformation parameters and initial
+#		  configuration of the atoms and simulation cell.
+#
+#
+#   potential.mod.lammps    (must be modified for different pair styles)
+# 		     Define pair style and other attributes
+#		     not stored in restart file
+#
+#
+#   displace.mod.lammps    (displace.mod.lammps should not need to be modified)
+# 		    Perform positive and negative box displacements
+# 		    in direction ${dir} and size ${up}.
+# 		    It uses the resultant changes
+#		    in stress to compute one
+# 		    row of the elastic stiffness tensor
+#
+#		    Inputs variables:
+#		    	   dir = the Voigt deformation component
+#		    		    (1,2,3,4,5,6)
+#		    Global constants:
+#       	    	   up = the deformation magnitude (strain units)
+#       		   cfac = conversion from LAMMPS pressure units to
+#               	   output units for elastic constants
+#
+#
+#  To run this on a different system, it should only be necessary to
+#  modify the files init.mod and potential.mod. In order to calculate
+#  the elastic constants correctly, care must be taken to specify
+#  the correct units in init.mod (units, cfac and cunits). It is also
+#  important to verify that the minimization of energy w.r.t atom
+#  positions in the deformed cell is fully converged.
+#  One indication of this is that the elastic constants are insensitive
+#  to the choice of the variable ${up} in init.mod. Another is to check
+#  the final max and two-norm forces reported in the log file. If you know
+#  that minimization is not required, you can set maxiter = 0.0 in
+#  init.mod.
+#
+include ${locbe}/init.mod.lammps
+
+variable dir equal 0
+variable ori string 'org'
+
+include ${locbe}/potential.mod.lammps
+
+# Sample initial state (if initialization only, otherwise
+# restore initial stress tensor)
+variable nss equal ${nssample0}
+
+#  Average stress tensor over the whole NVT run
+if "${nss} > 10000" then "variable nav equal ${nss}/1000" else "variable nav equal ${nss}/10"
+print ${nav}
+fix stress  all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
+
+fix   shak all shake 0.001 20 1000 m 1.0
+fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
+include ${locbe}/sample.mod.lammps
+unfix wholevol
+unfix shak
+
+variable tmp equal f_stress[1]
+variable pp11 equal ${tmp}
+variable tmp equal f_stress[2]
+variable pp22 equal ${tmp}
+variable tmp equal f_stress[3]
+variable pp33 equal ${tmp}
+variable tmp equal f_stress[4]
+variable pp12 equal ${tmp}
+variable tmp equal f_stress[5]
+variable pp13 equal ${tmp}
+variable tmp equal f_stress[6]
+variable pp23 equal ${tmp}
+
+unfix stress
+
+## Possibility #2: Apply fixed NVT and let the system fluctuate during MD
+## simulation over sufficient time and get the initial stress (try to avoid doing it
+## again if this has been done at the end of the application of the strain state).
+## Need to pay attention to indexes conversion because compute pressure does not use
+## Voigt indexes to order stress vector...
+variable pxx0 equal ${pp11}
+variable pyy0 equal ${pp22}
+variable pzz0 equal ${pp33}
+variable pyz0 equal ${pp12}
+variable pxz0 equal ${pp13}
+variable pxy0 equal ${pp23}
+
+print "Current stress: ${pp11} ${pp22} ${pp33} ${pp12} ${pp13} ${pp23} "
+print "Used stress for homogenization: ${pxx0} ${pyy0} ${pzz0} ${pyz0} ${pxz0} ${pxy0} "

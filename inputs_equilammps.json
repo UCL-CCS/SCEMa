@@ -1,0 +1,28 @@
+{
+  "scale-bridging":{
+    "use pjm scheduler": 0
+  },
+  "molecular dynamics material":{
+    "number of replicas": 5,
+    "list of materials": ["g0", "g1"],
+    "rotation common ground vector":[1.0, 0.0, 0.0]
+  },
+  "molecular dynamics parameters":{
+    "temperature": 300.0,
+    "timestep length": 2.0,
+    "strain rate": 1.0e-4,
+    "strain amplitude": 0.2,
+    "number of sampling steps": 100,
+    "number of equilibration steps": 10000,
+    "scripts directory": "./lammps_scripts_opls",
+    "force field": "opls"
+  },
+  "computational resources":{
+    "machine cores per node": 16,
+    "minimum nodes per MD simulation": 3
+  },
+  "directory structure":{
+    "nanoscale input": "./replicas_input",
+    "nanoscale log": "./replicas_log"
+  }
+}

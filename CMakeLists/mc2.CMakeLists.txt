@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.5 QUIET
-  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ /home/maxime/opt/dealii-8.5.0/
+  HINTS /gpfs/work/pr53zu/di36yax2/opt/dealii-8.5.0_mumps/
   )
 IF(NOT ${deal.II_FOUND})
   MESSAGE(FATAL_ERROR "\n"
@@ -26,7 +26,7 @@ DEAL_II_SETUP_TARGET(strain_md)
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
-  /home/maxime/source/lammps-17Nov16/src/
+  /gpfs/work/pr53zu/di36yax2/source/lammps-17Nov16/src/
   )
 
 ## Include BOOST sources repository
@@ -34,9 +34,9 @@ FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
 ## Include LAMMPS library shared .so (or static .a)
-TARGET_LINK_LIBRARIES(dealammps /home/maxime/source/lammps-17Nov16/src/liblammps.a)
-TARGET_LINK_LIBRARIES(equilammps /home/maxime/source/lammps-17Nov16/src/liblammps.a)
-TARGET_LINK_LIBRARIES(strain_md /home/maxime/source/lammps-17Nov16/src/liblammps.a)
+TARGET_LINK_LIBRARIES(dealammps /gpfs/work/pr53zu/di36yax2/source/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(equilammps /gpfs/work/pr53zu/di36yax2/source/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(strain_md /gpfs/work/pr53zu/di36yax2/source/lammps-17Nov16/src/liblammps.so)
 
 TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
 TARGET_LINK_LIBRARIES(equilammps LINK_PUBLIC ${Boost_LIBRARIES})

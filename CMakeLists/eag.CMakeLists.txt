@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.5 QUIET
-  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ /home/maxime/opt/dealii-8.5.0/
+  HINTS /home/plgrid/plgvassaux/opt/dealii-8.5.1_real/
   )
 IF(NOT ${deal.II_FOUND})
   MESSAGE(FATAL_ERROR "\n"
@@ -26,20 +26,22 @@ DEAL_II_SETUP_TARGET(strain_md)
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
-  /home/maxime/source/lammps-17Nov16/src/
-  )
+  /home/plgrid/plgvassaux/source/lammps-17Nov16/src/
+  /home/plgrid-groups/plggcompat/HMC/petsc/include/ 
+  /home/plgrid-groups/plggcompat/HMC/slepc/include/ 
+ )
 
 ## Include BOOST sources repository
-FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
-INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+#FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
+#INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
 ## Include LAMMPS library shared .so (or static .a)
-TARGET_LINK_LIBRARIES(dealammps /home/maxime/source/lammps-17Nov16/src/liblammps.a)
-TARGET_LINK_LIBRARIES(equilammps /home/maxime/source/lammps-17Nov16/src/liblammps.a)
-TARGET_LINK_LIBRARIES(strain_md /home/maxime/source/lammps-17Nov16/src/liblammps.a)
+TARGET_LINK_LIBRARIES(dealammps /home/plgrid/plgvassaux/source/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(equilammps /home/plgrid/plgvassaux/source/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(strain_md /home/plgrid/plgvassaux/source/lammps-17Nov16/src/liblammps.so)
 
-TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
-TARGET_LINK_LIBRARIES(equilammps LINK_PUBLIC ${Boost_LIBRARIES})
+#TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
+#TARGET_LINK_LIBRARIES(equilammps LINK_PUBLIC ${Boost_LIBRARIES})
 
 ## Create additional targets to the standard DEAL.II targets
 ## Use "aprun" as follow: e.g "make aprun NTHR=24"

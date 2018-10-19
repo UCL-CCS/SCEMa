@@ -213,6 +213,23 @@ namespace HMM
 			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
 		}
 
+		// Query box dimensions
+		char vdir[1024];
+		std::vector<double> lbdim (dim);
+		sprintf(cline, "variable ll1 equal lx"); lammps_command(lmp,cline);
+		sprintf(cline, "variable ll2 equal ly"); lammps_command(lmp,cline);
+		sprintf(cline, "variable ll3 equal lz"); lammps_command(lmp,cline);
+		for(unsigned int i=0;i<dim;i++){
+			sprintf(vdir, "ll%d",i+1);
+			lbdim[i] = *((double *) lammps_extract_variable(lmp,vdir,NULL));
+		}
+
+		// Correction of strain tensor with actual box dimensions
+		for (unsigned int i=0; i<dim; i++){
+			loc_rep_strain[i][i] /= lbdim[i];
+			loc_rep_strain[i][(i+1)%dim] /= lbdim[(i+2)%dim];
+		}
+
 		// Number of timesteps in the MD simulation, enforcing at least one.
 		int nts = std::max(int(std::ceil(loc_rep_strain.norm()/(md_timestep_length*md_strain_rate)/10)*10),1);
 
@@ -222,7 +239,7 @@ namespace HMM
 		for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
 			{
-				sprintf(cline, "variable eeps_%d%d equal %.6e", k, l, loc_rep_strain[k][l]/(nts*md_timestep_length));
+				sprintf(cline, "variable ceeps_%d%d equal %.6e", k, l, loc_rep_strain[k][l]/(nts*md_timestep_length));
 				lammps_command(lmp,cline);
 			}
 

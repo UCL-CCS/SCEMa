@@ -215,11 +215,11 @@ namespace HMM
 	    {
 	        hcout << "Invalid JSON HMM input file (" << inputfile << ")" << std::endl;  // Never gets here
 	    }
-
-	    // Continuum timestepping
-	    fe_timestep_length = std::stof(bptree_read(pt, "continuum time", "timestep length"));
-	    start_timestep = std::stof(bptree_read(pt, "continuum time", "start timestep"));
-	    end_timestep = std::stof(bptree_read(pt, "continuum time", "end timestep"));
+	    
+            // Continuum timestepping
+	    fe_timestep_length = std::stod(bptree_read(pt, "continuum time", "timestep length"));
+	    start_timestep = std::stoi(bptree_read(pt, "continuum time", "start timestep"));
+	    end_timestep = std::stoi(bptree_read(pt, "continuum time", "end timestep"));
 
 	    // Continuum meshing
 	    fe_degree = std::stoi(bptree_read(pt, "continuum mesh", "fe degree"));
@@ -440,8 +440,7 @@ namespace HMM
 		read_inputs(inputfile);
 
 		hcout << "Building the HMM problem:       " << std::endl;
-
-		// Set the dealii communicator using a limited amount of available processors
+  	        // Set the dealii communicator using a limited amount of available processors
 		// because dealii fails if processors do not have assigned cells. Plus, dealii
 		// might not scale indefinitely
 		set_global_communicators();

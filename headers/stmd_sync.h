@@ -81,9 +81,7 @@ namespace HMM
 		void execute_inside_md_simulations();
 
 		void write_exec_script_md_job();
-		//void write_proc_job_list_json(int max_nodes_per_md, char* filename_out);
-		//void concatenate_job_list(char* filename_out, char* filenamebase);
-		void generate_job_list(bool empty_list_md_jobs, int total_node_allocation, char* filenamelist);
+		void generate_job_list(bool& elmj, int& tta, char* filenamelist);
 		void execute_pjm_md_simulations();
 
 		void store_md_simulations();
@@ -545,7 +543,7 @@ namespace HMM
 
 					// Allocation of a MD run to a batch of processes
 					if (md_batch_pcolor == (imdrun%n_md_batches)){
-						
+
 						// Operations on disk, need only to be done by one of the processes of the batch
 						if(this_md_batch_process == 0){
 
@@ -694,127 +692,16 @@ namespace HMM
 	}
 
 
-	/*template <int dim>
-	void STMDSync<dim>::write_proc_job_list_json(int max_nodes_per_md, char* filename_out)
-	{
-		std::ofstream output_file(filename_out, std::ios_base::trunc);
-
-		// Preparing strain input file for each replica
-		for (unsigned int c=0; c<ncupd; ++c)
-		{
-			for(unsigned int repl=0;repl<nrepl;repl++)
-			{
-				// Offset replica number because in filenames, replicas start at 1
-				int numrepl = repl+1;
-
-				// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
-				int imdrun=c*nrepl + (repl);
-
-				if (md_batch_pcolor == (imdrun%n_md_batches)){
-					if(this_md_batch_process == 0){
-
-						// Writting the argument list to be passed to the JSON file
-						std::string args_list_separator = " ";
-						std::string args_list = "./strain_md";
-						for (unsigned int i=0; i<md_args[imdrun].size(); i++){
-							args_list += args_list_separator+md_args[imdrun][i];
-						}
-						args_list += "";
-
-						std::string scriptfile = nanostatelocout + "/" + "bash_cell"+cell_id[c]
-																 +"_repl"+std::to_string(numrepl)+".sh";
-						std::ofstream bash_script(scriptfile, std::ios_base::trunc);
-						bash_script << "mpirun " << args_list;
-						bash_script.close();
-
-						// Write json file containing each simulation and its parameters
-						// which are: time_id, cell, mat, repl, macrostatelocout, nanostatelocout, nanologloc, number of cores
-						output_file<<"   { " <<std::endl;
-						output_file<<"      \"name\": \"mdrun_cell"<< cell_id[c] << "_repl" << numrepl << "\", " <<std::endl;
-						output_file<<"      \"execution\": { " <<std::endl;
-						output_file<<"         \"exec\": \"bash\", " <<std::endl;
-						output_file<<"         \"args\": [\"" << scriptfile << "\"], " <<std::endl;
-						output_file<<"         \"stdout\": \"" << qpreplogloc[imdrun] << "/${jname}.stdout\", " <<std::endl;
-						output_file<<"         \"stderr\": \"" << qpreplogloc[imdrun] << "/${jname}.stderr\"" <<std::endl;
-						output_file<<"      }, " <<std::endl;
-						output_file<<"      \"resources\": { " <<std::endl;
-						output_file<<"         \"numNodes\": { " <<std::endl;
-						output_file<<"            \"min\": "<< batch_nnodes_min << ", " <<std::endl;
-						output_file<<"            \"max\": "<< max_nodes_per_md << "" <<std::endl;
-						output_file<<"         }, " <<std::endl;
-						output_file<<"         \"wt\": \"20m\"" <<std::endl;
-						output_file<<"      } " <<std::endl;
-						output_file<<"   }, " <<std::endl;
-					}
-				}
-			}
-		}
-
-		output_file.close();
-	}*/
-
-
-
-
-	/*template <int dim>
-	void STMDSync<dim>::concatenate_job_list(char* filename_out, char* filenamebase)
-	{
-		std::ofstream output_file(filename_out, std::ios_base::trunc);
-
-		char filename[1024];
-
-		output_file<<"["<<std::endl;
-		output_file<<"{"<<std::endl;
-		output_file<<"   \"request\": \"submit\", "<<std::endl;
-		output_file<<"   \"jobs\": [ "<<std::endl;
-
-		// append each proc file content
-		for(int proc=0;proc<mmd_n_processes;proc++){
-			sprintf(filename, "%s.%d.json", filenamebase, proc);
-			std::ifstream  prlist(filename);
-			if (prlist.good()){
-				std::string line;
-				// Check if list of the current proc is empty or contains cells to update
-				if (prlist.peek() != std::ifstream::traits_type::eof()){
-					// Compute number of cells in local history ()
-					while(getline(prlist, line)){
-						output_file << line << std::endl;
-					}
-				}
-				prlist.close();
-			}
-		}
-
-		// Remove the last useless comma :)
-		long pos = output_file.tellp();
-		output_file.seekp (pos-3);
-		output_file<<""<<std::endl;
-
-		// Append with the control statement
-		output_file<<"   ]"<<std::endl;
-		output_file<<"},"<<std::endl;
-		output_file<<"{"<<std::endl;
-		output_file<<"   \"request\": \"control\", "<<std::endl;
-		output_file<<"   \"command\": \"finishAfterAllTasksDone\" "<<std::endl;
-		output_file<<"}"<<std::endl;
-		output_file<<"]"<<std::endl;
-
-		std::cout << "       Finished writing .json file" << std::endl;
-
-		output_file.close();
-	}*/
-
-
 
 
 	template <int dim>
-	void STMDSync<dim>::generate_job_list(bool empty_list_md_jobs, int total_node_allocation, char* filenamelist)
+	void STMDSync<dim>::generate_job_list(bool& elmj, int& tta, char* filenamelist)
 	{
 		char command[1024];
 		int ret, rval;
 
-		sprintf(command, "python %s/optimization_hmm.py %s %d %d %s %s %s %s",
-				std::getenv("APP_DIR"), macrostatelocout.c_str(), 1, nrepl, time_id.c_str(),
+		sprintf(command, "python ../optimization_hmm.py %s %d %d %s %s %s %s",
+				macrostatelocout.c_str(), 1, nrepl, time_id.c_str(),
 				nanostatelocout.c_str(), nanologloctmp.c_str(), filenamelist);
 
 		// Executing the job list optimization script with fscanf to parse the printed values from the python script
@@ -828,10 +715,10 @@ namespace HMM
 
 		// Retrieving output value of the optimization script
 		if (rval==0){
-			empty_list_md_jobs = true;
+			elmj = true;
 		}
 		else if (rval>0){
-			total_node_allocation = rval;
+			tta = rval;
 		}
 		else{
 			std::cerr << "Invalid returned value (" << rval <<") from the job list optimization script." << std::endl;
@@ -839,7 +726,7 @@ namespace HMM
 		}
 
 		// Verify function returned values
-		if (empty_list_md_jobs==false && total_node_allocation == 0){
+		if (elmj ==false && tta == 0){
 			std::cerr << "Invalid combinaison of empty_list_md_jobs and total_node_allocation." << std::endl;
 			exit(1);
 		}
@@ -851,7 +738,7 @@ namespace HMM
 	void STMDSync<dim>::execute_pjm_md_simulations()
 	{
 		int total_node_allocation = 0;
-
+		int ret;
 		write_exec_script_md_job();
 
 		char filenamelist[1024], command[1024];
@@ -859,7 +746,7 @@ namespace HMM
 
 		if(this_mmd_process==0){
 
-			int empty_list_md_jobs = false;
+			bool empty_list_md_jobs = false;
 			std::cout << "        " << "...building optimized job list for pilotjob execution..." << std::endl;
 
 			generate_job_list(empty_list_md_jobs, total_node_allocation, filenamelist);
@@ -873,7 +760,7 @@ namespace HMM
 				std::cout << "        " << "...calling QCG-PM..." << std::endl;
 				// This command will ask for its specific allocation outside of the present one
 				sprintf(command,
-						"sbatch -p fast -Q -W -A compatpsnc2 -N %d --ntasks-per-node 28 -t 01:00:00 "
+						"sbatch -p standard -Q -W -A compatpsnc2 -N %d --ntasks-per-node 28 -t 02:00:00 "
 						"--wrap='/opt/exp_soft/plgrid/qcg-appscripts-eagle/tools/qcg-pilotmanager/qcg-pm-service "
 						"--exschema slurm --file --file-path=%s'",
 						total_node_allocation,
@@ -883,7 +770,7 @@ namespace HMM
 						"/opt/exp_soft/plgrid/qcg-appscripts-eagle/tools/qcg-pilotmanager/qcg-pm-service "
 						"--exschema slurm --file --file-path=%s",
 						filenamelist);*/
-				int ret = system(command);
+				ret = system(command);
 				if (ret!=0){
 					std::cout << "Failed completing the MD updates via QCG-PM" << std::endl;
 					//std::cerr << "Failed completing the MD updates via QCG-PM" << std::endl;

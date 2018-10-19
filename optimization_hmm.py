@@ -3,8 +3,8 @@ import sys
 import os
 import math
 import imp
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+#from sqlalchemy import create_engine
+#from sqlalchemy.orm import sessionmaker, Session
 import json
 from scipy.optimize import curve_fit
 
@@ -36,14 +36,17 @@ def compute_p_optimum(data, mode='efficiency',cpn=28):
 
 # to access database: source /home/plgrid-groups/plggcompat/anaconda2/bin/activate performance-database
 # Input list: "number_of_cells" "upstrain_files_directory" "minimum_nodes_job"
-# execute as: python optimization_hmm.py ./macroscale_state/out 1 28 1-1 ./nanoscale_state/out ./nanoscale_log/tmp ./nanoscale_state/out/job_list_md.json 
+# execute as: python optimization_hmm.py ./macroscale_state/out 1 28 1-1 ./nanoscale_state/out ./nanoscale_log/tmp ./nanoscale_state/out/job_list_md.json
 if __name__ == '__main__':
 
     # static parameters
+    optim = True
     rescale_from_time_prediction = False
     pmax_from_db = False
     negl_strain_tsh = 1.0e-10
     cores_per_nodes = 28
+    max_nodes_talloc = 100
+    pmax_arbitrary = 4
 
     # input parameters
     macrostatelocout = sys.argv[1]
@@ -83,15 +86,14 @@ if __name__ == '__main__':
     # If list of jobs is 0 exit
     if jobs_count == 0:
         print(0)
-
     # Else produce the job list and return the total number of nodes
     else:
-        Create instance of the Performance database
-        database = imp.load_source('database', '/home/plgrid-groups/plggcompat/Common/COMPAT-Patterns-Software/OptimisationPart/database_upload.py')
-        engine = create_engine('mysql://performance_update:password@129.187.255.55/performance')
-        Session = sessionmaker(bind=engine)
-        session = Session()
-        run_ids_by_material = [instance.id for instance in session.query(database.Run).filter(database.Run.application == 'MATERIALS')]
+        # Create instance of the Performance database
+        #database = imp.load_source('database', '/home/plgrid-groups/plggcompat/Common/COMPAT-Patterns-Software/OptimisationPart/database_upload.py')
+        #engine = create_engine('mysql://performance_update:password@129.187.255.55/performance')
+        #Session = sessionmaker(bind=engine)
+        #session = Session()
+        #run_ids_by_material = [instance.id for instance in session.query(database.Run).filter(database.Run.application == 'MATERIALS')]
 
         # Compute Pmax as the number of nodes for which the latency (time/workload)
         # is not linearly increasing with the number of nodes anymore
@@ -112,7 +114,10 @@ if __name__ == '__main__':
             Pmax = compute_p_optimum(data=kernelperf_corecount_latency, mode='efficiency', cpn=cores_per_nodes)
         # Use a default variable (from arbitrary choice)
         else:
-            Pmax = 20
+            Pmax = pmax_arbitrary
+
+        # Make sure that the maximum number of nodes given to a microjob is smaller than the total number of node allocated
+        assert Pmax < max_nodes_talloc
 
         # Compute a scaling factor that will be used to determine the number of nodes allocated to each cell job
         # accounting on the all the jobs that have to be run.
@@ -139,32 +144,42 @@ if __name__ == '__main__':
             # Compute the rescaling factor alpha such as (Pmax-Pmin)/(Texec,max - Texec,min)
             texec_min = min([cell['texec'] for cell in cell_list])
             texec_max = max([cell['texec'] for cell in cell_list])
-            if (texec_max - texec_min)/texec_min > 1.0e-5:
-                sfact = (Pmax-Pmin)/(texec_max - texec_min)
-            else:
-                # basically if all cells have the same execution time, just assign to all have them
-                # half of the maximum of resources
-                sfact = (Pmax-Pmin)/(texec_max*2)
+            sfact = (Pmax-Pmin)/(texec_max - texec_min)
+            pordo = Pmin - sfact*texec_min
 
         else:
             # Compute the rescaling factor alpha such as (Pmax-Pmin)/(eps.norm,max - eps.norm,min)
             strain_min = min([cell['strain_norm'] for cell in cell_list])
             strain_max = max([cell['strain_norm'] for cell in cell_list])
-            if (strain_max - strain_min)/strain_min > 1.0e-5:
-                sfact = (Pmax-Pmin)/(strain_max - strain_min)
-            else:
-                # basically if all cells have the same applied strain, just assign to all have them
-                # half of the maximum of resources
-                sfact = (Pmax-Pmin)/(strain_max*2)
+            sfact = (Pmax-Pmin)/(strain_max - strain_min)
+            pordo = Pmin - sfact*strain_min
 
         # Compute the number of nodes allocated to each microjob P such as alpha*T and the total number of nodes
         ptot = 0
         for cell in cell_list:
-            if rescale_from_time_prediction:
-                cell['p'] = round(cell['texec']*sfact)
+            if optim:
+               if rescale_from_time_prediction:
+                  cell['p'] = int(round(cell['texec']*sfact + pordo))
+               else:
+                  cell['p'] = int(round(cell['strain_norm']*sfact + pordo))
             else:
-                cell['p'] = round(cell['strain_norm']*sfact)
-            ptot += cell['p']
+               cell['p'] = pmax_arbitrary
+
+            ptot += cell['p']*nreplicas
+       
+        #if ptot < 2*max_nodes_talloc:
+        #    # Resize the node allocation w.r.t to the max_nodes_talloc
+        #    rsfnode = 1.0*max_nodes_talloc/ptot
+        #    ptot = 0
+        #    for cell in cell_list:
+        #        cell['p'] = int(max(1, math.floor(cell['p']*rsfnode)))
+        #        ptot += cell['p']*nreplicas
+        #    if ptot > max_nodes_talloc:
+        #        raise ValueError("Total node allocation to high ({} > {})".format(ptot, max_nodes_talloc))
+        #else:
+        if ptot > max_nodes_talloc:
+            # Just limit ptot to max_nodes_talloc and therefore start building up the queue
+            ptot = max_nodes_talloc
 
         # Sort cell_ids in decreasing order of P
         cell_list_sorted = sorted(cell_list, key=lambda k: k['p'], reverse=True)
@@ -177,7 +192,7 @@ if __name__ == '__main__':
         for cell in cell_list_sorted:
             cell_job_dict = {}
             cell_job_dict['name'] = 'mdrun_cell'+str(cell['id'])+'_repl${it}'
-            cell_job_dict['iterate'] = [1, nreplicas]
+            cell_job_dict['iterate'] = [1, nreplicas+1]
             cell_job_dict['execution'] = {}
             cell_job_dict['execution']['exec'] = 'bash'
             cell_job_dict['execution']['args'] = [nanostatelocout+"/"+"bash_cell"+str(cell['id'])+"_repl${it}.sh"]

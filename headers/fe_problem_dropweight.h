@@ -1387,7 +1387,10 @@ namespace HMM
 				//   (i) all cells,
 				//  (ii) cells in given location,
 				// (iii) cells based on their id
-				if (activate_md_update)
+				if (activate_md_update
+				    // otherwise MD simulation unecessary, because no significant volume change and MD will fail
+                                    && avg_upd_strain_tensor.norm() > 1.0e-10
+					)
 				//if (activate_md_update && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
 				/*if (activate_md_update && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
 					|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487
@@ -1398,10 +1401,8 @@ namespace HMM
 
 					// The cell will get its stress from MD, but should it run an MD simulation?
 					if (true
-						// otherwise MD simulation unecessary, because no significant volume change and MD will fail
-						/*avg_upd_strain_tensor.norm() > 1.0e-7*/
 						// in case of extreme straining with reaxff
-						/*&& (avg_new_stress_tensor.norm() > 1.0e8 || avg_new_strain_tensor.norm() < 3.0)*/
+						/*&& !(avg_new_stress_tensor.norm() < 1.0e8 && avg_new_strain_tensor.norm() > 3.0)*/
 						){
 						std::cout << "           "
 								<< " cell "<< cell->active_cell_index()
@@ -1551,10 +1552,7 @@ namespace HMM
 						local_quadrature_points_history[q].upd_strain = 0;
 					}
 					else{
-						// Tangent stiffness computation of the new stress tensor and the stress increment tensor
-						local_quadrature_points_history[q].inc_stress +=
-							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
-
+						// Tangent stiffness computation of the new stress tensor
 						local_quadrature_points_history[q].new_stress +=
 							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 					}

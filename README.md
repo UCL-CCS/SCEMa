@@ -1,5 +1,5 @@
 # DeaLAMMPS
-Heterogenous Multiscale Method implementation featuring Deal.II (FE) and LAMMPS (MD). Works (at least) Deal.II/8.4.1 or above, and LAMMPS/17Nov16 compiled with RIGID package.
+Heterogeneous Multiscale Method implementation featuring Deal.II (FE) and LAMMPS (MD). Works (at least) Deal.II/8.4.1 or above, and LAMMPS/17Nov16 compiled with RIGID package.
 
 Continuum mechanics equilibrium equations are solved on the basis of a linear elastic material. Non-linear stress/strain beahvior is captured running MD simulations of a sample of material subject to the continuum strain when needed. 
 

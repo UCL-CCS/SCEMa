@@ -9,7 +9,7 @@ make yes-USER-REAXC
 make mode=shlib mpi
 ```
 
-Deal.II need to be compiled with dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), that is the following dependencies: MPI, PETSc, METIS, BOOST, HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, and UMFPACK. Complete instructions can be found [here](https://www.dealii.org/9.0.0/readme.html).
+Deal.II need to be compiled with dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), that is the following dependencies: MPI, PETSc, METIS, BOOST, HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, and UMFPACK. Complete instructions can be found [here](https://www.dealii.org/9.0.0/readme.html), and more specified directions for the ARCHER supercomputer, [here](https://github.com/ARCHER-CSE/build-instructions/tree/master/deal.II/build-gnu-64-petsc).
 
 Continuum mechanics equilibrium equations are solved on the basis of a linear elastic material. Non-linear stress/strain beahvior is captured running MD simulations of a sample of material subject to the continuum strain when needed. 
 
@@ -19,7 +19,9 @@ A database is populated with the stress/strain history computed using MD simulat
 After installing separately LAMMPS and Deal.II, and building your MD input lammps data file.
 ```sh
 cd /path/to/DeaLAMMPS
+cp CMakeLists/example_machine.CMakeLists.txt CMakeLists.txt
 mkdir build
+
 cmake ../
 ./dealammps inputs_hmm.json
 ```

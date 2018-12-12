@@ -32,3 +32,22 @@
 * N-scales extension
    - apply periodic boundary conditions on the mesoscale finite element model
 
+## Summary of work:
+
+### Setting up the Finite Element simulation
+Includes solving quasi-static or dynamic equilibrium of continuum mechanics, solve equilibrium incrementally, generate or import a mesh from gmsh, assign heterogenous materials properties.
+
+### Constitutive behaviour (strain/stress relation)
+Includes linear relation, MD simulation based relation, or statistically infered relation
+
+### FE/MD Coupling
+Includes passing down a macroscale strain, and transfering up an homogenized stress and/or stiffness tensor
+
+### MD jobs scheduler
+Includes splitting the processors adequately in between MD jobs, and Pilotjob.
+
+### Database of mechanical states
+Includes storing stress/strain space trajectories
+
+### Error quantification
+Includes investigating the error at each scale and the propagation between the two.

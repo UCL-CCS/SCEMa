@@ -42,8 +42,8 @@
 // (hardcoded for the moment, but should try to split the solving and
 // the mesh+BC in different headers)
 //#include "headers/fe_problem_dropweight.h"
-#include "headers/fe_problem_hopk.h"
-//#include "headers/fe-spline_problem_hopk.h"
+//#include "headers/fe_problem_hopk.h"
+#include "headers/fe-spline_problem_hopk.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -113,75 +113,78 @@ namespace HMM
 
 		void do_timestep ();
 
-		STMDSync<dim> 						*mmd_problem = NULL;
-		FEProblem<dim> 						*fe_problem = NULL;
+		STMDSync<dim> 			*mmd_problem = NULL;
+		FEProblem<dim> 			*fe_problem = NULL;
+		
+		MPI_Comm 			world_communicator;
+		const int 			n_world_processes;
+		const int 			this_world_process;
+		int 				world_pcolor;
 
-		MPI_Comm 							world_communicator;
-		const int 							n_world_processes;
-		const int 							this_world_process;
-		int 								world_pcolor;
+		MPI_Comm 			fe_communicator;
+		int				root_fe_process;
+		int 				n_fe_processes;
+		int 				this_fe_process;
+		int 				fe_pcolor;
 
-		MPI_Comm 							fe_communicator;
-		int									root_fe_process;
-		int 								n_fe_processes;
-		int 								this_fe_process;
-		int 								fe_pcolor;
+		MPI_Comm 			mmd_communicator;
+		int 				n_mmd_processes;
+		int				root_mmd_process;
+		int 				this_mmd_process;
+		int 				mmd_pcolor;
 
-		MPI_Comm 							mmd_communicator;
-		int 								n_mmd_processes;
-		int									root_mmd_process;
-		int 								this_mmd_process;
-		int 								mmd_pcolor;
+		unsigned int			machine_ppn;
+		int				fenodes;
+		unsigned int			batch_nnodes_min;
 
-		unsigned int						machine_ppn;
-		int									fenodes;
-		unsigned int						batch_nnodes_min;
+		ConditionalOStream 		hcout;
 
-		ConditionalOStream 					hcout;
+		int				start_timestep;
+		int				end_timestep;
+		double              		present_time;
+		double              		fe_timestep_length;
+		double              		end_time;
+		int        			timestep;
+		int        			newtonstep;
 
-		int									start_timestep;
-		int									end_timestep;
-		double              				present_time;
-		double              				fe_timestep_length;
-		double              				end_time;
-		int        							timestep;
-		int        							newtonstep;
+		int				fe_degree;
+		int				quadrature_formula;
 
-		int									fe_degree;
-		int									quadrature_formula;
+		std::vector<std::string>	mdtype;
+		unsigned int			nrepl;
+		Tensor<1,dim> 			cg_dir;
 
-		std::vector<std::string>			mdtype;
-		unsigned int						nrepl;
-		Tensor<1,dim> 						cg_dir;
+		bool				activate_md_update;
+		bool				use_pjm_scheduler;
 
-		bool								activate_md_update;
-		bool								use_pjm_scheduler;
+		double				md_timestep_length;
+		double				md_temperature;
+		int				md_nsteps_sample;
+		double				md_strain_rate;
+		std::string			md_force_field;
 
-		double								md_timestep_length;
-		double								md_temperature;
-		int									md_nsteps_sample;
-		double								md_strain_rate;
-		std::string							md_force_field;
+		int				freq_checkpoint;
+		int				freq_output_visu;
+		int				freq_output_lhist;
+		int				freq_output_homog;
+		
+		std::string                 	macrostatelocin;
+		std::string                	macrostatelocout;
+		std::string			macrostatelocres;
+		std::string			macrologloc;
 
-		int									freq_checkpoint;
-		int									freq_output_visu;
-		int									freq_output_lhist;
-		int									freq_output_homog;
+		std::string                 	nanostatelocin;
+		std::string			nanostatelocout;
+		std::string			nanostatelocres;
+		std::string			nanologloc;
+		std::string			nanologloctmp;
+		std::string			nanologlochom;
 
-		std::string                         macrostatelocin;
-		std::string                         macrostatelocout;
-		std::string							macrostatelocres;
-		std::string							macrologloc;
-
-		std::string                         nanostatelocin;
-		std::string							nanostatelocout;
-		std::string							nanostatelocres;
-		std::string							nanologloc;
-		std::string							nanologloctmp;
-		std::string							nanologlochom;
-
-		std::string							md_scripts_directory;
-
+		std::string			md_scripts_directory;
+		
+		//int 				Ncells_x;
+		//int				Ncells_y;
+		//int				Ncells_z;
 
 	};
 
@@ -284,7 +287,12 @@ namespace HMM
 		freq_output_lhist = std::stoi(bptree_read(pt, "output data", "visualisation output frequency"));
 		freq_output_visu = std::stoi(bptree_read(pt, "output data", "analytics output frequency"));
 		freq_output_homog = std::stoi(bptree_read(pt, "output data", "homogenization output frequency"));
-
+		
+		// Oblong mesh dimensions
+		//Ncells_x = std::stoi(bptree_read(pt, "mesh size", "x"));
+		//Ncells_y = std::stoi(bptree_read(pt, "mesh size", "y"));
+		//Ncells_z = std::stoi(bptree_read(pt, "mesh size", "z"));
+		
 		// Print a recap of all the parameters...
 		hcout << "Parameters listing:" << std::endl;
 		hcout << " - Activate MD updates (1 is true, 0 is false): "<< activate_md_update << std::endl;

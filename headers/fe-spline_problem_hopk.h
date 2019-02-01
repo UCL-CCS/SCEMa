@@ -58,6 +58,7 @@
 #include <deal.II/grid/manifold_lib.h>
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/grid_in.h>
+#include <deal.II/grid/grid_out.h>
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/dofs/dof_accessor.h>
 #include <deal.II/dofs/dof_tools.h>
@@ -344,19 +345,39 @@ namespace HMM
 		}
 		else{
 			dcout << "    Creation of triangulation..." << std::endl;
+			dcout << "    Creation of second triangulation..." << std::endl;
 			Point<dim> pp1 (0.,-ww/2.,-bb/2.);
 			Point<dim> pp2 (ll/2.,ww/2.,bb/2.);
 			std::vector< unsigned int > reps (dim);
-			reps[0] = 25; reps[1] = 10; reps[2] = 3;
+			//reps[0] = 25; reps[1] = 10; reps[2] = 3;
+			reps[0] = 4; reps[1] = 2; reps[2] = 1;
+			
 			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
+			triangulation.refine_global (1);
+			
+			Triangulation<2> triangulation;
+ 			GridIn<2> gridin;
+			gridin.attach_triangulation(triangulation);
+			sprintf(filename, "%s/test2.msh", macrostatelocin.c_str());
+			std::ifstream f(filename);
+			gridin.read_msh(f);
+			
+			Triangulation<3> extruded_tria;
+			GridGenerator::extrude_triangulation (triangulation, 2, 0.5, extruded_tria);
 
-			//triangulation.refine_global (1);
-
+                        sprintf(filename, "%s/blah", macrostatelocout.c_str());
+  		  	std::ofstream out (filename);
+			GridOut grid_out;
+			grid_out.write_eps (extruded_tria, out);
+			std::cout << " written to " << filename
+		 	       	  << std::endl	
+		        	  << std::endl;	
+			
 			// Saving triangulation, not usefull now and costly...
-			/*sprintf(filename, "%s/mesh.tria", macrostatelocout.c_str());
+			sprintf(filename, "%s/mesh.tria", macrostatelocout.c_str());
 			std::ofstream oss(filename);
 			boost::archive::text_oarchive oa(oss, boost::archive::no_header);
-			triangulation.save(oa, 0);*/
+			triangulation.save(oa, 0);
 		}
 
 		dcout << "    Number of active cells:       "
@@ -1519,7 +1540,7 @@ namespace HMM
 		if(this_FE_process == 0) {
 			char command[1024];
 			sprintf(command,
-					"python ../spline/coarsegrain_dependency_network.py %s %s/mapping.csv %d",
+					"python3 ../spline/coarsegrain_dependency_network.py %s %s/mapping.csv %d",
 					macrostatelocout.c_str(),
 					macrostatelocout.c_str(),
 					triangulation.n_active_cells()*quadrature_formula.size()
@@ -1546,7 +1567,9 @@ namespace HMM
 	void FEProblem<dim>::history_analysis()
 	{
 		dcout << "        " << "...comparing strain history of quadrature points to be updated..." << std::endl;
-
+			
+		num_spline_points=10;
+                min_num_steps_before_spline=5;
 		acceptable_diff_threshold = 0.000001;
 
 		// Fit spline to all histories, and determine similarity graph (over all ranks)
@@ -2081,8 +2104,8 @@ namespace HMM
 					Utilities::int_to_string(timestep,4) +
 					".visit");
 			std::ofstream visit_master (visit_master_filename.c_str());
-			//data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
-			DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
+			data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
+			//DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
 
 			const std::string
 			pvtu_master_filename = (macrologloc + "/" + "history-" +
@@ -2098,8 +2121,8 @@ namespace HMM
 								".pvtu");
 			times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename_loc));
 			std::ofstream pvd_output (macrologloc + "/" + "history.pvd");
-			//data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
-			DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
+			data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
+			//DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
 		}
 	}
 
@@ -2213,8 +2236,8 @@ namespace HMM
 					Utilities::int_to_string(timestep,4) +
 					".visit");
 			std::ofstream visit_master (visit_master_filename.c_str());
-			//data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
-			DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
+			data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
+			//DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
 
 			const std::string
 			pvtu_master_filename = (macrologloc + "/" + "solution-" +
@@ -2230,8 +2253,8 @@ namespace HMM
 								".pvtu");
 			times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename_loc));
 			std::ofstream pvd_output (macrologloc + "/" + "solution.pvd");
-			//data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
-			DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
+			data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
+			//DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
 		}
 	}
 
@@ -2406,7 +2429,7 @@ namespace HMM
 		update_strain_quadrature_point_history(newton_update_displacement);
 
 		check_strain_quadrature_point_history();
-		history_analysis();
+		//history_analysis();
 
 		MPI_Barrier(FE_communicator);
 		write_md_updates_list();
@@ -2457,14 +2480,10 @@ namespace HMM
 		// Saving files for restart
 		if(timestep%freq_checkpoint==0){
 			char timeid[1024];
-			sprintf(timeid, "%s", "lcts");
-			checkpoint (timeid);
-			sprintf(timeid, "%d", timestep);
-			checkpoint (timeid);
-		}
+       }
 
-		dcout << std::endl;
-	}
+        dcout << std::endl;
+    }
 }
 
-#endif
+#endif    

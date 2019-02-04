@@ -149,6 +149,9 @@ namespace HMM
 
 		int				fe_degree;
 		int				quadrature_formula;
+		std::string			twod_mesh_file;;
+                double                          extrude_length;
+                int                             extrude_points;
 
 		std::vector<std::string>	mdtype;
 		unsigned int			nrepl;
@@ -182,10 +185,6 @@ namespace HMM
 
 		std::string			md_scripts_directory;
 		
-		//int 				Ncells_x;
-		//int				Ncells_y;
-		//int				Ncells_z;
-
 	};
 
 
@@ -232,6 +231,9 @@ namespace HMM
 	    // Continuum meshing
 	    fe_degree = std::stoi(bptree_read(pt, "continuum mesh", "fe degree"));
 	    quadrature_formula = std::stoi(bptree_read(pt, "continuum mesh", "quadrature formula"));
+	    twod_mesh_file = std::stoi(bptree_read(pt, "continuum mesh", "2D mesh file"));
+	    extrude_length = std::stoi(bptree_read(pt, "continuum mesh", "extrude length"));
+	    extrude_points = std::stoi(bptree_read(pt, "continuum mesh", "extrude points"));
 
 	    // Scale-bridging parameters
 	    activate_md_update = std::stoi(bptree_read(pt, "scale-bridging", "activate md update"));
@@ -277,6 +279,7 @@ namespace HMM
 		md_force_field = bptree_read(pt, "molecular dynamics parameters", "force field");
 		md_scripts_directory = bptree_read(pt, "molecular dynamics parameters", "scripts directory");
 
+	    hcout << "EEEEEEEEEEEEE" << extrude_length << extrude_points << fe_degree << md_timestep_length << std::endl;
 		// Computational resources
 		machine_ppn = std::stoi(bptree_read(pt, "computational resources", "machine cores per node"));
 		fenodes = std::stoi(bptree_read(pt, "computational resources", "number of nodes for FEM simulation"));
@@ -287,11 +290,6 @@ namespace HMM
 		freq_output_lhist = std::stoi(bptree_read(pt, "output data", "visualisation output frequency"));
 		freq_output_visu = std::stoi(bptree_read(pt, "output data", "analytics output frequency"));
 		freq_output_homog = std::stoi(bptree_read(pt, "output data", "homogenization output frequency"));
-		
-		// Oblong mesh dimensions
-		//Ncells_x = std::stoi(bptree_read(pt, "mesh size", "x"));
-		//Ncells_y = std::stoi(bptree_read(pt, "mesh size", "y"));
-		//Ncells_z = std::stoi(bptree_read(pt, "mesh size", "z"));
 		
 		// Print a recap of all the parameters...
 		hcout << "Parameters listing:" << std::endl;
@@ -492,9 +490,10 @@ namespace HMM
 										 macrostatelocin, macrostatelocout,
 										 macrostatelocres, macrologloc,
 										 freq_checkpoint, freq_output_visu, freq_output_lhist,
-										 activate_md_update, mdtype, cg_dir);
-
-		MPI_Barrier(world_communicator);
+										 activate_md_update, mdtype, cg_dir,
+										twod_mesh_file, extrude_length, extrude_points);
+                                                                                
+		MPI_Barrier(world_communicator);                                
 
 		// Running the solution algorithm of the FE problem
 		hcout << "Beginning of incremental solution algorithm:       " << std::endl;

@@ -173,7 +173,8 @@ namespace HMM
 
 		void init (int sstp, double tlength, std::string mslocin, std::string mslocout,
 				   std::string mslocres, std::string mlogloc, int fchpt, int fovis, int folhis,
-				   bool actmdup, std::vector<std::string> mdt, Tensor<1,dim> cgd);
+				   bool actmdup, std::vector<std::string> mdt, Tensor<1,dim> cgd, 
+				   std::string twodmfile, double extrudel, int extrudep );
 		void beginstep (int tstp, double ptime);
 		void solve (int nstp);
 		bool check ();
@@ -292,6 +293,10 @@ namespace HMM
 		int									freq_output_lhist;
 
 		bool 								activate_md_update;
+
+		std::string		twod_mesh_file;
+                double                  extrude_length;
+                int                     extrude_points;
 	};
 
 
@@ -334,60 +339,58 @@ namespace HMM
 		diam_weight=0.001;
 
 		char filename[1024];
-		sprintf(filename, "%s/mesh.tria", macrostatelocin.c_str());
+		sprintf(filename, "%s/2D_mesh.msh", macrostatelocin.c_str());
+		
+		//Triangulation<3> triangulation;
 
 		std::ifstream iss(filename);
 		if (iss.is_open()){
-			dcout << "    Reuse of existing triangulation... "
-				  << "(requires the exact SAME COMMUNICATOR!!)" << std::endl;
-			boost::archive::text_iarchive ia(iss, boost::archive::no_header);
-			triangulation.load(ia, 0);
-		}
-		else{
-			dcout << "    Creation of triangulation..." << std::endl;
-			dcout << "    Creation of second triangulation..." << std::endl;
-			Point<dim> pp1 (0.,-ww/2.,-bb/2.);
-			Point<dim> pp2 (ll/2.,ww/2.,bb/2.);
-			std::vector< unsigned int > reps (dim);
-			//reps[0] = 25; reps[1] = 10; reps[2] = 3;
-			reps[0] = 4; reps[1] = 2; reps[2] = 1;
+			dcout << "    Reading in 2D mesh" << std::endl;
 			
-			GridGenerator::subdivided_hyper_rectangle(triangulation, reps, pp1, pp2);
-			triangulation.refine_global (1);
-			
-			Triangulation<2> triangulation;
+			dcout << " extrude L"<< extrude_length << std::endl;			
+	
+			Triangulation<2> triangulation2D;
  			GridIn<2> gridin;
-			gridin.attach_triangulation(triangulation);
-			sprintf(filename, "%s/test2.msh", macrostatelocin.c_str());
+			gridin.attach_triangulation(triangulation2D);
+			sprintf(filename, "%s/2D_mesh.msh", macrostatelocin.c_str());
 			std::ifstream f(filename);
 			gridin.read_msh(f);
 			
-			Triangulation<3> extruded_tria;
-			GridGenerator::extrude_triangulation (triangulation, 2, 0.5, extruded_tria);
+			GridGenerator::extrude_triangulation (triangulation2D, extrude_points, extrude_length, triangulation);
 
-                        sprintf(filename, "%s/blah", macrostatelocout.c_str());
+                        sprintf(filename, "%s/3D_mesh.eps", macrostatelocout.c_str());
   		  	std::ofstream out (filename);
 			GridOut grid_out;
-			grid_out.write_eps (extruded_tria, out);
+			grid_out.write_eps (triangulation, out);
 			std::cout << " written to " << filename
 		 	       	  << std::endl	
 		        	  << std::endl;	
 			
+			dcout << "    here3" << std::endl;
 			// Saving triangulation, not usefull now and costly...
-			sprintf(filename, "%s/mesh.tria", macrostatelocout.c_str());
-			std::ofstream oss(filename);
-			boost::archive::text_oarchive oa(oss, boost::archive::no_header);
-			triangulation.save(oa, 0);
+			//sprintf(filename, "%s/mesh.tria", macrostatelocout.c_str());
+			//std::ofstream oss(filename);
+			//boost::archive::text_oarchive oa(oss, boost::archive::no_header);
+			//triangulation.save(oa, 0);
 		}
+		else{
+			dcout << "Need a 2D_mesh for input" << std::endl;
+			exit(1);
+		}		
+
+			
+			dcout << "    here4" << std::endl;
 
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
 				<< " (by partition:";
+			dcout << "    here5" << std::endl;
 		for (int p=0; p<n_FE_processes; ++p)
 			dcout << (p==0 ? ' ' : '+')
 			<< (GridTools::
 					count_cells_with_subdomain_association (triangulation,p));
 		dcout << ")" << std::endl;
+			dcout << "    here6" << std::endl;
 	}
 
 
@@ -2342,8 +2345,9 @@ namespace HMM
 							   std::string mslocin, std::string mslocout,
 							   std::string mslocres, std::string mlogloc,
 							   int fchpt, int fovis, int folhis, bool actmdup,
-							   std::vector<std::string> mdt, Tensor<1,dim> cgd){
-
+							   std::vector<std::string> mdt, Tensor<1,dim> cgd,
+							   std::string twodmfile, double extrudel, int extrudep ){
+ 
 		// Setting up checkpoint and output frequencies
 		freq_checkpoint = fchpt;
 		freq_output_visu = fovis;
@@ -2362,6 +2366,11 @@ namespace HMM
 		macrostatelocres = mslocres;
 		macrologloc = mlogloc;
 
+		// Setting up mesh
+		twod_mesh_file = twodmfile;
+		extrude_length = extrudel;
+		extrude_points = extrudep;
+		dcout << "extrude L " << extrude_length << extrudel << std::endl; 
 		// Setting materials name list
 		mdtype = mdt;
 

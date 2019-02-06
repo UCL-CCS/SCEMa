@@ -345,28 +345,27 @@ namespace HMM
 
 		std::ifstream iss(filename);
 		if (iss.is_open()){
-			dcout << "    Reading in 2D mesh" << std::endl;
 			
-			dcout << " extrude L"<< extrude_length << std::endl;			
-	
+			dcout << "    Reading in 2D mesh" << std::endl;
 			Triangulation<2> triangulation2D;
  			GridIn<2> gridin;
 			gridin.attach_triangulation(triangulation2D);
-			sprintf(filename, "%s/2D_mesh.msh", macrostatelocin.c_str());
+			sprintf(filename, "%s/%s", macrostatelocin.c_str(), twod_mesh_file.c_str());
 			std::ifstream f(filename);
 			gridin.read_msh(f);
 			
+			dcout << "    extruding by " << extrude_length;
+			dcout << " with "<< extrude_points << " points" << std::endl; 
 			GridGenerator::extrude_triangulation (triangulation2D, extrude_points, extrude_length, triangulation);
-
+			
+			//visualise extruded mesh
+			if (this_FE_process==0){
                         sprintf(filename, "%s/3D_mesh.eps", macrostatelocout.c_str());
   		  	std::ofstream out (filename);
 			GridOut grid_out;
 			grid_out.write_eps (triangulation, out);
-			std::cout << " written to " << filename
-		 	       	  << std::endl	
-		        	  << std::endl;	
-			
-			dcout << "    here3" << std::endl;
+			dcout << "    written to " << filename << std::endl;	
+			}
 			// Saving triangulation, not usefull now and costly...
 			//sprintf(filename, "%s/mesh.tria", macrostatelocout.c_str());
 			//std::ofstream oss(filename);
@@ -378,19 +377,14 @@ namespace HMM
 			exit(1);
 		}		
 
-			
-			dcout << "    here4" << std::endl;
-
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
 				<< " (by partition:";
-			dcout << "    here5" << std::endl;
 		for (int p=0; p<n_FE_processes; ++p)
 			dcout << (p==0 ? ' ' : '+')
 			<< (GridTools::
 					count_cells_with_subdomain_association (triangulation,p));
 		dcout << ")" << std::endl;
-			dcout << "    here6" << std::endl;
 	}
 
 
@@ -640,7 +634,7 @@ namespace HMM
 		dcout << "    Loading microstructure..." << std::endl;
 		std::vector<Vector<double> > structure_data;
 		structure_data = get_microstructure();
-
+		
 		// Quadrature points data initialization and assigning material properties
 		dcout << "    Assigning microstructure..." << std::endl;
 		for (typename DoFHandler<dim>::active_cell_iterator
@@ -2370,7 +2364,6 @@ namespace HMM
 		twod_mesh_file = twodmfile;
 		extrude_length = extrudel;
 		extrude_points = extrudep;
-		dcout << "extrude L " << extrude_length << extrudel << std::endl; 
 		// Setting materials name list
 		mdtype = mdt;
 

@@ -168,7 +168,7 @@ namespace HMM
 	class FEProblem
 	{
 	public:
-		FEProblem (MPI_Comm dcomm, int pcolor, int fe_deg, int quad_for);
+		FEProblem (MPI_Comm dcomm, int pcolor, int fe_deg, int quad_for, const int n_world_processes);
 		~FEProblem ();
 
 		void init (int sstp, double tlength, std::string mslocin, std::string mslocout,
@@ -233,6 +233,7 @@ namespace HMM
 		int 								this_FE_process;
 		int									root_FE_process;
 		int 								FE_pcolor;
+		int								n_world_processes;
 
 		int									start_timestep;
 		double              				present_time;
@@ -302,8 +303,10 @@ namespace HMM
 
 
 	template <int dim>
-	FEProblem<dim>::FEProblem (MPI_Comm dcomm, int pcolor, int fe_deg, int quad_for)
+	FEProblem<dim>::FEProblem (MPI_Comm dcomm, int pcolor, int fe_deg, int quad_for, 
+					const int n_total_processes)
 	:
+		n_world_processes (n_total_processes),
 		FE_communicator (dcomm),
 		n_FE_processes (Utilities::MPI::n_mpi_processes(FE_communicator)),
 		this_FE_process (Utilities::MPI::this_mpi_process(FE_communicator)),
@@ -357,7 +360,14 @@ namespace HMM
 			dcout << "    extruding by " << extrude_length;
 			dcout << " with "<< extrude_points << " points" << std::endl; 
 			GridGenerator::extrude_triangulation (triangulation2D, extrude_points, extrude_length, triangulation);
-			
+			// Check that the FEM is not passed less ranks than cells
+			dcout << " Proces:" << triangulation.n_active_cells() << n_FE_processes << n_world_processes << std::endl; 
+			if ( triangulation.n_active_cells() < n_FE_processes &&
+			     triangulation.n_active_cells() < n_world_processes ){
+				dcout << "Exception: Cells < ranks in FE communicator... " << std::endl;
+				exit(1);
+			}
+
 			//visualise extruded mesh
 			if (this_FE_process==0){
                         sprintf(filename, "%s/3D_mesh.eps", macrostatelocout.c_str());
@@ -393,11 +403,16 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::setup_system ()
 	{
+		std::cout << "    Number of degrees of freedom:111 " << std::endl; 
 		dof_handler.distribute_dofs (fe);
+		std::cout << "    Number of degrees of freedom:222 " << std::endl; 
 		locally_owned_dofs = dof_handler.locally_owned_dofs();
+		std::cout << "    Number of degrees of freedom:333 " << std::endl; 
 		DoFTools::extract_locally_relevant_dofs (dof_handler,locally_relevant_dofs);
+		std::cout << "    Number of degrees of freedom:112 " << std::endl; 
 
 		history_dof_handler.distribute_dofs (history_fe);
+		std::cout << "    Number of degrees of freedom:113 " << std::endl; 
 
 		n_local_cells
 		= GridTools::count_cells_with_subdomain_association (triangulation,
@@ -408,6 +423,7 @@ namespace HMM
 		DoFTools::make_hanging_node_constraints (dof_handler,
 				hanging_node_constraints);
 		hanging_node_constraints.close ();
+		std::cout << "    Number of degrees of freedom:1112 " << std::endl; 
 
 		DynamicSparsityPattern sparsity_pattern (locally_relevant_dofs);
 		DoFTools::make_sparsity_pattern (dof_handler, sparsity_pattern,
@@ -416,6 +432,7 @@ namespace HMM
 				local_dofs_per_process,
 				FE_communicator,
 				locally_relevant_dofs);
+		std::cout << "    Number of degrees of freedom:1113 " << std::endl; 
 
 		mass_matrix.reinit (locally_owned_dofs,
 				locally_owned_dofs,
@@ -426,12 +443,14 @@ namespace HMM
 				sparsity_pattern,
 				FE_communicator);
 		system_rhs.reinit (locally_owned_dofs, FE_communicator);
+		std::cout << "    Number of degrees of freedom:1114 " << std::endl; 
 
 		newton_update_displacement.reinit (dof_handler.n_dofs());
 		incremental_displacement.reinit (dof_handler.n_dofs());
 		displacement.reinit (dof_handler.n_dofs());
 		old_displacement.reinit (dof_handler.n_dofs());
 		for (unsigned int i=0; i<dof_handler.n_dofs(); ++i) old_displacement(i) = 0.0;
+		std::cout << "    Number of degrees of freedom:1115 " << std::endl; 
 
 		newton_update_velocity.reinit (dof_handler.n_dofs());
 		incremental_velocity.reinit (dof_handler.n_dofs());

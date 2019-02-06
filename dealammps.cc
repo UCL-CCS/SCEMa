@@ -464,7 +464,7 @@ namespace HMM
 		if(mmd_pcolor==0) mmd_problem = new STMDSync<dim> (mmd_communicator, mmd_pcolor);
 
 		// Instantiation of the FE problem
-		if(fe_pcolor==0) fe_problem = new FEProblem<dim> (fe_communicator, fe_pcolor, fe_degree, quadrature_formula);
+		if(fe_pcolor==0) fe_problem = new FEProblem<dim> (fe_communicator, fe_pcolor, fe_degree, quadrature_formula, n_world_processes);
 
 		MPI_Barrier(world_communicator);
 

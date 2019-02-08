@@ -156,6 +156,7 @@ namespace HMM
 		std::vector<std::string>	mdtype;
 		unsigned int			nrepl;
 		Tensor<1,dim> 			cg_dir;
+		boost::property_tree::ptree	input_config;
 
 		bool				activate_md_update;
 		bool				use_pjm_scheduler;
@@ -211,52 +212,49 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::read_inputs (std::string inputfile)
 	{
-	    using boost::property_tree::ptree;
-
 	    std::ifstream jsonFile(inputfile);
-	    ptree pt;
 	    try{
-		    read_json(jsonFile, pt);
+		    read_json(jsonFile, input_config);
 	    }
 	    catch (const boost::property_tree::json_parser::json_parser_error& e)
 	    {
 	        hcout << "Invalid JSON HMM input file (" << inputfile << ")" << std::endl;  // Never gets here
 	    }
             	    
-	    boost::property_tree::read_json(inputfile, pt);
+	    boost::property_tree::read_json(inputfile, input_config);
             
 	    // Continuum timestepping
-	    fe_timestep_length 	= pt.get<double>("continuum time.timestep length");
-	    start_timestep 	= pt.get<int>("continuum time.start timestep");
-	    end_timestep 	= pt.get<int>("continuum time.end timestep");
+	    fe_timestep_length 	= input_config.get<double>("continuum time.timestep length");
+	    start_timestep 	= input_config.get<int>("continuum time.start timestep");
+	    end_timestep 	= input_config.get<int>("continuum time.end timestep");
 
 	    // Continuum meshing
-	    fe_degree 		= pt.get<int>("continuum mesh.fe degree");
-	    quadrature_formula 	= pt.get<int>("continuum mesh.quadrature formula");
-	    twod_mesh_file 	= pt.get<std::string>("continuum mesh.2D mesh file");
-	    extrude_length 	= pt.get<double>( "continuum mesh.extrude length");
-	    extrude_points 	= pt.get<int>("continuum mesh.extrude points");
+	    fe_degree 		= input_config.get<int>("continuum mesh.fe degree");
+	    quadrature_formula 	= input_config.get<int>("continuum mesh.quadrature formula");
+	    twod_mesh_file 	= input_config.get<std::string>("continuum mesh.2D mesh file");
+	    extrude_length 	= input_config.get<double>( "continuum mesh.extrude length");
+	    extrude_points 	= input_config.get<int>("continuum mesh.extrude points");
 
 	    // Scale-bridging parameters
-	    activate_md_update 	= pt.get<bool>("scale-bridging.activate md update");
-	    use_pjm_scheduler 	= pt.get<bool>("scale-bridging.use pjm scheduler");
+	    activate_md_update 	= input_config.get<bool>("scale-bridging.activate md update");
+	    use_pjm_scheduler 	= input_config.get<bool>("scale-bridging.use pjm scheduler");
 
 	    // Continuum input, output, restart and log location
-		macrostatelocin	 = pt.get<std::string>("directory structure.macroscale input");
-		macrostatelocout = pt.get<std::string>("directory structure.macroscale output");
-		macrostatelocres = pt.get<std::string>("directory structure.macroscale restart");
-		macrologloc 	 = pt.get<std::string>("directory structure.macroscale log");
+		macrostatelocin	 = input_config.get<std::string>("directory structure.macroscale input");
+		macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
+		macrostatelocres = input_config.get<std::string>("directory structure.macroscale restart");
+		macrologloc 	 = input_config.get<std::string>("directory structure.macroscale log");
 
 		// Atomic input, output, restart and log location
-		nanostatelocin	 = pt.get<std::string>("directory structure.nanoscale input");
-		nanostatelocout	 = pt.get<std::string>("directory structure.nanoscale output");
-		nanostatelocres	 = pt.get<std::string>("directory structure.nanoscale restart");
-		nanologloc	 = pt.get<std::string>("directory structure.nanoscale log");
+		nanostatelocin	 = input_config.get<std::string>("directory structure.nanoscale input");
+		nanostatelocout	 = input_config.get<std::string>("directory structure.nanoscale output");
+		nanostatelocres	 = input_config.get<std::string>("directory structure.nanoscale restart");
+		nanologloc	 = input_config.get<std::string>("directory structure.nanoscale log");
 
 		// Molecular dynamics material data
-		nrepl = pt.get<unsigned int>("molecular dynamics material.number of replicas");
+		nrepl = input_config.get<unsigned int>("molecular dynamics material.number of replicas");
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(pt, "molecular dynamics material").get_child("list of materials.")) {
+				get_subbptree(input_config, "molecular dynamics material").get_child("list of materials.")) {
 			mdtype.push_back(v.second.data());
 		}
 		// Direction to which all MD data are rotated to, to later ease rotation in the FE problem. The
@@ -264,7 +262,7 @@ namespace HMM
 		// tensors are rotated to this referential from the microstructure given orientation
 		std::vector<double> tmp_dir;
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(pt, "molecular dynamics material").get_child("rotation common ground vector.")) {
+				get_subbptree(input_config, "molecular dynamics material").get_child("rotation common ground vector.")) {
 			tmp_dir.push_back(std::stod(v.second.data()));
 		}
 		if(tmp_dir.size()==dim){
@@ -272,25 +270,25 @@ namespace HMM
 				cg_dir[imd] = tmp_dir[imd];
 			}
 		}
-
+		
 		// Molecular dynamics simulation parameters
-		md_timestep_length = pt.get<double>("molecular dynamics parameters.timestep length");
-		md_temperature = pt.get<double>("molecular dynamics parameters.temperature");
-		md_nsteps_sample = pt.get<int>("molecular dynamics parameters.number of sampling steps");
-		md_strain_rate = pt.get<double>("molecular dynamics parameters.strain rate");
-		md_force_field = pt.get<std::string>("molecular dynamics parameters.force field");
-		md_scripts_directory = pt.get<std::string>("molecular dynamics parameters.scripts directory");
+		md_timestep_length = input_config.get<double>("molecular dynamics parameters.timestep length");
+		md_temperature = input_config.get<double>("molecular dynamics parameters.temperature");
+		md_nsteps_sample = input_config.get<int>("molecular dynamics parameters.number of sampling steps");
+		md_strain_rate = input_config.get<double>("molecular dynamics parameters.strain rate");
+		md_force_field = input_config.get<std::string>("molecular dynamics parameters.force field");
+		md_scripts_directory = input_config.get<std::string>("molecular dynamics parameters.scripts directory");
 
 		// Computational resources
-		machine_ppn = pt.get<unsigned int>("computational resources.machine cores per node");
-		fenodes = pt.get<int>("computational resources.number of nodes for FEM simulation");
-		batch_nnodes_min = pt.get<unsigned int>("computational resources.minimum nodes per MD simulation");
+		machine_ppn = input_config.get<unsigned int>("computational resources.machine cores per node");
+		fenodes = input_config.get<int>("computational resources.number of nodes for FEM simulation");
+		batch_nnodes_min = input_config.get<unsigned int>("computational resources.minimum nodes per MD simulation");
 
 		// Output and checkpointing frequencies
-		freq_checkpoint   = pt.get<int>("output data.checkpoint frequency");
-		freq_output_lhist = pt.get<int>("output data.visualisation output frequency");
-		freq_output_visu  = pt.get<int>("output data.analytics output frequency");
-		freq_output_homog = pt.get<int>("output data.homogenization output frequency");
+		freq_checkpoint   = input_config.get<int>("output data.checkpoint frequency");
+		freq_output_lhist = input_config.get<int>("output data.visualisation output frequency");
+		freq_output_visu  = input_config.get<int>("output data.analytics output frequency");
+		freq_output_homog = input_config.get<int>("output data.homogenization output frequency");
 		
 		// Print a recap of all the parameters...
 		hcout << "Parameters listing:" << std::endl;

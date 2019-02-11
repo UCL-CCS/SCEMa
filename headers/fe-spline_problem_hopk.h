@@ -184,6 +184,7 @@ namespace HMM
 		void make_grid ();
 		void setup_system ();
 		std::vector<Vector<double> > get_microstructure ();
+		std::vector<Vector<double> > generate_microstructure();
 		void assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > structure_data,
 				std::string &mat, Tensor<2,dim> &rotam);
 		void setup_quadrature_point_history ();
@@ -462,8 +463,17 @@ namespace HMM
 	template <int dim>
 	std::vector<Vector<double> > FEProblem<dim>::get_microstructure ()
 	{
-		// Generation of nanostructure based on size, weight ratio
-		//generate_nanostructure();
+		std::string 	distribution_type;
+		
+		distribution_type = input_config.get<double>("molecular dynamics parameters.distribution.style");
+		if (distribution_type == "uniform"){
+			dcout << " GENERATE DIST UNIFORM " << std::endl;
+			// read in values
+			// generate_nanostructure_uniform()
+		}		
+		else if (distribution_type == "file"){
+			// do the old part
+		}
 
 		// Load flakes data (center position, angles, density)
 		unsigned int npoints = 0;
@@ -519,7 +529,10 @@ namespace HMM
 		return structure_data;
 	}
 
-
+	template <int dim>
+	std::vector<Vector<double> > FEProblem<dim>::generate_microstructure_uniform ()
+	{
+	}
 
 
 	template <int dim>

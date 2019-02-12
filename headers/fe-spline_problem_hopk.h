@@ -10,6 +10,8 @@
 #include <string>
 #include <sys/stat.h>
 #include <math.h>
+#include <numeric>
+#include <random>
 
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
@@ -229,7 +231,59 @@ namespace HMM
 		Vector<double> 		     			incremental_velocity;
 		Vector<double> 		     			velocity;
 		//Vector<double> 		     		old_velocity;
+		
+		class CellData {
+			public:
+				CellData()
+				{
+				}
 
+				void generate_nanostructure_uniform(
+						parallel::shared::Triangulation<dim>& triangulation,
+						std::vector<double> proportions)
+				{
+					// check proportions of materials add up to 1
+					const double epsilon = 0.0001;
+					double sum = std::accumulate(proportions.begin(), 
+								     proportions.end(), 0.0);
+					if (fabs(1.0 - sum) > epsilon)
+					{
+						std::cout << "Material proprtions must sum to 1"<< std::endl;
+						exit(1);
+					}
+
+					// random number generator 
+					std::mt19937 generator (time(0));
+			  		std::uniform_real_distribution<double> dist(0.0, 1.0);
+
+					// for each cell asign a material type based on the proportion
+					for (int cell=0; cell < triangulation.n_active_cells(); cell++)
+					{
+						double r = dist(generator);
+						double k = 0;
+						for (int i=0; i < proportions.size(); i++)
+						{
+							k += proportions[i];
+							if (k > r)
+							{
+								composition[cell] = i;
+								break;
+							}	
+						}
+					}
+					
+				}
+
+				int get_composition(int cell_index)
+				{
+					return composition[cell_index];
+				}
+			private:
+				std::vector<int> composition;
+				//std::vector<Vector> coords;
+				//std::vector<Vector> normal;
+		};
+		
 		MPI_Comm 							FE_communicator;
 		int 								n_FE_processes;
 		int 								this_FE_process;
@@ -467,19 +521,34 @@ namespace HMM
 	std::vector<Vector<double> > FEProblem<dim>::get_microstructure ()
 	{
 		std::string 	distribution_type;
+		CellData 	celldata;
 		
-		// this structure_data thing needs to dies, replace with class holding material information at each point
 		unsigned int npoints = 0;
 		unsigned int nfchar = 0;
 		std::vector<Vector<double> > structure_data (npoints, Vector<double>(nfchar)); 
 		
 		distribution_type = input_config.get<std::string>("molecular dynamics material.distribution.style");
 		if (distribution_type == "uniform"){
-			dcout << " GENERATE DIST UNIFORM " << std::endl;
-			// read in values
-			// generate_nanostructure_uniform()
+			dcout << " generating uniform distribution of materials... " << std::endl;
+		 	
+			std::vector<double> proportions;
+			BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
+                                get_subbptree(input_config, "molecular dynamics material.distribution").get_child("proportions.")) {
+                        	proportions.push_back(std::stod(v.second.data()));
+                	}
+			sleep(10000);	
+				
+			// check length of materials list and proportions list are the same
+			if (mdtype.size() != proportions.size())
+			{
+				dcout<< "Materials list and proportions list must be the same length" <<std::endl;
+				exit(1);
+			}
+			
+			celldata.generate_nanostructure_uniform(triangulation, proportions);
+
 		}		
-		else if (distribution_type == "file"){
+		/*else if (distribution_type == "file"){
 			// this is maxime's method of populating structure_data from a file
 
 			// Load flakes data (center position, angles, density)
@@ -529,13 +598,9 @@ namespace HMM
 			else{
 				dcout << "      Unable to open" << filename << " to read it, no microstructure loaded." << std::endl;
 			}
-		}
+		}*/
+			 
 		return structure_data;
-	}
-
-	template <int dim>
-	std::vector<Vector<double> > FEProblem<dim>::generate_microstructure_uniform ()
-	{
 	}
 
 

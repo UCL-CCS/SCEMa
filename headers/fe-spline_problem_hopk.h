@@ -174,7 +174,8 @@ namespace HMM
 		void init (int sstp, double tlength, std::string mslocin, std::string mslocout,
 				   std::string mslocres, std::string mlogloc, int fchpt, int fovis, int folhis,
 				   bool actmdup, std::vector<std::string> mdt, Tensor<1,dim> cgd, 
-				   std::string twodmfile, double extrudel, int extrudep );
+				   std::string twodmfile, double extrudel, int extrudep, 
+				   boost::property_tree::ptree inconfig);
 		void beginstep (int tstp, double ptime);
 		void solve (int nstp);
 		bool check ();
@@ -184,7 +185,7 @@ namespace HMM
 		void make_grid ();
 		void setup_system ();
 		std::vector<Vector<double> > get_microstructure ();
-		std::vector<Vector<double> > generate_microstructure();
+		std::vector<Vector<double> > generate_microstructure_uniform();
 		void assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > structure_data,
 				std::string &mat, Tensor<2,dim> &rotam);
 		void setup_quadrature_point_history ();
@@ -299,6 +300,8 @@ namespace HMM
 		std::string		twod_mesh_file;
                 double                  extrude_length;
                 int                     extrude_points;
+		
+		boost::property_tree::ptree     input_config;
 	};
 
 
@@ -465,7 +468,9 @@ namespace HMM
 	{
 		std::string 	distribution_type;
 		
-		distribution_type = input_config.get<double>("molecular dynamics parameters.distribution.style");
+		dcout << " 111GENERATE DIST UNIFORM " << std::endl;
+		distribution_type = input_config.get<std::string>("molecular dynamics material.distribution.style");
+		dcout << " 222GENERATE DIST UNIFORM " << std::endl;
 		if (distribution_type == "uniform"){
 			dcout << " GENERATE DIST UNIFORM " << std::endl;
 			// read in values
@@ -2365,7 +2370,10 @@ namespace HMM
 							   std::string mslocres, std::string mlogloc,
 							   int fchpt, int fovis, int folhis, bool actmdup,
 							   std::vector<std::string> mdt, Tensor<1,dim> cgd,
-							   std::string twodmfile, double extrudel, int extrudep ){
+							   std::string twodmfile, double extrudel, int extrudep,
+						           boost::property_tree::ptree inconfig){
+
+		input_config = inconfig;		
  
 		// Setting up checkpoint and output frequencies
 		freq_checkpoint = fchpt;

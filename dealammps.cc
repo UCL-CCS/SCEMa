@@ -486,11 +486,12 @@ namespace HMM
 
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;
 		if(fe_pcolor==0) fe_problem->init(start_timestep, fe_timestep_length,
-										 macrostatelocin, macrostatelocout,
-										 macrostatelocres, macrologloc,
-										 freq_checkpoint, freq_output_visu, freq_output_lhist,
-										 activate_md_update, mdtype, cg_dir,
-										twod_mesh_file, extrude_length, extrude_points);
+										macrostatelocin, macrostatelocout,
+										macrostatelocres, macrologloc,
+										freq_checkpoint, freq_output_visu, freq_output_lhist,
+										activate_md_update, mdtype, cg_dir,
+										twod_mesh_file, extrude_length, extrude_points, 
+										input_config);
                                                                                 
 		MPI_Barrier(world_communicator);                                
 

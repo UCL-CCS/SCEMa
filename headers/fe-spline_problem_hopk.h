@@ -468,69 +468,68 @@ namespace HMM
 	{
 		std::string 	distribution_type;
 		
-		dcout << " 111GENERATE DIST UNIFORM " << std::endl;
+		// this structure_data thing needs to dies, replace with class holding material information at each point
+		unsigned int npoints = 0;
+		unsigned int nfchar = 0;
+		std::vector<Vector<double> > structure_data (npoints, Vector<double>(nfchar)); 
+		
 		distribution_type = input_config.get<std::string>("molecular dynamics material.distribution.style");
-		dcout << " 222GENERATE DIST UNIFORM " << std::endl;
 		if (distribution_type == "uniform"){
 			dcout << " GENERATE DIST UNIFORM " << std::endl;
 			// read in values
 			// generate_nanostructure_uniform()
 		}		
 		else if (distribution_type == "file"){
-			// do the old part
-		}
+			// this is maxime's method of populating structure_data from a file
 
-		// Load flakes data (center position, angles, density)
-		unsigned int npoints = 0;
-		unsigned int nfchar = 0;
-		std::vector<Vector<double> > structure_data (npoints, Vector<double>(nfchar));
+			// Load flakes data (center position, angles, density)
 
-		char filename[1024];
-		sprintf(filename, "%s/structure_data.csv", macrostatelocin.c_str());
+			char filename[1024];
+			sprintf(filename, "%s/structure_data.csv", macrostatelocin.c_str());
 
-		std::ifstream ifile;
-		ifile.open (filename);
+			std::ifstream ifile;
+			ifile.open (filename);
 
-		if (ifile.is_open())
-		{
-			std::string iline, ival;
-
-			if(getline(ifile, iline)){
-				std::istringstream iss(iline);
-				if(getline(iss, ival, ',')) npoints = std::stoi(ival);
-				if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
-			}
-			dcout << "      Nboxes " << npoints << " - Nchar " << nfchar << std::endl;
-
-			//dcout << "Char names: " << std::flush;
-			if(getline(ifile, iline)){
-				std::istringstream iss(iline);
-				for(unsigned int k=0;k<nfchar;k++){
-					getline(iss, ival, ',');
-					//dcout << ival << " " << std::flush;
-				}
-			}
-			//dcout << std::endl;
-
-			structure_data.resize(npoints, Vector<double>(nfchar));
-			for(unsigned int n=0;n<npoints;n++)
+			if (ifile.is_open())
+			{
+				std::string iline, ival;
+	
 				if(getline(ifile, iline)){
-					//dcout << "box: " << n << std::flush;
+					std::istringstream iss(iline);
+					if(getline(iss, ival, ',')) npoints = std::stoi(ival);
+					if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
+				}
+				dcout << "      Nboxes " << npoints << " - Nchar " << nfchar << std::endl;
+
+				//dcout << "Char names: " << std::flush;
+				if(getline(ifile, iline)){
 					std::istringstream iss(iline);
 					for(unsigned int k=0;k<nfchar;k++){
 						getline(iss, ival, ',');
-						structure_data[n][k] = std::stof(ival);
-						//dcout << " - " << structure_data[n][k] << std::flush;
+						//dcout << ival << " " << std::flush;
 					}
-					//dcout << std::endl;
-				}
+				}	
+				//dcout << std::endl;
 
-			ifile.close();
-		}
-		else{
-			dcout << "      Unable to open" << filename << " to read it, no microstructure loaded." << std::endl;
-		}
+				structure_data.resize(npoints, Vector<double>(nfchar));
+				for(unsigned int n=0;n<npoints;n++)
+					if(getline(ifile, iline)){
+						//dcout << "box: " << n << std::flush;
+						std::istringstream iss(iline);
+						for(unsigned int k=0;k<nfchar;k++){
+							getline(iss, ival, ',');
+							structure_data[n][k] = std::stof(ival);
+							//dcout << " - " << structure_data[n][k] << std::flush;
+						}
+						//dcout << std::endl;
+					}
 
+				ifile.close();
+			}
+			else{
+				dcout << "      Unable to open" << filename << " to read it, no microstructure loaded." << std::endl;
+			}
+		}
 		return structure_data;
 	}
 

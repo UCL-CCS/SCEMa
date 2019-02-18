@@ -255,7 +255,7 @@ namespace HMM
 					// random number generator 
 					std::mt19937 generator (time(0));
 			  		std::uniform_real_distribution<double> dist(0.0, 1.0);
-
+					
 					// for each cell asign a material type based on the proportion
 					for (int cell=0; cell < triangulation.n_active_cells(); cell++)
 					{
@@ -266,12 +266,16 @@ namespace HMM
 							k += proportions[i];
 							if (k > r)
 							{
-								composition[cell] = i;
+								composition.push_back(i);
 								break;
 							}	
 						}
 					}
-					
+					for (int cell=0; cell < triangulation.n_active_cells(); cell++)
+					{
+						std::cout << composition[cell] << " ";
+					}
+					std::cout<<std::endl;
 				}
 
 				int get_composition(int cell_index)
@@ -530,13 +534,21 @@ namespace HMM
 		distribution_type = input_config.get<std::string>("molecular dynamics material.distribution.style");
 		if (distribution_type == "uniform"){
 			dcout << " generating uniform distribution of materials... " << std::endl;
-		 	
 			std::vector<double> proportions;
-			BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
+			//proportions.push_back(0.5);
+			//proportions.push_back(0.5);
+			
+			/*BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
                                 get_subbptree(input_config, "molecular dynamics material.distribution").get_child("proportions.")) {
                         	proportions.push_back(std::stod(v.second.data()));
+                	}*/
+			BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
+                                input_config.get_child("molecular dynamics material.distribution.proportions.")) 
+			{
+                        	proportions.push_back(std::stod(v.second.data()));
                 	}
-			sleep(10000);	
+			//sleep(10000);	
+			dcout << proportions[0] << proportions[1] << std::endl;
 				
 			// check length of materials list and proportions list are the same
 			if (mdtype.size() != proportions.size())

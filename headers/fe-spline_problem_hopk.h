@@ -164,7 +164,63 @@ namespace HMM
 					value_list[p]);
 	}
 
+	template <int dim>
+	class CellData {
+		public:
+			CellData()
+			{
+			}
 
+			void generate_nanostructure_uniform(
+					parallel::shared::Triangulation<dim>& triangulation,
+					std::vector<double> proportions)
+			{
+				// check proportions of materials add up to 1
+				const double epsilon = 0.0001;
+				double sum = std::accumulate(proportions.begin(), 
+							     proportions.end(), 0.0);
+				if (fabs(1.0 - sum) > epsilon)
+				{
+					std::cout << "Material proprtions must sum to 1"<< std::endl;
+					exit(1);
+				}
+
+				// random number generator 
+				std::mt19937 generator (time(0));
+		  		std::uniform_real_distribution<double> dist(0.0, 1.0);
+				
+				// for each cell asign a material type based on the proportion
+				for (int cell=0; cell < triangulation.n_active_cells(); cell++)
+				{
+					double r = dist(generator);
+					double k = 0;
+					for (int i=0; i < proportions.size(); i++)
+					{
+						k += proportions[i];
+						if (k > r)
+						{
+							composition.push_back(i);
+							break;
+						}	
+					}
+				}
+			}
+
+			int get_composition(int cell_index)
+			{
+				return composition[cell_index];
+			}
+				
+			int number_of_boxes()
+			{ 	
+				return composition.size();
+			}
+		private:
+			std::vector<int> composition;
+			//std::vector<Vector> coords;
+			//std::vector<Vector> normal;
+	};
+		
 
 	template <int dim>
 	class FEProblem
@@ -186,9 +242,10 @@ namespace HMM
 	private:
 		void make_grid ();
 		void setup_system ();
-		std::vector<Vector<double> > get_microstructure ();
+		CellData<dim> get_microstructure ();
 		std::vector<Vector<double> > generate_microstructure_uniform();
-		void assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > structure_data,
+		void assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, 
+				CellData<dim> celldata,
 				std::string &mat, Tensor<2,dim> &rotam);
 		void setup_quadrature_point_history ();
 		void restart ();
@@ -231,62 +288,6 @@ namespace HMM
 		Vector<double> 		     			incremental_velocity;
 		Vector<double> 		     			velocity;
 		//Vector<double> 		     		old_velocity;
-		
-		class CellData {
-			public:
-				CellData()
-				{
-				}
-
-				void generate_nanostructure_uniform(
-						parallel::shared::Triangulation<dim>& triangulation,
-						std::vector<double> proportions)
-				{
-					// check proportions of materials add up to 1
-					const double epsilon = 0.0001;
-					double sum = std::accumulate(proportions.begin(), 
-								     proportions.end(), 0.0);
-					if (fabs(1.0 - sum) > epsilon)
-					{
-						std::cout << "Material proprtions must sum to 1"<< std::endl;
-						exit(1);
-					}
-
-					// random number generator 
-					std::mt19937 generator (time(0));
-			  		std::uniform_real_distribution<double> dist(0.0, 1.0);
-					
-					// for each cell asign a material type based on the proportion
-					for (int cell=0; cell < triangulation.n_active_cells(); cell++)
-					{
-						double r = dist(generator);
-						double k = 0;
-						for (int i=0; i < proportions.size(); i++)
-						{
-							k += proportions[i];
-							if (k > r)
-							{
-								composition.push_back(i);
-								break;
-							}	
-						}
-					}
-					for (int cell=0; cell < triangulation.n_active_cells(); cell++)
-					{
-						std::cout << composition[cell] << " ";
-					}
-					std::cout<<std::endl;
-				}
-
-				int get_composition(int cell_index)
-				{
-					return composition[cell_index];
-				}
-			private:
-				std::vector<int> composition;
-				//std::vector<Vector> coords;
-				//std::vector<Vector> normal;
-		};
 		
 		MPI_Comm 							FE_communicator;
 		int 								n_FE_processes;
@@ -522,33 +523,21 @@ namespace HMM
 
 
 	template <int dim>
-	std::vector<Vector<double> > FEProblem<dim>::get_microstructure ()
+	CellData<dim> FEProblem<dim>::get_microstructure ()
 	{
 		std::string 	distribution_type;
-		CellData 	celldata;
-		
-		unsigned int npoints = 0;
-		unsigned int nfchar = 0;
-		std::vector<Vector<double> > structure_data (npoints, Vector<double>(nfchar)); 
+		CellData<dim> 	celldata;
 		
 		distribution_type = input_config.get<std::string>("molecular dynamics material.distribution.style");
 		if (distribution_type == "uniform"){
 			dcout << " generating uniform distribution of materials... " << std::endl;
-			std::vector<double> proportions;
-			//proportions.push_back(0.5);
-			//proportions.push_back(0.5);
 			
-			/*BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-                                get_subbptree(input_config, "molecular dynamics material.distribution").get_child("proportions.")) {
-                        	proportions.push_back(std::stod(v.second.data()));
-                	}*/
+			std::vector<double> proportions;
 			BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
                                 input_config.get_child("molecular dynamics material.distribution.proportions.")) 
 			{
                         	proportions.push_back(std::stod(v.second.data()));
                 	}
-			//sleep(10000);	
-			dcout << proportions[0] << proportions[1] << std::endl;
 				
 			// check length of materials list and proportions list are the same
 			if (mdtype.size() != proportions.size())
@@ -560,7 +549,10 @@ namespace HMM
 			celldata.generate_nanostructure_uniform(triangulation, proportions);
 
 		}		
-		/*else if (distribution_type == "file"){
+		/*unsigned int npoints = 0;
+		unsigned int nfchar = 0;
+		std::vector<Vector<double> > structure_data (npoints, Vector<double>(nfchar)); 
+		else if (distribution_type == "file"){
 			// this is maxime's method of populating structure_data from a file
 
 			// Load flakes data (center position, angles, density)
@@ -612,18 +604,16 @@ namespace HMM
 			}
 		}*/
 			 
-		return structure_data;
+		return celldata;
 	}
 
 
 	template <int dim>
-	void FEProblem<dim>::assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > structure_data,
+	void FEProblem<dim>::assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, CellData<dim> celldata,
 			std::string &mat, Tensor<2,dim> &rotam)
 	{
 		// Number of flakes
-		unsigned int nboxes=structure_data.size();
-		dcout << " --------------------- "<<std::endl;
-		dcout << "nboxes "<< nboxes << std::endl;
+		unsigned int nboxes = celldata.number_of_boxes();
 
 		// Filling identity matrix
 		Tensor<2,dim> idmat;
@@ -636,7 +626,11 @@ namespace HMM
 		rotam = idmat;
 
 		// Check if the cell contains a graphene flake (composite)
-		for(unsigned int n=0;n<nboxes;n++){
+		for(unsigned int n=0;n<nboxes;n++)
+		{
+			mat = celldata.get_composition(n);	
+		}
+			/*
 			// Load flake center
 			Point<dim> fpos (structure_data[n][1],structure_data[n][2],structure_data[n][3]);
 
@@ -649,18 +643,17 @@ namespace HMM
 					if(imat == int(structure_data[n][0])){
 						mat = mdtype[imat];
 					}
+			*/
 
 				//std::cout << " box number: " << n << " is in cell " << cell->active_cell_index()
 				//  		  << " of material " << mat << std::endl;
 
 				// Assembling the rotation matrix from the global orientation of the cell given by the
 				// microstructure to the common ground direction
-				rotam = compute_rotation_tensor(nglo, cg_dir);
+				//rotam = compute_rotation_tensor(nglo, cg_dir);
 
 				// Stop the for loop since a cell can only be in one flake at a time...
-				break;
-			}
-		}
+				//break;
 	}
 
 
@@ -738,8 +731,8 @@ namespace HMM
 
 		// Load the microstructure
 		dcout << "    Loading microstructure..." << std::endl;
-		std::vector<Vector<double> > structure_data;
-		structure_data = get_microstructure();
+		CellData<3> celldata;
+		celldata = get_microstructure();
 		
 		// Quadrature points data initialization and assigning material properties
 		dcout << "    Assigning microstructure..." << std::endl;
@@ -770,7 +763,7 @@ namespace HMM
 
 					// Assign microstructure to the current cell (so far, mdtype
 					// and rotation from global to common ground direction)
-					if (q==0) assign_microstructure(cell, structure_data,
+					if (q==0) assign_microstructure(cell, celldata,
 								local_quadrature_points_history[q].mat,
 								local_quadrature_points_history[q].rotam);
 					else{

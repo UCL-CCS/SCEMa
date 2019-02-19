@@ -801,7 +801,7 @@ namespace HMM
 				infile.open (local_filename);
 				while (getline(infile, iline)) outfile << iline << std::endl;
 				infile.close();
-				//remove(local_filename);
+				remove(local_filename);
 			}
 			outfile.close();
 		}

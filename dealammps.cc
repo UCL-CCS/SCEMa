@@ -149,7 +149,7 @@ namespace HMM
 
 		int				fe_degree;
 		int				quadrature_formula;
-		std::string			twod_mesh_file;;
+		std::string			twod_mesh_file;
                 double                          extrude_length;
                 int                             extrude_points;
 
@@ -301,9 +301,19 @@ namespace HMM
 		hcout << " - FE quadrature formula: "<< quadrature_formula << std::endl;
 		hcout << " - Number of replicas: "<< nrepl << std::endl;
 		hcout << " - List of material names: "<< std::flush;
-		for(unsigned int imd=0; imd<mdtype.size(); imd++) hcout << " " << mdtype[imd] << std::flush; hcout << std::endl;;
+		for(unsigned int imd=0; imd<mdtype.size(); imd++) 
+		{
+			hcout << " " << mdtype[imd] << std::flush; 
+		}
+		hcout << std::endl;
+		
 		hcout << " - Direction use as a common ground/referential to transfer data between nano- and micro-structures : "<< std::flush;
-		for(unsigned int imd=0; imd<dim; imd++) hcout << " " << cg_dir[imd] << std::flush; hcout << std::endl;;
+		for(unsigned int imd=0; imd<dim; imd++) 
+		{
+			hcout << " " << cg_dir[imd] << std::flush; 
+		}
+		hcout << std::endl;
+		
 		hcout << " - MD timestep duration: "<< md_timestep_length << std::endl;
 		hcout << " - MD thermostat temperature: "<< md_temperature << std::endl;
 		hcout << " - MD deformation rate: "<< md_strain_rate << std::endl;

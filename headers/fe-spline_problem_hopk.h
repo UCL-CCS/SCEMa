@@ -190,11 +190,11 @@ namespace HMM
 		  		std::uniform_real_distribution<double> dist(0.0, 1.0);
 				
 				// for each cell asign a material type based on the proportion
-				for (int cell=0; cell < triangulation.n_active_cells(); cell++)
+				for (unsigned int cell=0; cell < triangulation.n_active_cells(); cell++)
 				{
 					double r = dist(generator);
 					double k = 0;
-					for (int i=0; i < proportions.size(); i++)
+					for (unsigned int i=0; i < proportions.size(); i++)
 					{
 						k += proportions[i];
 						if (k > r)
@@ -290,11 +290,11 @@ namespace HMM
 		//Vector<double> 		     		old_velocity;
 		
 		MPI_Comm 							FE_communicator;
-		int 								n_FE_processes;
+		unsigned int 							n_FE_processes;
 		int 								this_FE_process;
-		int									root_FE_process;
+		int								root_FE_process;
 		int 								FE_pcolor;
-		int								n_world_processes;
+		unsigned int							n_world_processes;
 
 		int									start_timestep;
 		double              				present_time;
@@ -453,7 +453,7 @@ namespace HMM
 		dcout << "    Number of active cells:       "
 				<< triangulation.n_active_cells()
 				<< " (by partition:";
-		for (int p=0; p<n_FE_processes; ++p)
+		for (unsigned int p=0; p<n_FE_processes; ++p)
 			dcout << (p==0 ? ' ' : '+')
 			<< (GridTools::
 					count_cells_with_subdomain_association (triangulation,p));
@@ -513,7 +513,7 @@ namespace HMM
 		dcout << "    Number of degrees of freedom: "
 				<< dof_handler.n_dofs()
 				<< " (by partition:";
-		for (int p=0; p<n_FE_processes; ++p)
+		for (unsigned int p=0; p<n_FE_processes; ++p)
 			dcout << (p==0 ? ' ' : '+')
 			<< (DoFTools::
 					count_dofs_with_subdomain_association (dof_handler,p));
@@ -612,15 +612,10 @@ namespace HMM
 	void FEProblem<dim>::assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, CellData<dim> celldata,
 			std::string &mat, Tensor<2,dim> &rotam)
 	{
-		// Number of flakes
-		unsigned int nboxes = celldata.number_of_boxes();
 
 		// Filling identity matrix
 		Tensor<2,dim> idmat;
 		idmat = 0.0; for (unsigned int i=0; i<dim; ++i) idmat[i][i] = 1.0;
-
-		// Standard properties of cell (pure epoxy)
-		mat = mdtype[0];
 
 		// Default orientation of cell
 		rotam = idmat;
@@ -795,7 +790,7 @@ namespace HMM
 
 			sprintf(filename, "%s/cell_id_mat.list", macrostatelocout.c_str());
 			outfile.open (filename);
-			for (int ip=0; ip<n_FE_processes; ip++){
+			for (unsigned int ip=0; ip<n_FE_processes; ip++){
 				char local_filename[1024];
 				sprintf(local_filename, "%s/cell_id_mat.%d.list", macrostatelocout.c_str(), ip);
 				infile.open (local_filename);
@@ -1754,7 +1749,7 @@ namespace HMM
 
 			sprintf(update_filename, "%s/last.qpupdates", macrostatelocout.c_str());
 			outfile.open (update_filename);
-			for (int ip=0; ip<n_FE_processes; ip++){
+			for (unsigned int ip=0; ip<n_FE_processes; ip++){
 				sprintf(update_local_filename, "%s/last.%d.qpupdates", macrostatelocout.c_str(), ip);
 				infile.open (update_local_filename);
 				while (getline(infile, iline)) outfile << iline << std::endl;
@@ -1764,7 +1759,7 @@ namespace HMM
 
 			sprintf(update_filename, "%s/last.matqpupdates", macrostatelocout.c_str());
 			outfile.open (update_filename);
-			for (int ip=0; ip<n_FE_processes; ip++){
+			for (unsigned int ip=0; ip<n_FE_processes; ip++){
 				sprintf(update_local_filename, "%s/last.%d.matqpupdates", macrostatelocout.c_str(), ip);
 				infile.open (update_local_filename);
 				while (getline(infile, iline)) outfile << iline << std::endl;
@@ -2190,7 +2185,7 @@ namespace HMM
 		if (this_FE_process==0)
 		{
 			std::vector<std::string> filenames_loc;
-			for (int i=0; i<n_FE_processes; ++i)
+			for (unsigned int i=0; i<n_FE_processes; ++i)
 				filenames_loc.push_back ("history-" + Utilities::int_to_string(timestep,4)
 			+ "." + Utilities::int_to_string(i,3)
 			+ ".vtu");
@@ -2322,7 +2317,7 @@ namespace HMM
 		if (this_FE_process==0)
 		{
 			std::vector<std::string> filenames_loc;
-			for (int i=0; i<n_FE_processes; ++i)
+			for (unsigned int i=0; i<n_FE_processes; ++i)
 				filenames_loc.push_back ("solution-" + Utilities::int_to_string(timestep,4)
 			+ "." + Utilities::int_to_string(i,3)
 			+ ".vtu");
@@ -2583,7 +2578,8 @@ namespace HMM
 
 		// Saving files for restart
 		if(timestep%freq_checkpoint==0){
-			char timeid[1024];
+			//write files here
+			//char timeid[1024];
        }
 
         dcout << std::endl;

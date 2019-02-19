@@ -10,6 +10,8 @@
 #include <string>
 #include <sys/stat.h>
 #include <math.h>
+#include <numeric>
+#include <random>
 
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
@@ -162,7 +164,63 @@ namespace HMM
 					value_list[p]);
 	}
 
+	template <int dim>
+	class CellData {
+		public:
+			CellData()
+			{
+			}
 
+			void generate_nanostructure_uniform(
+					parallel::shared::Triangulation<dim>& triangulation,
+					std::vector<double> proportions)
+			{
+				// check proportions of materials add up to 1
+				const double epsilon = 0.0001;
+				double sum = std::accumulate(proportions.begin(), 
+							     proportions.end(), 0.0);
+				if (fabs(1.0 - sum) > epsilon)
+				{
+					std::cout << "Material proprtions must sum to 1"<< std::endl;
+					exit(1);
+				}
+
+				// random number generator 
+				std::mt19937 generator (time(0));
+		  		std::uniform_real_distribution<double> dist(0.0, 1.0);
+				
+				// for each cell asign a material type based on the proportion
+				for (int cell=0; cell < triangulation.n_active_cells(); cell++)
+				{
+					double r = dist(generator);
+					double k = 0;
+					for (int i=0; i < proportions.size(); i++)
+					{
+						k += proportions[i];
+						if (k > r)
+						{
+							composition.push_back(i);
+							break;
+						}	
+					}
+				}
+			}
+
+			int get_composition(int cell_index)
+			{
+				return composition[cell_index];
+			}
+				
+			int number_of_boxes()
+			{ 	
+				return composition.size();
+			}
+		private:
+			std::vector<int> composition;
+			//std::vector<Vector> coords;
+			//std::vector<Vector> normal;
+	};
+		
 
 	template <int dim>
 	class FEProblem
@@ -174,7 +232,8 @@ namespace HMM
 		void init (int sstp, double tlength, std::string mslocin, std::string mslocout,
 				   std::string mslocres, std::string mlogloc, int fchpt, int fovis, int folhis,
 				   bool actmdup, std::vector<std::string> mdt, Tensor<1,dim> cgd, 
-				   std::string twodmfile, double extrudel, int extrudep );
+				   std::string twodmfile, double extrudel, int extrudep, 
+				   boost::property_tree::ptree inconfig);
 		void beginstep (int tstp, double ptime);
 		void solve (int nstp);
 		bool check ();
@@ -183,8 +242,10 @@ namespace HMM
 	private:
 		void make_grid ();
 		void setup_system ();
-		std::vector<Vector<double> > get_microstructure ();
-		void assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > structure_data,
+		CellData<dim> get_microstructure ();
+		std::vector<Vector<double> > generate_microstructure_uniform();
+		void assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, 
+				CellData<dim> celldata,
 				std::string &mat, Tensor<2,dim> &rotam);
 		void setup_quadrature_point_history ();
 		void restart ();
@@ -227,7 +288,7 @@ namespace HMM
 		Vector<double> 		     			incremental_velocity;
 		Vector<double> 		     			velocity;
 		//Vector<double> 		     		old_velocity;
-
+		
 		MPI_Comm 							FE_communicator;
 		int 								n_FE_processes;
 		int 								this_FE_process;
@@ -298,6 +359,8 @@ namespace HMM
 		std::string		twod_mesh_file;
                 double                  extrude_length;
                 int                     extrude_points;
+		
+		boost::property_tree::ptree     input_config;
 	};
 
 
@@ -460,76 +523,97 @@ namespace HMM
 
 
 	template <int dim>
-	std::vector<Vector<double> > FEProblem<dim>::get_microstructure ()
+	CellData<dim> FEProblem<dim>::get_microstructure ()
 	{
-		// Generation of nanostructure based on size, weight ratio
-		//generate_nanostructure();
+		std::string 	distribution_type;
+		CellData<dim> 	celldata;
+		
+		distribution_type = input_config.get<std::string>("molecular dynamics material.distribution.style");
+		if (distribution_type == "uniform"){
+			dcout << " generating uniform distribution of materials... " << std::endl;
+			
+			std::vector<double> proportions;
+			BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
+                                input_config.get_child("molecular dynamics material.distribution.proportions.")) 
+			{
+                        	proportions.push_back(std::stod(v.second.data()));
+                	}
+				
+			// check length of materials list and proportions list are the same
+			if (mdtype.size() != proportions.size())
+			{
+				dcout<< "Materials list and proportions list must be the same length" <<std::endl;
+				exit(1);
+			}
+			
+			celldata.generate_nanostructure_uniform(triangulation, proportions);
 
-		// Load flakes data (center position, angles, density)
-		unsigned int npoints = 0;
+		}		
+		/*unsigned int npoints = 0;
 		unsigned int nfchar = 0;
-		std::vector<Vector<double> > structure_data (npoints, Vector<double>(nfchar));
+		std::vector<Vector<double> > structure_data (npoints, Vector<double>(nfchar)); 
+		else if (distribution_type == "file"){
+			// this is maxime's method of populating structure_data from a file
 
-		char filename[1024];
-		sprintf(filename, "%s/structure_data.csv", macrostatelocin.c_str());
+			// Load flakes data (center position, angles, density)
 
-		std::ifstream ifile;
-		ifile.open (filename);
+			char filename[1024];
+			sprintf(filename, "%s/structure_data.csv", macrostatelocin.c_str());
 
-		if (ifile.is_open())
-		{
-			std::string iline, ival;
+			std::ifstream ifile;
+			ifile.open (filename);
 
-			if(getline(ifile, iline)){
-				std::istringstream iss(iline);
-				if(getline(iss, ival, ',')) npoints = std::stoi(ival);
-				if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
-			}
-			dcout << "      Nboxes " << npoints << " - Nchar " << nfchar << std::endl;
-
-			//dcout << "Char names: " << std::flush;
-			if(getline(ifile, iline)){
-				std::istringstream iss(iline);
-				for(unsigned int k=0;k<nfchar;k++){
-					getline(iss, ival, ',');
-					//dcout << ival << " " << std::flush;
-				}
-			}
-			//dcout << std::endl;
-
-			structure_data.resize(npoints, Vector<double>(nfchar));
-			for(unsigned int n=0;n<npoints;n++)
+			if (ifile.is_open())
+			{
+				std::string iline, ival;
+	
 				if(getline(ifile, iline)){
-					//dcout << "box: " << n << std::flush;
+					std::istringstream iss(iline);
+					if(getline(iss, ival, ',')) npoints = std::stoi(ival);
+					if(getline(iss, ival, ',')) nfchar = std::stoi(ival);
+				}
+				dcout << "      Nboxes " << npoints << " - Nchar " << nfchar << std::endl;
+
+				//dcout << "Char names: " << std::flush;
+				if(getline(ifile, iline)){
 					std::istringstream iss(iline);
 					for(unsigned int k=0;k<nfchar;k++){
 						getline(iss, ival, ',');
-						structure_data[n][k] = std::stof(ival);
-						//dcout << " - " << structure_data[n][k] << std::flush;
+						//dcout << ival << " " << std::flush;
 					}
-					//dcout << std::endl;
-				}
+				}	
+				//dcout << std::endl;
 
-			ifile.close();
-		}
-		else{
-			dcout << "      Unable to open" << filename << " to read it, no microstructure loaded." << std::endl;
-		}
+				structure_data.resize(npoints, Vector<double>(nfchar));
+				for(unsigned int n=0;n<npoints;n++)
+					if(getline(ifile, iline)){
+						//dcout << "box: " << n << std::flush;
+						std::istringstream iss(iline);
+						for(unsigned int k=0;k<nfchar;k++){
+							getline(iss, ival, ',');
+							structure_data[n][k] = std::stof(ival);
+							//dcout << " - " << structure_data[n][k] << std::flush;
+						}
+						//dcout << std::endl;
+					}
 
-		return structure_data;
+				ifile.close();
+			}
+			else{
+				dcout << "      Unable to open" << filename << " to read it, no microstructure loaded." << std::endl;
+			}
+		}*/
+			 
+		return celldata;
 	}
 
 
-
-
 	template <int dim>
-	void FEProblem<dim>::assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, std::vector<Vector<double> > structure_data,
+	void FEProblem<dim>::assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, CellData<dim> celldata,
 			std::string &mat, Tensor<2,dim> &rotam)
 	{
 		// Number of flakes
-		unsigned int nboxes=structure_data.size();
-		dcout << " --------------------- "<<std::endl;
-		dcout << "nboxes "<< nboxes << std::endl;
+		unsigned int nboxes = celldata.number_of_boxes();
 
 		// Filling identity matrix
 		Tensor<2,dim> idmat;
@@ -541,8 +625,11 @@ namespace HMM
 		// Default orientation of cell
 		rotam = idmat;
 
-		// Check if the cell contains a graphene flake (composite)
-		for(unsigned int n=0;n<nboxes;n++){
+		unsigned int n = cell->active_cell_index();
+		mat = mdtype[ celldata.get_composition(n) ];	
+		//std::cout << n << " " << mat <<" "<<celldata.get_composition(n)<< std::endl;
+		
+			/*
 			// Load flake center
 			Point<dim> fpos (structure_data[n][1],structure_data[n][2],structure_data[n][3]);
 
@@ -555,18 +642,17 @@ namespace HMM
 					if(imat == int(structure_data[n][0])){
 						mat = mdtype[imat];
 					}
+			*/
 
 				//std::cout << " box number: " << n << " is in cell " << cell->active_cell_index()
 				//  		  << " of material " << mat << std::endl;
 
 				// Assembling the rotation matrix from the global orientation of the cell given by the
 				// microstructure to the common ground direction
-				rotam = compute_rotation_tensor(nglo, cg_dir);
+				//rotam = compute_rotation_tensor(nglo, cg_dir);
 
 				// Stop the for loop since a cell can only be in one flake at a time...
-				break;
-			}
-		}
+				//break;
 	}
 
 
@@ -644,8 +730,8 @@ namespace HMM
 
 		// Load the microstructure
 		dcout << "    Loading microstructure..." << std::endl;
-		std::vector<Vector<double> > structure_data;
-		structure_data = get_microstructure();
+		CellData<3> celldata;
+		celldata = get_microstructure();
 		
 		// Quadrature points data initialization and assigning material properties
 		dcout << "    Assigning microstructure..." << std::endl;
@@ -676,7 +762,8 @@ namespace HMM
 
 					// Assign microstructure to the current cell (so far, mdtype
 					// and rotation from global to common ground direction)
-					if (q==0) assign_microstructure(cell, structure_data,
+					
+					if (q==0) assign_microstructure(cell, celldata,
 								local_quadrature_points_history[q].mat,
 								local_quadrature_points_history[q].rotam);
 					else{
@@ -2352,7 +2439,10 @@ namespace HMM
 							   std::string mslocres, std::string mlogloc,
 							   int fchpt, int fovis, int folhis, bool actmdup,
 							   std::vector<std::string> mdt, Tensor<1,dim> cgd,
-							   std::string twodmfile, double extrudel, int extrudep ){
+							   std::string twodmfile, double extrudel, int extrudep,
+						           boost::property_tree::ptree inconfig){
+
+		input_config = inconfig;		
  
 		// Setting up checkpoint and output frequencies
 		freq_checkpoint = fchpt;

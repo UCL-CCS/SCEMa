@@ -625,11 +625,10 @@ namespace HMM
 		// Default orientation of cell
 		rotam = idmat;
 
-		// Check if the cell contains a graphene flake (composite)
-		for(unsigned int n=0;n<nboxes;n++)
-		{
-			mat = celldata.get_composition(n);	
-		}
+		unsigned int n = cell->active_cell_index();
+		mat = mdtype[ celldata.get_composition(n) ];	
+		//std::cout << n << " " << mat <<" "<<celldata.get_composition(n)<< std::endl;
+		
 			/*
 			// Load flake center
 			Point<dim> fpos (structure_data[n][1],structure_data[n][2],structure_data[n][3]);
@@ -763,6 +762,7 @@ namespace HMM
 
 					// Assign microstructure to the current cell (so far, mdtype
 					// and rotation from global to common ground direction)
+					
 					if (q==0) assign_microstructure(cell, celldata,
 								local_quadrature_points_history[q].mat,
 								local_quadrature_points_history[q].rotam);
@@ -801,7 +801,7 @@ namespace HMM
 				infile.open (local_filename);
 				while (getline(infile, iline)) outfile << iline << std::endl;
 				infile.close();
-				remove(local_filename);
+				//remove(local_filename);
 			}
 			outfile.close();
 		}

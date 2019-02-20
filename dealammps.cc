@@ -231,9 +231,6 @@ namespace HMM
 	    // Continuum meshing
 	    fe_degree 		= input_config.get<int>("continuum mesh.fe degree");
 	    quadrature_formula 	= input_config.get<int>("continuum mesh.quadrature formula");
-	    twod_mesh_file 	= input_config.get<std::string>("continuum mesh.2D mesh file");
-	    extrude_length 	= input_config.get<double>( "continuum mesh.extrude length");
-	    extrude_points 	= input_config.get<int>("continuum mesh.extrude points");
 
 	    // Scale-bridging parameters
 	    activate_md_update 	= input_config.get<bool>("scale-bridging.activate md update");

@@ -426,8 +426,8 @@ namespace HMM
 							exit(1);
 						}
 						
-						Point<dim> corner1 (-x_length/2, -y_length, -z_length/2);
-						Point<dim> corner2 (x_length/2, 0, z_length/2);
+						Point<dim> corner1 (-x_length/2, -y_length/2, -z_length);
+						Point<dim> corner2 (x_length/2, y_length/2, 0);
 						std::vector<unsigned int> reps (dim); 
 						reps[0] = x_cells; 
 						reps[1] = y_cells;
@@ -1040,26 +1040,34 @@ namespace HMM
 			template <int dim>
 					void FEProblem<dim>::set_boundary_values()
 					{
-							double tacc_vsupport = 2.0e8; // acceleration of the boundary m/s-2
+							
+							double diam_weight = input_config.get<double>("drop weight.diameter");
+							double tacc_vsupport = input_config.get<double>("drop weight.acceleration");
+							double acc_steps = input_config.get<double>("drop weight.steps to accelerate");
+						
+							double accelerate_time;
+							double trave_time;
+							double decelerate_time;
 
-							double tvel_time=0.0*fe_timestep_length;
-							double acc_time=50.0*fe_timestep_length + fe_timestep_length*0.001; // duration during which the boundary accelerates s + slight delta for avoiding numerical error
-
+							// duration during which the boundary accelerates + delta for avoiding numerical error
+							accelerate_time = acc_steps * fe_timestep_length + fe_timestep_length * 0.001;  
+							travel_time = 0.0 * fe_timestep_length;
+							decelerate_time = accelerate_time
 							bool is_loaded = true;
 
 							dcout << "Loading condition: " << std::flush;
 							// acceleration of the loading support (reaching aimed velocity)
-							if (present_time<=acc_time){
+							if (present_time <= accelerate_time){
 									dcout << "ACCELERATE!!!" << std::flush;
 									inc_vsupport = tacc_vsupport*fe_timestep_length;
 							}
 							// stationary motion of the loading support
-							else if (present_time>acc_time and present_time<=acc_time+tvel_time){
+							else if (present_time <= accelerate_time + travel_time){
 									dcout << "CRUISING!!!" << std::flush;
 									inc_vsupport = 0.0;
 							}
 							// deccelaration of the loading support (return to 0 velocity)
-							else if (present_time>acc_time+tvel_time and present_time<=acc_time+tvel_time+acc_time){
+							else if (present_time <= accelerate_time + travel_time + decelerate_time){
 									dcout << "DECCELERATE!!!" << std::flush;
 									inc_vsupport = -1.0*tacc_vsupport*fe_timestep_length;
 									is_loaded = false;
@@ -1100,36 +1108,44 @@ namespace HMM
 															clmp_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
 															load_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
 													}
+													
+													// distance between q point and centre of dropweight, whihc is at 0,0,0
+													double x_dist = (cell->face(face)->vertex(v)(0) - 0.);
+													double y_dist = (cell->face(face)->vertex(v)(1) - 0.);
+													double dcwght = sqrt( x_dist*x_dist + y_dist*y_dist );
 
-													double dcwght=sqrt((cell->face(face)->vertex(v)(0) - 0.)*(cell->face(face)->vertex(v)(0) - 0.)
-																	+ (cell->face(face)->vertex(v)(2) - 0.)*(cell->face(face)->vertex(v)(2) - 0.));
-
+													// is q point being impacted by the drop weight
 													if(is_loaded){
-															if ((dcwght < diam_weight/2. + eps/3.) && (cell->face(face)->vertex(v)(1) - ww/2.) < eps/3.){
-																	value = -1.0*inc_vsupport;
-																	component = 1;
-																	load_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
-																	boundary_values.insert(std::pair<types::global_dof_index, double>
-																					(cell->face(face)->vertex_dof_index (v, component), value));
-															}
-													}
-
-													if (fabs(cell->face(face)->vertex(v)(0) - lls/2.) < eps/3.
-																	&& fabs(cell->face(face)->vertex(v)(1) - -ww/2.) < eps/3.){
-															value = 0.;
-															component = 1;
-															supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+														if ((dcwght < diam_weight/2.)){ 
+															value = -1.0*inc_vsupport;
+															component = 2;
+															load_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
 															boundary_values.insert(std::pair<types::global_dof_index, double>
-																			(cell->face(face)->vertex_dof_index (v, component), value));
+															(cell->face(face)->vertex_dof_index (v, component), value));
+														}
 													}
-
-													if (fabs(cell->face(face)->vertex(v)(0) - 0.) < eps/3. && cell->face(face)->vertex(v)(1) > (-ww/2 + cc - eps/3.)){
-															value = 0.;
-															component = 0;
-															clmp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
-															boundary_values.insert(std::pair<types::global_dof_index, double>
-																			(cell->face(face)->vertex_dof_index (v, component), value));
+													
+													// is q point on the edge, if so it will be kept stationary
+													if (  fabs(cell->face(face)->vertex(v)(0)) > (0.05 - eps)  
+													   || fabs(cell->face(face)->vertex(v)(0)) < (-0.05 + eps) 
+													   || fabs(cell->face(face)->vertex(v)(1)) > (0.05 - eps) 
+													   || fabs(cell->face(face)->vertex(v)(1)) < (-0.05 + eps) ){
+		
+														value = 0.;
+														component = 0;
+														supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+														boundary_values.insert(std::pair<types::global_dof_index, double>
+														(cell->face(face)->vertex_dof_index (v, component), value));
+														component = 1;
+														supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+														boundary_values.insert(std::pair<types::global_dof_index, double>
+														(cell->face(face)->vertex_dof_index (v, component), value));
+														component = 2;
+														supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+														boundary_values.insert(std::pair<types::global_dof_index, double>
+														(cell->face(face)->vertex_dof_index (v, component), value));
 													}
+														
 											}
 									}
 							}
@@ -2583,7 +2599,7 @@ namespace HMM
 		update_strain_quadrature_point_history(newton_update_displacement);
 
 		check_strain_quadrature_point_history();
-		//history_analysis();
+		history_analysis();
 
 		MPI_Barrier(FE_communicator);
 		write_md_updates_list();

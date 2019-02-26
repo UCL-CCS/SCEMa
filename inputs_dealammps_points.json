@@ -1,0 +1,67 @@
+{
+	"drop weight":{
+		"diameter": 0.03,
+		"acceleration": 10000000,
+		"steps to accelerate": 3 
+ 	},
+  "scale-bridging":{
+    "activate md update": 0,
+    "use pjm scheduler": 0
+  },
+  "continuum time":{
+    "timestep length": 5.0e-7,
+    "start timestep": 1,
+    "end timestep": 500
+  },
+  "continuum mesh":{
+    "fe degree": 1,
+    "quadrature formula": 2,
+    "input": {
+      "style" : "cuboid",
+      "x length" : 0.1,
+      "y length" : 0.1,
+      "z length" : 0.017,
+      "x cells" : 6,
+      "y cells" : 6,
+      "z cells" : 1
+     }
+  },
+  "molecular dynamics material":{
+    "number of replicas": 1,
+    "list of materials": ["g0"],
+    "distribution": {
+      "style": "uniform",
+      "proportions": [1.0]
+	},
+    "rotation common ground vector":[1.0, 0.0, 0.0]
+  },
+  "molecular dynamics parameters":{
+    "temperature": 300.0,
+    "timestep length": 2.0,
+    "strain rate": 1.0e-4,
+    "number of sampling steps": 100,
+    "scripts directory": "./lammps_scripts_opls",
+    "force field": "opls"
+  },
+  "computational resources":{
+    "machine cores per node": 24,
+    "number of nodes for FEM simulation": 1,
+    "minimum nodes per MD simulation": 1
+  },
+  "output data":{
+    "checkpoint frequency": 5,
+    "visualisation output frequency": 1,
+    "analytics output frequency": 1,
+    "homogenization output frequency": 1000
+  },
+  "directory structure":{
+    "macroscale input": "./macroscale_input",
+    "nanoscale input": "./nanoscale_input",
+    "macroscale output": "./macroscale_output",
+    "nanoscale output": "./nanoscale_output",
+    "macroscale restart": "./macroscale_restart",
+    "nanoscale restart": "./nanoscale_restart",
+    "macroscale log": "./macroscale_log",
+    "nanoscale log": "./nanoscale_log"
+  }
+}

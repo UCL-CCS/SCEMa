@@ -425,7 +425,8 @@ namespace HMM
 							dcout << "Must be at least 1 cell per axis" << std::endl;
 							exit(1);
 						}
-						
+					
+						// Generate grid centred on 0,0 ; the top face is at z=0	
 						Point<dim> corner1 (-x_length/2, -y_length/2, -z_length);
 						Point<dim> corner2 (x_length/2, y_length/2, 0);
 						std::vector<unsigned int> reps (dim); 
@@ -1046,13 +1047,13 @@ namespace HMM
 							double acc_steps = input_config.get<double>("drop weight.steps to accelerate");
 						
 							double accelerate_time;
-							double trave_time;
+							double travel_time;
 							double decelerate_time;
 
 							// duration during which the boundary accelerates + delta for avoiding numerical error
 							accelerate_time = acc_steps * fe_timestep_length + fe_timestep_length * 0.001;  
 							travel_time = 0.0 * fe_timestep_length;
-							decelerate_time = accelerate_time
+							decelerate_time = accelerate_time;
 							bool is_loaded = true;
 
 							dcout << "Loading condition: " << std::flush;
@@ -1731,7 +1732,7 @@ namespace HMM
 		dcout << "        " << "...comparing strain history of quadrature points to be updated..." << std::endl;
 			
 		num_spline_points=10;
-                min_num_steps_before_spline=5;
+                min_num_steps_before_spline=3;
 		acceptable_diff_threshold = 0.000001;
 
 		// Fit spline to all histories, and determine similarity graph (over all ranks)

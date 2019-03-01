@@ -182,7 +182,11 @@ namespace MatHistPredict {
 
 			std::vector<double> * get_spline()
 			{
-				return &spline;
+				if(!up_to_date) {
+					std::cout << "Spline is not up to date.\n";
+					exit(1);
+					}
+          return &spline;
 			}
 
 			uint32_t get_ID()

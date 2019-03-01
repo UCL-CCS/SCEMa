@@ -1816,6 +1816,7 @@ namespace HMM
 		// Gathering in a single file all the quadrature points to be updated...
 		// Might be worth replacing indivual local file writings by a parallel vector of string
 		// and globalizing this vector before this final writing step.
+		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
 		std::ifstream infile;
 		std::ofstream outfile;
 		std::string iline;
@@ -1842,6 +1843,7 @@ namespace HMM
 			}
 			outfile.close();
 		}
+		MPI_Barrier(FE_communicator); // wait for rank0 to write files before proceeding 
 	}
 
 

@@ -719,7 +719,6 @@ namespace HMM
 							}
 							quadrature_point_history.resize (n_local_cells *
 											quadrature_formula.size());
-
 							char filename[1024];
 
 							// Set materials initial stiffness tensors
@@ -1126,25 +1125,29 @@ namespace HMM
 														}
 													}
 													
-													// is q point on the edge, if so it will be kept stationary
-													if (  fabs(cell->face(face)->vertex(v)(0)) > (0.05 - eps)  
-													   || fabs(cell->face(face)->vertex(v)(0)) < (-0.05 + eps) 
-													   || fabs(cell->face(face)->vertex(v)(1)) > (0.05 - eps) 
-													   || fabs(cell->face(face)->vertex(v)(1)) < (-0.05 + eps) ){
-		
+												  // Dimensions in x,y; assume grid centered on 0,0; see make_grid
+												  double x_length = input_config.get<double>(
+																				"continuum mesh.input.x length");
+							            double y_length = input_config.get<double>(
+																				"continuum mesh.input.y length");
+													
+													// Point coords
+													double vertex_x = fabs(cell->face(face)->vertex(v)(0))
+													double vertex_y = fabs(cell->face(face)->vertex(v)(1))
+
+													// is point on the edge, if so it will be kept stationary
+													if (   vertex_x > ( x_length/2 - eps)  
+													    || vertex_x < (-x_length/2 + eps) 
+													    || vertex_y > ( y_length/2 - eps) 
+													    || vertex_y < (-y_length/2 + eps))
+													{
 														value = 0.;
-														component = 0;
-														supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
-														boundary_values.insert(std::pair<types::global_dof_index, double>
-														(cell->face(face)->vertex_dof_index (v, component), value));
-														component = 1;
-														supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
-														boundary_values.insert(std::pair<types::global_dof_index, double>
-														(cell->face(face)->vertex_dof_index (v, component), value));
-														component = 2;
-														supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
-														boundary_values.insert(std::pair<types::global_dof_index, double>
-														(cell->face(face)->vertex_dof_index (v, component), value));
+														for (component = 0; component < 3; ++component)
+														{
+															supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
+															boundary_values.insert(std::pair<types::global_dof_index, double>
+															(cell->face(face)->vertex_dof_index (v, component), value));
+														}
 													}
 														
 											}
@@ -1732,7 +1735,7 @@ namespace HMM
 		dcout << "        " << "...comparing strain history of quadrature points to be updated..." << std::endl;
 			
 		num_spline_points=10;
-                min_num_steps_before_spline=3;
+    min_num_steps_before_spline=3;
 		acceptable_diff_threshold = 0.000001;
 
 		// Fit spline to all histories, and determine similarity graph (over all ranks)

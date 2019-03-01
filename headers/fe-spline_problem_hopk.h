@@ -1132,8 +1132,8 @@ namespace HMM
 																				"continuum mesh.input.y length");
 													
 													// Point coords
-													double vertex_x = fabs(cell->face(face)->vertex(v)(0))
-													double vertex_y = fabs(cell->face(face)->vertex(v)(1))
+													double vertex_x = fabs(cell->face(face)->vertex(v)(0));
+													double vertex_y = fabs(cell->face(face)->vertex(v)(1));
 
 													// is point on the edge, if so it will be kept stationary
 													if (   vertex_x > ( x_length/2 - eps)  

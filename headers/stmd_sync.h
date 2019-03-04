@@ -937,6 +937,7 @@ namespace HMM
 		prepare_md_simulations();
 
 		MPI_Barrier(mmd_communicator);
+		mcout << "TEST1: there are "<< ncupd<<" cells to be updated" << std::endl;
 		if (ncupd>0){
 			if(use_pjm_scheduler){
 				execute_pjm_md_simulations();

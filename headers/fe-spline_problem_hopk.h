@@ -855,6 +855,7 @@ namespace HMM
 									}
 									outfile.close();
 							}
+							MPI_Barrier(FE_communicator);
 					}
 
 
@@ -1751,6 +1752,8 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::write_md_updates_list()
 	{
+		std::vector<int> qpupdates;// Try to do this with MPI
+
 		// Create file with qptid to update at timeid
 		std::ofstream ofile;
 		char update_local_filename[1024];
@@ -1807,7 +1810,8 @@ namespace HMM
 
 							ofile << cell_id << std::endl;
 							omatfile << local_quadrature_points_history[q].mat << std::endl;
-
+					
+							qpupdates.push_back(local_quadrature_points_history[q].qpid); //MPI list of qps to update on this rank
 						}
 					}
 
@@ -1816,6 +1820,57 @@ namespace HMM
 		// Gathering in a single file all the quadrature points to be updated...
 		// Might be worth replacing indivual local file writings by a parallel vector of string
 		// and globalizing this vector before this final writing step.
+
+		// Find out how many qp need updating on each rank
+		int n_counts_on_this_proc = qpupdates.size();
+		std::vector<int> n_counts_per_proc(n_world_processes); //number of updates requested on each rank
+		MPI_Gather(	&n_counts_on_this_proc, 	//sendbuf
+					 	1,														//sendcount
+						MPI_INT,											//sendtype
+						&n_counts_per_proc.front(),		//recvbuf
+						1,														//rcvcount
+						MPI_INT,											//recvtype
+						0,														//root
+						FE_communicator);	
+		
+		int n_all_qpupdates = 0; // total number of updates requested
+		for (int i = 0; i < n_world_processes; i++)
+		{
+			n_all_qpupdates += n_counts_per_proc[i];
+			dcout << n_counts_per_proc[i] << " ";
+		}
+		dcout << std::endl;
+		dcout << n_all_qpupdates << " total qp updates requested" <<std::endl;
+
+					
+		std::vector<int> all_qpupdates(n_all_qpupdates); // list of all qp to be updated
+
+		// Displacement of qp id in the main vector for use in MPI_Gatherv
+		int *disps = new int[n_world_processes];
+		for (int i = 0; i < n_world_processes; i++)
+		{
+		   disps[i] = (i > 0) ? (disps[i-1] + n_counts_per_proc[i-1]) : 0;
+		}
+		
+		// Populate all_qpupdates list
+		MPI_Gatherv(&qpupdates.front(),     // *sendbuf,
+            qpupdates.size(),         	// sendcount,
+            MPI_INT,										// sendtype,
+  					&all_qpupdates.front(),	    // *recvbuf,
+  					&n_counts_per_proc.front(),	// *recvcounts[],
+						disps,											// displs[],
+            MPI_INT, 										//recvtype,
+            0, 													// root,
+						FE_communicator);
+
+		/*dcout << "ALL UPDATES" ;
+		for (int i = 0; i < all_qpupdates.size(); i++)
+		{
+			dcout << all_qpupdates[i] << " " ;
+		}
+		dcout << std::endl;
+		*/
+
 		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
 		std::ifstream infile;
 		std::ofstream outfile;
@@ -2259,6 +2314,7 @@ namespace HMM
 		std::ofstream output (filename.c_str());
 		data_out.write_vtu (output);
 
+		MPI_Barrier(FE_communicator); // just to be safe
 		if (this_FE_process==0)
 		{
 			std::vector<std::string> filenames_loc;
@@ -2292,6 +2348,7 @@ namespace HMM
 			data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
 			//DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
 		}
+		MPI_Barrier(FE_communicator);
 	}
 
 
@@ -2391,6 +2448,7 @@ namespace HMM
 		std::ofstream output (filename.c_str());
 		data_out.write_vtu (output);
 
+		MPI_Barrier(FE_communicator); // just to be safe
 		if (this_FE_process==0)
 		{
 			std::vector<std::string> filenames_loc;
@@ -2424,6 +2482,7 @@ namespace HMM
 			data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
 			//DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
 		}
+		MPI_Barrier(FE_communicator);
 	}
 
 
@@ -2451,6 +2510,7 @@ namespace HMM
 		char filename[1024];
 
 		// Copy of the solution vector at the end of the presently converged time-step.
+		MPI_Barrier(FE_communicator);
 		if (this_FE_process==0)
 		{
 			// Write solution vector to binary for simulation restart
@@ -2464,7 +2524,7 @@ namespace HMM
 			velocity.block_write(ofile_veloc);
 			ofile_veloc.close();
 		}
-
+		MPI_Barrier(FE_communicator);
 
 		// Output of the last converged timestep quadrature local history per processor
 		sprintf(filename, "%s/%s.pr_%d.lhistory.bin", macrostatelocres.c_str(), timeid, this_FE_process);

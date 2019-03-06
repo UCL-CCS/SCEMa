@@ -1578,6 +1578,9 @@ namespace HMM
 	void FEProblem<dim>::check_strain_quadrature_point_history()
 	{
 		if (newtonstep > 0) dcout << "        " << "...checking quadrature points requiring update based on current strain..." << std::endl;
+		
+		double min_qp_strain;
+		min_qp_strain = input_config.get<double>("model precision.md.min quadrature strain norm");
 
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
@@ -1597,14 +1600,13 @@ namespace HMM
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
-
 					// Uncomment one on the 4 following "if" statement to derive stress tensor from MD for:
 					//   (i) all cells,
 					//  (ii) cells in given location,
 					// (iii) cells based on their id
 					if (activate_md_update
 						// otherwise MD simulation unecessary, because no significant volume change and MD will fail
-										&& local_quadrature_points_history[q].upd_strain.norm() > 1.0e-10
+										&& local_quadrature_points_history[q].upd_strain.norm() > min_qp_strain//> 1.0e-10
 						)
 					//if (activate_md_update && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
 					/*if (activate_md_update && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
@@ -1735,9 +1737,9 @@ namespace HMM
 	{
 		dcout << "        " << "...comparing strain history of quadrature points to be updated..." << std::endl;
 			
-		num_spline_points=10;
-    min_num_steps_before_spline=3;
-		acceptable_diff_threshold = 0.000001;
+		num_spline_points = input_config.get<int>("model precision.spline.points");
+    min_num_steps_before_spline = input_config.get<int>("model precision.spline.min steps");
+		acceptable_diff_threshold = input_config.get<double>("model precision.spline.diff threshold");
 
 		// Fit spline to all histories, and determine similarity graph (over all ranks)
 		if(timestep > min_num_steps_before_spline) {
@@ -1779,7 +1781,6 @@ namespace HMM
 				Assert (local_quadrature_points_history <
 						&quadrature_point_history.back(),
 						ExcInternalError());
-
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 					if(local_quadrature_points_history[q].to_be_updated
 							&& local_quadrature_points_history[q].hist_strain.run_new_md())
@@ -1814,23 +1815,20 @@ namespace HMM
 							qpupdates.push_back(local_quadrature_points_history[q].qpid); //MPI list of qps to update on this rank
 						}
 					}
-
 			}
-
 		// Gathering in a single file all the quadrature points to be updated...
 		// Might be worth replacing indivual local file writings by a parallel vector of string
 		// and globalizing this vector before this final writing step.
 
 		// Find out how many qp need updating on each rank
 		int n_counts_on_this_proc = qpupdates.size();
-		std::vector<int> n_counts_per_proc(n_world_processes); //number of updates requested on each rank
-		MPI_Gather(	&n_counts_on_this_proc, 	//sendbuf
+		std::vector<int> n_counts_per_proc(n_FE_processes); //number of updates requested on each rank
+		MPI_Allgather(&n_counts_on_this_proc, 	//sendbuf
 					 	1,														//sendcount
 						MPI_INT,											//sendtype
 						&n_counts_per_proc.front(),		//recvbuf
 						1,														//rcvcount
 						MPI_INT,											//recvtype
-						0,														//root
 						FE_communicator);	
 		
 		int n_all_qpupdates = 0; // total number of updates requested
@@ -1853,23 +1851,22 @@ namespace HMM
 		}
 		
 		// Populate all_qpupdates list
-		MPI_Gatherv(&qpupdates.front(),     // *sendbuf,
+		MPI_Allgatherv(&qpupdates.front(),     // *sendbuf,
             qpupdates.size(),         	// sendcount,
             MPI_INT,										// sendtype,
   					&all_qpupdates.front(),	    // *recvbuf,
   					&n_counts_per_proc.front(),	// *recvcounts[],
 						disps,											// displs[],
             MPI_INT, 										//recvtype,
-            0, 													// root,
 						FE_communicator);
 
-		/*dcout << "ALL UPDATES" ;
+		dcout << "ALL UPDATES" ;
 		for (int i = 0; i < all_qpupdates.size(); i++)
 		{
 			dcout << all_qpupdates[i] << " " ;
 		}
 		dcout << std::endl;
-		*/
+		
 
 		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
 		std::ifstream infile;
@@ -1877,16 +1874,26 @@ namespace HMM
 		std::string iline;
 		if (this_FE_process == 0){
 			char update_filename[1024];
+			int n_updates_check = 0;
 
 			sprintf(update_filename, "%s/last.qpupdates", macrostatelocout.c_str());
 			outfile.open (update_filename);
 			for (unsigned int ip=0; ip<n_FE_processes; ip++){
 				sprintf(update_local_filename, "%s/last.%d.qpupdates", macrostatelocout.c_str(), ip);
 				infile.open (update_local_filename);
-				while (getline(infile, iline)) outfile << iline << std::endl;
+				while (getline(infile, iline)) 
+				{
+					n_updates_check ++ ;
+					outfile << iline << std::endl;
+				}
 				infile.close();
 			}
 			outfile.close();
+			if (n_updates_check != all_qpupdates.size())
+			{
+				dcout << "qpupdates files i/o error"<<std::endl;
+				exit(1);
+			}	
 
 			sprintf(update_filename, "%s/last.matqpupdates", macrostatelocout.c_str());
 			outfile.open (update_filename);

@@ -23,6 +23,7 @@
 // Specifically built header files
 #include "read_write.h"
 #include "tensor_calc.h"
+#include "scale_bridging_data.h"
 
 // Reduction model based on spline comparison
 #include "../spline/strain2spline.h"
@@ -236,7 +237,7 @@ namespace HMM
 											std::string twodmfile, double extrudel, int extrudep, 
 											boost::property_tree::ptree inconfig);
 							void beginstep (int tstp, double ptime);
-							void solve (int nstp);
+							void solve (int nstp, ScaleBridgingData &scale_bridging_data);
 							bool check ();
 							void endstep ();
 
@@ -265,7 +266,7 @@ namespace HMM
 							void spline_building();
 							void spline_comparison();
 							void history_analysis();
-							void write_md_updates_list();
+							void write_md_updates_list(ScaleBridgingData &scale_bridging_data);
 
 							void update_stress_quadrature_point_history
 									(const Vector<double>& displacement_update);
@@ -1752,10 +1753,11 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::write_md_updates_list()
+	void FEProblem<dim>::write_md_updates_list(ScaleBridgingData &scale_bridging_data)
 	{
+		dcout<< "TEST111" << std::endl;
 		std::vector<int> qpupdates;// Try to do this with MPI
-
+		
 		// Create file with qptid to update at timeid
 		std::ofstream ofile;
 		char update_local_filename[1024];
@@ -1813,23 +1815,29 @@ namespace HMM
 							omatfile << local_quadrature_points_history[q].mat << std::endl;
 					
 							qpupdates.push_back(local_quadrature_points_history[q].qpid); //MPI list of qps to update on this rank
+							std::cout<< "local qpid "<< local_quadrature_points_history[q].qpid << std::endl;
 						}
 					}
 			}
 		// Gathering in a single file all the quadrature points to be updated...
 		// Might be worth replacing indivual local file writings by a parallel vector of string
 		// and globalizing this vector before this final writing step.
-
+		
 		// Find out how many qp need updating on each FE rank
+		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
+		dcout<< "TEST111 " << n_FE_processes << std::endl;
 		int n_counts_on_this_proc = qpupdates.size();
+		std::cout<<" COUT " << this_FE_process << " " << qpupdates.size() << " " << std::endl;
 		std::vector<int> n_counts_per_proc(n_FE_processes); //number of updates requested on each rank
-		MPI_Allgather(&n_counts_on_this_proc, 	//sendbuf
+		MPI_Gather(&n_counts_on_this_proc, 	//sendbuf
 					 	1,														//sendcount
 						MPI_INT,											//sendtype
 						&n_counts_per_proc.front(),		//recvbuf
 						1,														//rcvcount
 						MPI_INT,											//recvtype
+						0,
 						FE_communicator);	
+		dcout<< "TEST111 Gather done" << std::endl;
 		
 		int n_all_qpupdates = 0; // total number of updates requested
 		for (int i = 0; i < n_FE_processes; i++)
@@ -1844,24 +1852,36 @@ namespace HMM
 		   disps[i] = (i > 0) ? (disps[i-1] + n_counts_per_proc[i-1]) : 0;
 		}
 		
+		dcout<< "TEST111" << std::endl;
 		// Populate a list with all qp updates requested
 		std::vector<int> all_qpupdates(n_all_qpupdates); // list of all qp to be updated
-		MPI_Allgatherv(&qpupdates.front(),     // *sendbuf,
+		MPI_Gatherv(&qpupdates.front(),     // *sendbuf,
             qpupdates.size(),         	// sendcount,
             MPI_INT,										// sendtype,
   					&all_qpupdates.front(),	    // *recvbuf,
   					&n_counts_per_proc.front(),	// *recvcounts[],
 						disps,											// displs[],
             MPI_INT, 										//recvtype,
+						0,
 						FE_communicator);
-
-		/*dcout << "ALL UPDATES" ;
+		
+		dcout<< "TEST111 Gatherv done" << std::endl;
+		if (this_FE_process == 0){
+			QP qp;
+			for (int i = 0; i < n_all_qpupdates; i++)
+			{
+				qp.id = all_qpupdates[i];
+				qp.material = "g0";
+				scale_bridging_data.update_list.push_back(qp);
+			}
+		}	
+		dcout << "ALL UPDATES" ;
 		for (int i = 0; i < all_qpupdates.size(); i++)
 		{
 			dcout << all_qpupdates[i] << " " ;
 		}
-		dcout << std::endl;*/
-
+		dcout << std::endl;
+		/*
 		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
 		std::ifstream infile;
 		std::ofstream outfile;
@@ -1900,6 +1920,7 @@ namespace HMM
 			outfile.close();
 		}
 		MPI_Barrier(FE_communicator); // wait for rank0 to write files before proceeding 
+			*/
 	}
 
 
@@ -2637,7 +2658,7 @@ namespace HMM
 
 
 	template <int dim>
-	void FEProblem<dim>::solve (int nstp){
+	void FEProblem<dim>::solve (int nstp, ScaleBridgingData &scale_bridging_data){
 
 		newtonstep = nstp;
 
@@ -2667,9 +2688,9 @@ namespace HMM
 
 		check_strain_quadrature_point_history();
 		history_analysis();
-
+		dcout <<" 		Communicating scale bridging data"<< std::endl;
 		MPI_Barrier(FE_communicator);
-		write_md_updates_list();
+		write_md_updates_list(scale_bridging_data);
 
 	}
 

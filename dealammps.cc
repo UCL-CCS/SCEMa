@@ -37,6 +37,7 @@
 #include "headers/read_write.h"
 #include "headers/tensor_calc.h"
 #include "headers/stmd_sync.h"
+#include "headers/scale_bridging_data.h"
 
 // Include of the FE model to solve in the simulation
 // (hardcoded for the moment, but should try to split the solving and
@@ -428,9 +429,15 @@ namespace HMM
 		do
 		{
 			++newtonstep;
-
-			if(fe_pcolor==0) fe_problem->solve(newtonstep);
-
+			
+			ScaleBridgingData scale_bridging_data;	
+			if(fe_pcolor==0) fe_problem->solve(newtonstep, scale_bridging_data);
+			for (int i=0; i<5; i++)
+			{
+				std::cout<<"TEST10 "<< scale_bridging_data.update_list[i].id << std::endl;
+			}
+				
+			sleep(100);
 			MPI_Barrier(world_communicator);
 
 			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep);
@@ -444,7 +451,7 @@ namespace HMM
 		} while (continue_newton);
 
 		if(fe_pcolor==0) fe_problem->endstep();
-
+		
 		MPI_Barrier(world_communicator);
 	}
 

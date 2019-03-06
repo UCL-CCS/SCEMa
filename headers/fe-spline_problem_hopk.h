@@ -1820,7 +1820,7 @@ namespace HMM
 		// Might be worth replacing indivual local file writings by a parallel vector of string
 		// and globalizing this vector before this final writing step.
 
-		// Find out how many qp need updating on each rank
+		// Find out how many qp need updating on each FE rank
 		int n_counts_on_this_proc = qpupdates.size();
 		std::vector<int> n_counts_per_proc(n_FE_processes); //number of updates requested on each rank
 		MPI_Allgather(&n_counts_on_this_proc, 	//sendbuf
@@ -1832,25 +1832,20 @@ namespace HMM
 						FE_communicator);	
 		
 		int n_all_qpupdates = 0; // total number of updates requested
-		for (int i = 0; i < n_world_processes; i++)
+		for (int i = 0; i < n_FE_processes; i++)
 		{
 			n_all_qpupdates += n_counts_per_proc[i];
-			dcout << n_counts_per_proc[i] << " ";
 		}
-		dcout << std::endl;
-		dcout << n_all_qpupdates << " total qp updates requested" <<std::endl;
-
-					
-		std::vector<int> all_qpupdates(n_all_qpupdates); // list of all qp to be updated
 
 		// Displacement of qp id in the main vector for use in MPI_Gatherv
-		int *disps = new int[n_world_processes];
-		for (int i = 0; i < n_world_processes; i++)
+		int *disps = new int[n_FE_processes];
+		for (int i = 0; i < n_FE_processes; i++)
 		{
 		   disps[i] = (i > 0) ? (disps[i-1] + n_counts_per_proc[i-1]) : 0;
 		}
 		
-		// Populate all_qpupdates list
+		// Populate a list with all qp updates requested
+		std::vector<int> all_qpupdates(n_all_qpupdates); // list of all qp to be updated
 		MPI_Allgatherv(&qpupdates.front(),     // *sendbuf,
             qpupdates.size(),         	// sendcount,
             MPI_INT,										// sendtype,
@@ -1860,13 +1855,12 @@ namespace HMM
             MPI_INT, 										//recvtype,
 						FE_communicator);
 
-		dcout << "ALL UPDATES" ;
+		/*dcout << "ALL UPDATES" ;
 		for (int i = 0; i < all_qpupdates.size(); i++)
 		{
 			dcout << all_qpupdates[i] << " " ;
 		}
-		dcout << std::endl;
-		
+		dcout << std::endl;*/
 
 		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
 		std::ifstream infile;

@@ -11,8 +11,8 @@ namespace HMM {
 	
 	struct QP // quadradture point
 	{
-		int 			id;
-		std::string 	material;
+		int 	id;
+		int 	material;
 	};
 
 	struct ScaleBridgingData

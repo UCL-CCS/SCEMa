@@ -1815,7 +1815,7 @@ namespace HMM
 							omatfile << local_quadrature_points_history[q].mat << std::endl;
 					
 							qpupdates.push_back(local_quadrature_points_history[q].qpid); //MPI list of qps to update on this rank
-							std::cout<< "local qpid "<< local_quadrature_points_history[q].qpid << std::endl;
+							//std::cout<< "local qpid "<< local_quadrature_points_history[q].qpid << std::endl;
 						}
 					}
 			}
@@ -1824,11 +1824,11 @@ namespace HMM
 		// and globalizing this vector before this final writing step.
 		
 		// Find out how many qp need updating on each FE rank
-		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
 		dcout<< "TEST111 " << n_FE_processes << std::endl;
 		int n_counts_on_this_proc = qpupdates.size();
 		std::cout<<" COUT " << this_FE_process << " " << qpupdates.size() << " " << std::endl;
 		std::vector<int> n_counts_per_proc(n_FE_processes); //number of updates requested on each rank
+		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
 		MPI_Gather(&n_counts_on_this_proc, 	//sendbuf
 					 	1,														//sendcount
 						MPI_INT,											//sendtype
@@ -1871,7 +1871,7 @@ namespace HMM
 			for (int i = 0; i < n_all_qpupdates; i++)
 			{
 				qp.id = all_qpupdates[i];
-				qp.material = "g0";
+				qp.material = 0;
 				scale_bridging_data.update_list.push_back(qp);
 			}
 		}	

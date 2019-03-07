@@ -1755,21 +1755,8 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::write_md_updates_list(ScaleBridgingData &scale_bridging_data)
 	{
-		dcout<< "TEST111" << std::endl;
-		std::vector<int> qpupdates;// Try to do this with MPI
+		std::vector<int> qpupdates;
 		
-		// Create file with qptid to update at timeid
-		std::ofstream ofile;
-		char update_local_filename[1024];
-		sprintf(update_local_filename, "%s/last.%d.qpupdates", macrostatelocout.c_str(), this_FE_process);
-		ofile.open (update_local_filename);
-
-		// Create file with mdtype of qptid to update at timeid
-		std::ofstream omatfile;
-		char mat_update_local_filename[1024];
-		sprintf(mat_update_local_filename, "%s/last.%d.matqpupdates", macrostatelocout.c_str(), this_FE_process);
-		omatfile.open (mat_update_local_filename);
-
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1811,9 +1798,6 @@ namespace HMM
 							sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id);
 							write_tensor<dim>(filename, rot_avg_upd_strain_tensor);
 
-							ofile << cell_id << std::endl;
-							omatfile << local_quadrature_points_history[q].mat << std::endl;
-					
 							qpupdates.push_back(local_quadrature_points_history[q].qpid); //MPI list of qps to update on this rank
 							//std::cout<< "local qpid "<< local_quadrature_points_history[q].qpid << std::endl;
 						}
@@ -1881,46 +1865,6 @@ namespace HMM
 			dcout << all_qpupdates[i] << " " ;
 		}
 		dcout << std::endl;
-		/*
-		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
-		std::ifstream infile;
-		std::ofstream outfile;
-		std::string iline;
-		if (this_FE_process == 0){
-			char update_filename[1024];
-			int n_updates_check = 0;
-
-			sprintf(update_filename, "%s/last.qpupdates", macrostatelocout.c_str());
-			outfile.open (update_filename);
-			for (unsigned int ip=0; ip<n_FE_processes; ip++){
-				sprintf(update_local_filename, "%s/last.%d.qpupdates", macrostatelocout.c_str(), ip);
-				infile.open (update_local_filename);
-				while (getline(infile, iline)) 
-				{
-					n_updates_check ++ ;
-					outfile << iline << std::endl;
-				}
-				infile.close();
-			}
-			outfile.close();
-			if (n_updates_check != all_qpupdates.size())
-			{
-				dcout << "qpupdates files i/o error"<<std::endl;
-				exit(1);
-			}	
-
-			sprintf(update_filename, "%s/last.matqpupdates", macrostatelocout.c_str());
-			outfile.open (update_filename);
-			for (unsigned int ip=0; ip<n_FE_processes; ip++){
-				sprintf(update_local_filename, "%s/last.%d.matqpupdates", macrostatelocout.c_str(), ip);
-				infile.open (update_local_filename);
-				while (getline(infile, iline)) outfile << iline << std::endl;
-				infile.close();
-			}
-			outfile.close();
-		}
-		MPI_Barrier(FE_communicator); // wait for rank0 to write files before proceeding 
-			*/
 	}
 
 

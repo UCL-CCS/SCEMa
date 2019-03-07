@@ -479,12 +479,9 @@ namespace HMM
 			cell_id[i] = std::to_string(scale_bridging_data.update_list[i].id);
 
 		cell_mat.resize(ncupd,"");
-		for (int i=0; i<ncupd; i++){
-			char material_name[2];
-			sprintf(material_name, "%s%d", "g",scale_bridging_data.update_list[i].material);
-			cell_mat[i] = material_name;
-		}
-
+		for (int i=0; i<ncupd; i++)
+			cell_mat[i] = mdtype[scale_bridging_data.update_list[i].material];
+		
 			// Number of MD simulations at this iteration...
 			int nmdruns = ncupd*nrepl;
 

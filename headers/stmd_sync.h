@@ -22,6 +22,7 @@
 #include "tensor_calc.h"
 #include "stmd_problem.h"
 #include "eqmd_problem.h"
+#include "scale_bridging_data.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -64,7 +65,7 @@ namespace HMM
 				   std::string nlogloctmp,std::string nloglochom, std::string mslocout, std::string mdsdir,
 				   int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
 				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups);
-		void update (int tstp, double ptime, int nstp);
+		void update (int tstp, double ptime, int nstp, ScaleBridgingData scale_bridging_data);
 
 	private:
 		void restart ();
@@ -76,7 +77,7 @@ namespace HMM
 
 		void average_replica_data();
 
-		void prepare_md_simulations();
+		void prepare_md_simulations(ScaleBridgingData scale_bridging_data);
 
 		void execute_inside_md_simulations();
 
@@ -470,39 +471,19 @@ namespace HMM
 
 
 	template <int dim>
-	void STMDSync<dim>::prepare_md_simulations()
+	void STMDSync<dim>::prepare_md_simulations(ScaleBridgingData scale_bridging_data)
 	{
-		// Check list of files corresponding to current "time_id"
-		ncupd = 0;
-		char filenamelist[1024];
-		sprintf(filenamelist, "%s/last.qpupdates", macrostatelocout.c_str());
-		std::ifstream ifile;
-		std::string iline;
+		ncupd = scale_bridging_data.update_list.size();
+		cell_id.resize(ncupd,"");
+		for (int i=0; i<ncupd; i++)
+			cell_id[i] = std::to_string(scale_bridging_data.update_list[i].id);
 
-		// Count number of cells to update
-		ifile.open (filenamelist);
-		if (ifile.is_open())
-		{
-			while (getline(ifile, iline)) ncupd++;
-			ifile.close();
+		cell_mat.resize(ncupd,"");
+		for (int i=0; i<ncupd; i++){
+			char material_name[2];
+			sprintf(material_name, "%s%d", "g",scale_bridging_data.update_list[i].material);
+			cell_mat[i] = material_name;
 		}
-		else mcout << "Unable to open" << filenamelist << " to read it" << std::endl;
-
-		if (ncupd>0){
-			// Create list of quadid
-			cell_id.resize(ncupd,"");
-			ifile.open (filenamelist);
-			unsigned int nline = 0;
-			while (nline<ncupd && std::getline(ifile, cell_id[nline])) nline++;
-			ifile.close();
-
-			// Load material type of cells to be updated
-			cell_mat.resize(ncupd,"");
-			sprintf(filenamelist, "%s/last.matqpupdates", macrostatelocout.c_str());
-			ifile.open (filenamelist);
-			nline = 0;
-			while (nline<ncupd && std::getline(ifile, cell_mat[nline])) nline++;
-			ifile.close();
 
 			// Number of MD simulations at this iteration...
 			int nmdruns = ncupd*nrepl;
@@ -596,7 +577,6 @@ namespace HMM
 					}
 				}
 			}
-		}
 	}
 
 
@@ -916,7 +896,7 @@ namespace HMM
 	}
 
 	template <int dim>
-	void STMDSync<dim>::update (int tstp, double ptime, int nstp){
+	void STMDSync<dim>::update (int tstp, double ptime, int nstp, ScaleBridgingData scale_bridging_data){
 		present_time = ptime;
 		timestep = tstp;
 		newtonstep = nstp;
@@ -934,7 +914,7 @@ namespace HMM
 		if (timestep%freq_checkpoint==0) checkpoint_save = true;
 		else checkpoint_save = false;
 
-		prepare_md_simulations();
+		prepare_md_simulations(scale_bridging_data);
 
 		MPI_Barrier(mmd_communicator);
 		mcout << "TEST1: there are "<< ncupd<<" cells to be updated" << std::endl;

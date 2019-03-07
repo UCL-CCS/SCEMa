@@ -460,14 +460,14 @@ namespace HMM
 			
 			ScaleBridgingData scale_bridging_data;	
 			if(fe_pcolor==0) fe_problem->solve(newtonstep, scale_bridging_data);
-			hcout<dd<"SOLVED "<< scale_bridging_data.update_list[0].id << std::endl;
+			//hcout<<"SOLVED "<< scale_bridging_data.update_list[0].id << std::endl;
 			
 			share_scale_bridging_data(scale_bridging_data);
 
-			std::cout<<"BCAST "<< this_world_process << " " << scale_bridging_data.update_list[0].id 
-							 << " " << scale_bridging_data.update_list.size() << std::endl;
+			//std::cout<<"BCAST "<< this_world_process << " " << scale_bridging_data.update_list[0].id 
+			//				 << " " << scale_bridging_data.update_list.size() << std::endl;
 			
-			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep);
+			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep, scale_bridging_data);
 			MPI_Barrier(world_communicator);
 
 			if(fe_pcolor==0) continue_newton = fe_problem->check();

@@ -366,6 +366,9 @@ namespace HMM
 
 		MPI_Comm_split(world_communicator, mmd_pcolor, this_world_process, &mmd_communicator);
 		MPI_Comm_rank(mmd_communicator, &this_mmd_process);
+		
+		create_qp_mpi_datatype(); // Creates and commits MPI_QP for communicating quadrature point info
+															// between FE and MD solvers
 	}
 
 
@@ -402,37 +405,19 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::share_scale_bridging_data (ScaleBridgingData &scale_bridging_data)
 	{
-			// scale_bridging_data is held on rank 0 and needs to be broadcast to all ranks
+		int n_updates = scale_bridging_data.update_list.size();
+		MPI_Bcast(&n_updates , 1, MPI_INT, 0, world_communicator);
 
-			// Broadcast the number of qp updates to all ranks
-			int n_qpupdates = scale_bridging_data.update_list.size();
-			MPI_Bcast(&n_qpupdates, 1, MPI_INT, 0, world_communicator);
-			
-			// Now add each qp in scale_bridging_data on rank 0 to all ranks 
-			for (int i=0; i<n_qpupdates; i++)
-			{
-				int qp_id, qp_mat;
-				if (this_world_process == 0){
-					qp_id	 = scale_bridging_data.update_list[i].id;
-					qp_mat = scale_bridging_data.update_list[i].material;
-				}
-				MPI_Bcast(&qp_id , 1, MPI_INT, 0, world_communicator);
-				MPI_Bcast(&qp_mat, 1, MPI_INT, 0, world_communicator);
-				if (this_world_process != 0){
-					QP qp;
-					qp.id = qp_id;
-					qp.material = qp_mat;
-					scale_bridging_data.update_list.push_back(qp);
-				}
-			}
+		if (this_world_process != 0) {
+			scale_bridging_data.update_list.resize(n_updates);
+		}
 
+		MPI_Bcast(&(scale_bridging_data.update_list[0]), n_updates, MPI_QP, 0, world_communicator);
 	}
-
 
 	template <int dim>
 	void HMMProblem<dim>::do_timestep ()
 	{
-
 		// Updating time variable
 		present_time += fe_timestep_length;
 		++timestep;
@@ -460,13 +445,10 @@ namespace HMM
 			
 			ScaleBridgingData scale_bridging_data;	
 			if(fe_pcolor==0) fe_problem->solve(newtonstep, scale_bridging_data);
-			//hcout<<"SOLVED "<< scale_bridging_data.update_list[0].id << std::endl;
-			
+
 			share_scale_bridging_data(scale_bridging_data);
 
-			//std::cout<<"BCAST "<< this_world_process << " " << scale_bridging_data.update_list[0].id 
-			//				 << " " << scale_bridging_data.update_list.size() << std::endl;
-			
+			MPI_Barrier(world_communicator);
 			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep, scale_bridging_data);
 			MPI_Barrier(world_communicator);
 

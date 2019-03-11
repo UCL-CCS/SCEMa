@@ -11,8 +11,9 @@ namespace HMM {
 	
 	struct QP // quadradture point
 	{
-		int 	id;
-		int 	material;
+		int 		id;
+		int 		material;
+		double 	update_strain[6];
 	};
 
 	struct ScaleBridgingData
@@ -20,6 +21,12 @@ namespace HMM {
 		std::vector<QP>	update_list;
 	};
 
+	MPI_Datatype MPI_QP;
+	void create_qp_mpi_datatype()
+	{
+    MPI_Type_contiguous(sizeof(QP), MPI_BYTE, &MPI_QP);
+    MPI_Type_commit(&MPI_QP);
+	}
 }
 
 

@@ -268,6 +268,9 @@ namespace HMM
 							void history_analysis();
 							void write_md_updates_list(ScaleBridgingData &scale_bridging_data);
 
+							void gather_qp_update_list(ScaleBridgingData &scale_bridging_data);
+							template <typename T>
+							std::vector<T> gather_vector(std::vector<T> local_vector);
 							void update_stress_quadrature_point_history
 									(const Vector<double>& displacement_update);
 							void clean_transfer();
@@ -363,6 +366,8 @@ namespace HMM
 							int                     extrude_points;
 
 							boost::property_tree::ptree     input_config;
+							
+							CellData<dim> celldata;
 			};
 
 
@@ -565,7 +570,6 @@ namespace HMM
 			CellData<dim> FEProblem<dim>::get_microstructure ()
 			{
 					std::string 	distribution_type;
-					CellData<dim> 	celldata;
 
 					distribution_type = input_config.get<std::string>("molecular dynamics material.distribution.style");
 					if (distribution_type == "uniform"){
@@ -781,7 +785,6 @@ namespace HMM
 
 							// Load the microstructure
 							dcout << "    Loading microstructure..." << std::endl;
-							CellData<3> celldata;
 							celldata = get_microstructure();
 
 							// Quadrature points data initialization and assigning material properties
@@ -1756,7 +1759,10 @@ namespace HMM
 	void FEProblem<dim>::write_md_updates_list(ScaleBridgingData &scale_bridging_data)
 	{
 		std::vector<int> qpupdates;
-		
+		std::vector<double> strains;
+
+		std::vector<SymmetricTensor<2,dim> > update_strains;
+
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1786,19 +1792,27 @@ namespace HMM
 									<< " total stress norm " << local_quadrature_points_history[q].new_stress.norm()
 									<< std::endl;
 
+							QP qp; // Struct that holds information for md job
+
 							// Write strains since last update in a file named ./macrostate_storage/last.cellid-qid.strain
-							char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].qpid);
-							char filename[1024];
+							//char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].qpid);
+							//char filename[1024];
 
 							SymmetricTensor<2,dim> rot_avg_upd_strain_tensor;
 
 							rot_avg_upd_strain_tensor =
 										rotate_tensor(local_quadrature_points_history[q].upd_strain, local_quadrature_points_history[q].rotam);
+												
+							for (int i=0; i<6; i++){
+								qp.update_strain[i] = rot_avg_upd_strain_tensor.access_raw_entry(i); 
+							}
+							qp.id = local_quadrature_points_history[q].qpid;
+							qp.material = celldata.get_composition(cell->active_cell_index());
+							scale_bridging_data.update_list.push_back(qp);
+							//sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id);
+							//write_tensor<dim>(filename, rot_avg_upd_strain_tensor);
 
-							sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id);
-							write_tensor<dim>(filename, rot_avg_upd_strain_tensor);
-
-							qpupdates.push_back(local_quadrature_points_history[q].qpid); //MPI list of qps to update on this rank
+							// qpupdates.push_back(local_quadrature_points_history[q].qpid); //MPI list of qps to update on this rank
 							//std::cout<< "local qpid "<< local_quadrature_points_history[q].qpid << std::endl;
 						}
 					}
@@ -1806,68 +1820,85 @@ namespace HMM
 		// Gathering in a single file all the quadrature points to be updated...
 		// Might be worth replacing indivual local file writings by a parallel vector of string
 		// and globalizing this vector before this final writing step.
+		gather_qp_update_list(scale_bridging_data);
+		//std::vector<int> all_qpupdates;
+		///all_qpupdates = gather_vector<int>(qpupdates);
 		
-		// Find out how many qp need updating on each FE rank
-		dcout<< "TEST111 " << n_FE_processes << std::endl;
-		int n_counts_on_this_proc = qpupdates.size();
-		std::cout<<" COUT " << this_FE_process << " " << qpupdates.size() << " " << std::endl;
-		std::vector<int> n_counts_per_proc(n_FE_processes); //number of updates requested on each rank
-		MPI_Barrier(FE_communicator); // Wait for all ranks to write their files before collating
-		MPI_Gather(&n_counts_on_this_proc, 	//sendbuf
+		/*for (int i=0; i < all_qpupdates.size(); i++){
+			QP qp;
+			qp.id = all_qpupdates[i];
+			qp.material = celldata.get_composition(qp.id);
+			scale_bridging_data.update_list.push_back(qp);		
+		}*/
+	}
+
+	template <int dim>
+	void FEProblem<dim>::gather_qp_update_list(ScaleBridgingData &scale_bridging_data)
+	{
+		scale_bridging_data.update_list = gather_vector<QP>(scale_bridging_data.update_list);
+	}
+			
+	template <int dim>
+	template <typename T>
+	std::vector<T> FEProblem<dim>::gather_vector(std::vector<T> local_vector)
+	{
+		// Gather a variable length vector held on each rank into one vector on rank 0
+		int elements_on_this_proc = local_vector.size();
+		std::vector<int> elements_per_proc(n_FE_processes); // number of elements on each rank
+		MPI_Gather(&elements_on_this_proc, 	//sendbuf
 					 	1,														//sendcount
 						MPI_INT,											//sendtype
-						&n_counts_per_proc.front(),		//recvbuf
+						&elements_per_proc.front(),		//recvbuf
 						1,														//rcvcount
 						MPI_INT,											//recvtype
 						0,
 						FE_communicator);	
-		dcout<< "TEST111 Gather done" << std::endl;
 		
-		int n_all_qpupdates = 0; // total number of updates requested
+		int total_elements = 0; 
 		for (int i = 0; i < n_FE_processes; i++)
 		{
-			n_all_qpupdates += n_counts_per_proc[i];
+			total_elements += elements_per_proc[i];
 		}
-
-		// Displacement of qp id in the main vector for use in MPI_Gatherv
+		
+		// Displacement local vector in the main vector for use in MPI_Gatherv
 		int *disps = new int[n_FE_processes];
 		for (int i = 0; i < n_FE_processes; i++)
 		{
-		   disps[i] = (i > 0) ? (disps[i-1] + n_counts_per_proc[i-1]) : 0;
+		   disps[i] = (i > 0) ? (disps[i-1] + elements_per_proc[i-1]) : 0;
 		}
 		
-		dcout<< "TEST111" << std::endl;
-		// Populate a list with all qp updates requested
-		std::vector<int> all_qpupdates(n_all_qpupdates); // list of all qp to be updated
-		MPI_Gatherv(&qpupdates.front(),     // *sendbuf,
-            qpupdates.size(),         	// sendcount,
-            MPI_INT,										// sendtype,
-  					&all_qpupdates.front(),	    // *recvbuf,
-  					&n_counts_per_proc.front(),	// *recvcounts[],
+		typename mpi_type; 
+		if      (typeid(T) == typeid(int))    mpi_type = MPI_INT;
+		else if (typeid(T) == typeid(double)) mpi_type = MPI_DOUBLE;
+		else if (typeid(T) == typeid(QP))			mpi_type = MPI_QP;
+		else {
+			dcout<<"Type not implemented in gather_vector"<<std::endl;
+			exit(1);
+		}
+
+		// Populate a list with all elements requested
+		std::vector<T> gathered_vector(total_elements); // vector with all elements from all ranks
+		MPI_Gatherv(&local_vector.front(),     // *sendbuf,
+            local_vector.size(),       	// sendcount,
+            mpi_type,										// sendtype,
+  					&gathered_vector.front(),	    // *recvbuf,
+  					&elements_per_proc.front(),	// *recvcounts[],
 						disps,											// displs[],
-            MPI_INT, 										//recvtype,
+            mpi_type, 										//recvtype,
 						0,
 						FE_communicator);
-		
-		dcout<< "TEST111 Gatherv done" << std::endl;
+		/*		
 		if (this_FE_process == 0){
-			QP qp;
-			for (int i = 0; i < n_all_qpupdates; i++)
+			dcout << "GATHER VECTOR OUTPUT " << total_elements << " ";
+			for (int i = 0; i < gathered_vector.size(); i++)
 			{
-				qp.id = all_qpupdates[i];
-				qp.material = 0;
-				scale_bridging_data.update_list.push_back(qp);
+				dcout << gathered_vector[i] << " " ;
 			}
-		}	
-		dcout << "ALL UPDATES" ;
-		for (int i = 0; i < all_qpupdates.size(); i++)
-		{
-			dcout << all_qpupdates[i] << " " ;
-		}
-		dcout << std::endl;
+			dcout << std::endl;
+		}*/
+
+		return gathered_vector;
 	}
-
-
 
 
 	template <int dim>

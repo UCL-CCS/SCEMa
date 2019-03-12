@@ -525,13 +525,12 @@ namespace HMM
 						// Operations on disk, need only to be done by one of the processes of the batch
 						if(this_md_batch_process == 0){
 
-							SymmetricTensor<2,dim> loc_rep_strain, cg_loc_rep_strain;
+							SymmetricTensor<2,dim> loc_rep_strain;
 
 							char filename[1024];
 
 							// Argument of the MD simulation: strain to apply
-							sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id[c].c_str());
-							read_tensor<dim>(filename, cg_loc_rep_strain);
+							SymmetricTensor<2,dim> cg_loc_rep_strain(scale_bridging_data.update_list[c].update_strain);
 
 							// Rotate strain tensor from common ground to replica orientation
 							loc_rep_strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[imd*nrepl+repl].rotam));

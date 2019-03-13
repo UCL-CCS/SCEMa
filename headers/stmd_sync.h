@@ -18,11 +18,13 @@
 //#include "boost/filesystem.hpp"
 
 // Specifically built header files
+#include "md_sim.h"
 #include "read_write.h"
 #include "tensor_calc.h"
 #include "stmd_problem.h"
 #include "eqmd_problem.h"
 #include "scale_bridging_data.h"
+
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -51,9 +53,7 @@ namespace HMM
 		SymmetricTensor<2,dim> init_stress;
 		SymmetricTensor<4,dim> init_stiff;
 	};
-
-
-
+		
 	template <int dim>
 	class STMDSync
 	{
@@ -64,7 +64,8 @@ namespace HMM
 				   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 				   std::string nlogloctmp,std::string nloglochom, std::string mslocout, std::string mdsdir,
 				   int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
-				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups);
+				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
+					 boost::property_tree::ptree inconfig);
 		void update (int tstp, double ptime, int nstp, ScaleBridgingData scale_bridging_data);
 
 	private:
@@ -77,9 +78,9 @@ namespace HMM
 
 		void average_replica_data();
 
-		void prepare_md_simulations(ScaleBridgingData scale_bridging_data);
+		std::vector<MDSim<dim> > prepare_md_simulations(ScaleBridgingData scale_bridging_data);
 
-		void execute_inside_md_simulations();
+		void execute_inside_md_simulations(std::vector<MDSim<dim> > requested_simulations);
 
 		void write_exec_script_md_job();
 		void generate_job_list(bool& elmj, int& tta, char* filenamelist);
@@ -150,6 +151,7 @@ namespace HMM
 
 		std::string							md_scripts_directory;
 		bool								use_pjm_scheduler;
+		boost::property_tree::ptree input_config;
 
 	};
 
@@ -471,130 +473,111 @@ namespace HMM
 
 
 	template <int dim>
-	void STMDSync<dim>::prepare_md_simulations(ScaleBridgingData scale_bridging_data)
+	std::vector< MDSim<dim> > STMDSync<dim>::prepare_md_simulations(ScaleBridgingData scale_bridging_data)
 	{
-		ncupd = scale_bridging_data.update_list.size();
-		cell_id.resize(ncupd,"");
-		for (int i=0; i<ncupd; i++)
-			cell_id[i] = std::to_string(scale_bridging_data.update_list[i].id);
+		std::vector< MDSim<dim> > request_simulations;
+		std::vector< QP > update_list = scale_bridging_data.update_list;
 
-		cell_mat.resize(ncupd,"");
-		for (int i=0; i<ncupd; i++)
-			cell_mat[i] = mdtype[scale_bridging_data.update_list[i].material];
-		
-			// Number of MD simulations at this iteration...
-			int nmdruns = ncupd*nrepl;
+		int n_qp = update_list.size();
 
-			// Location of each MD simulation temporary log files
-			qpreplogloc.resize(nmdruns,"");
-			straininputfile.resize(nmdruns,"");
-			stressoutputfile.resize(nmdruns,"");
-			md_args.resize(nmdruns);
-		    for( auto &it : md_args )
-		    {
-		        it.clear();
-		    }
+		// Number of MD simulations at this iteration...
+		int nmdruns = n_qp * nrepl;
 
-			// Setting up batch of processes
-			set_md_procs(nmdruns);
-
-			// Preparing strain input file for each replica
-			for (unsigned int c=0; c<ncupd; ++c)
+		// Setting up batch of processes
+		set_md_procs(nmdruns);
+		mcout << "set md procs"<<std::endl;
+		for (unsigned int qp=0; qp<n_qp; ++qp)
+		{
+			for(unsigned int repl=0; repl<nrepl; repl++)
 			{
-				int imd = 0;
-				for(unsigned int i=0; i<mdtype.size(); i++)
-					if(cell_mat[c]==mdtype[i])
-						imd=i;
+				// Offset replica number because in filenames, replicas start at 1
+				int numrepl = repl+1;
 
-				for(unsigned int repl=0;repl<nrepl;repl++)
-				{
-					// Offset replica number because in filenames, replicas start at 1
-					int numrepl = repl+1;
+				// imdrun is assigned to a run and is a multiple of the batch number the run will be run on
+				int imdrun = qp*nrepl + (repl);
+				
+			  // Allocation of a MD run to a batch of processes
+				if (md_batch_pcolor == (imdrun%n_md_batches)){
 
-					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
-					int imdrun=c*nrepl + (repl);
+					MDSim<dim> md_sim;
+					md_sim.qp_id = update_list[qp].id;
+					md_sim.replica = numrepl;
+					md_sim.material = update_list[qp].material;
+					md_sim.time_id = time_id;
+	
+					md_sim.force_field 			= md_force_field;
+			    md_sim.timestep_length  = md_timestep_length;
+    			md_sim.temperature      = md_temperature;
+			    md_sim.nsteps_sample    = md_nsteps_sample;
+			    md_sim.strain_rate      = md_strain_rate;
 
-                                        // Setting up location for temporary log outputs of md simulation, input strains and output stresses
-                                        straininputfile[imdrun] = macrostatelocout + "/last." + cell_id[c] + "." + std::to_string(numrepl) + ".upstrain";
-                                        stressoutputfile[imdrun] = macrostatelocout + "/last." + cell_id[c] + "." + std::to_string(numrepl) + ".stress";
-                                        qpreplogloc[imdrun] = nanologloctmp + "/" + time_id  + "." + cell_id[c] + "." + cell_mat[c] + "_" + std::to_string(numrepl);
+					md_sim.output_file					= nanostatelocout;
+					md_sim.restart_file					= nanostatelocres;
 
-					// Allocation of a MD run to a batch of processes
-					if (md_batch_pcolor == (imdrun%n_md_batches)){
+        	// Setting up location for temporary log outputs of md simulation, input strains and output stresses
+	    		std::string macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
+					md_sim.define_file_names(nanologloctmp,macrostatelocout);
 
-						// Operations on disk, need only to be done by one of the processes of the batch
-						if(this_md_batch_process == 0){
+					int replica_data_index = md_sim.material*nrepl+nrepl; // imd*nrepl+nrepl;
+					// Argument of the MD simulation: strain to apply
+					SymmetricTensor<2,dim> cg_loc_rep_strain(scale_bridging_data.update_list[qp].update_strain);
 
-							SymmetricTensor<2,dim> loc_rep_strain;
+					// Rotate strain tensor from common ground to replica orientation
+					md_sim.strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[replica_data_index].rotam));
 
-							char filename[1024];
-
-							// Argument of the MD simulation: strain to apply
-							SymmetricTensor<2,dim> cg_loc_rep_strain(scale_bridging_data.update_list[c].update_strain);
-
-							// Rotate strain tensor from common ground to replica orientation
-							loc_rep_strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[imd*nrepl+repl].rotam));
-
-							// Resize applied strain with initial length of the md sample, the resulting variable is not
-							// a strain but a length variation, which will be transformed back into a strain during the
-							// execution of the MD code where the current length of the nanosystem will be available
-							for (unsigned int i=0; i<dim; i++){
-								loc_rep_strain[i][i] *= replica_data[imd*nrepl+repl].init_length[i];
-								loc_rep_strain[i][(i+1)%dim] *= replica_data[imd*nrepl+repl].init_length[(i+2)%dim];
-							}
-
-							// Write tensor to replica specific file
-							//sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cell_id[c].c_str(), numrepl);
-							write_tensor<dim>(straininputfile[imdrun].c_str(), loc_rep_strain);
-
-							// Preparing directory to write MD simulation log files
-							mkdir(qpreplogloc[imdrun].c_str(), ACCESSPERMS);
-						}
-
-						// Setting argument list for strain_md executable
-						md_args[imdrun].push_back(cell_id[c]);
-						md_args[imdrun].push_back(time_id);
-						md_args[imdrun].push_back(cell_mat[c]);
-						md_args[imdrun].push_back(nanostatelocout);
-						md_args[imdrun].push_back(nanostatelocres);
-						md_args[imdrun].push_back(nanologlochom);
-						md_args[imdrun].push_back(qpreplogloc[imdrun]);
-						md_args[imdrun].push_back(md_scripts_directory);
-						md_args[imdrun].push_back(straininputfile[imdrun]);
-						md_args[imdrun].push_back(stressoutputfile[imdrun]);
-						md_args[imdrun].push_back(std::to_string(numrepl));
-						md_args[imdrun].push_back(std::to_string(md_timestep_length));
-						md_args[imdrun].push_back(std::to_string(md_temperature));
-						md_args[imdrun].push_back(std::to_string(md_nsteps_sample));
-						md_args[imdrun].push_back(std::to_string(md_strain_rate));
-						md_args[imdrun].push_back(md_force_field);
-						md_args[imdrun].push_back(std::to_string(output_homog));
-						md_args[imdrun].push_back(std::to_string(checkpoint_save));
+					// Resize applied strain with initial length of the md sample, the resulting variable is not
+					// a strain but a length variation, which will be transformed back into a strain during the
+					// execution of the MD code where the current length of the nanosystem will be available
+					for (unsigned int j=0; j<dim; j++){
+						md_sim.strain[j][j] *= replica_data[replica_data_index].init_length[j];
+						md_sim.strain[j][(j+1)%dim] *= replica_data[replica_data_index].init_length[(j+2)%dim];
 					}
+
+					// Write tensor to replica specific file
+					//sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cell_id[c].c_str(), numrepl);
+					//write_tensor<dim>(straininputfile[md_sim.material].c_str(), md_sim.strain);
+
+					md_sim.checkpoint = checkpoint_save;
+
+					request_simulations.push_back(md_sim);
+					// Setting argument list for strain_md executable
+					/*md_args[imdrun].push_back(cell_id[c]);
+					md_args[imdrun].push_back(time_id);
+					md_args[imdrun].push_back(cell_mat[c]);
+					md_args[imdrun].push_back(nanostatelocout);
+					md_args[imdrun].push_back(nanostatelocres);
+					md_args[imdrun].push_back(nanologlochom);
+					md_args[imdrun].push_back(qpreplogloc[imdrun]);
+					md_args[imdrun].push_back(md_scripts_directory);
+					md_args[imdrun].push_back(straininputfile[imdrun]);
+					md_args[imdrun].push_back(stressoutputfile[imdrun]);
+					md_args[imdrun].push_back(std::to_string(numrepl));
+					md_args[imdrun].push_back(std::to_string(md_timestep_length));
+					md_args[imdrun].push_back(std::to_string(md_temperature));
+					md_args[imdrun].push_back(std::to_string(md_nsteps_sample));
+					md_args[imdrun].push_back(std::to_string(md_strain_rate));
+					md_args[imdrun].push_back(md_force_field);
+					md_args[imdrun].push_back(std::to_string(output_homog));
+					md_args[imdrun].push_back(std::to_string(checkpoint_save));*/
 				}
 			}
+		}
+		return request_simulations;
 	}
 
 
 
 	template <int dim>
-	void STMDSync<dim>::execute_inside_md_simulations()
+	void STMDSync<dim>::execute_inside_md_simulations(std::vector<MDSim<dim> > requested_simulations)
 	{
 		// Computing cell state update running one simulation per MD replica (basic job scheduling and executing)
 		mcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
 		mcout << "        " << "...cells and replicas completed: " << std::flush;
-		for (unsigned int c=0; c<ncupd; ++c)
+		int n_md_runs = requested_simulations.size();
+		for (unsigned int i=0; i<n_md_runs; ++i)
 		{
-			for(unsigned int repl=0;repl<nrepl;repl++)
-			{
-				// Offset replica number because in filenames, replicas start at 1
-				int numrepl = repl+1;
-
-				// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
-				int imdrun=c*nrepl + (repl);
-
 				// Allocation of a MD run to a batch of processes
-				if (md_batch_pcolor == (imdrun%n_md_batches)){
+				if (md_batch_pcolor == (i%n_md_batches)){
 
 					// Executing from an external MPI_Communicator (avoids failure of the main communicator
 					// when the specific/external communicator fails)
@@ -618,15 +601,16 @@ namespace HMM
 					}*/
 
 					// Executing directly from the current MPI_Communicator (not fault tolerant)
-					STMDProblem<3> stmd_problem (md_batch_communicator, md_batch_pcolor);
 
-					stmd_problem.strain(cell_id[c], time_id, cell_mat[c], nanostatelocout, nanostatelocres,
-								   nanologlochom, qpreplogloc[imdrun], md_scripts_directory, straininputfile[imdrun],
-								   stressoutputfile[imdrun], numrepl, md_timestep_length, md_temperature,
-								   md_nsteps_sample, md_strain_rate, md_force_field,
-								   output_homog, checkpoint_save);
+					STMDProblem<3> stmd_problem (md_batch_communicator, md_batch_pcolor);
+					
+					stmd_problem.strain(requested_simulations[i]);
+					//stmd_problem.strain(cell_id[c], time_id, cell_mat[c], nanostatelocout, nanostatelocres,
+					//			   nanologlochom, qpreplogloc[imdrun], md_scripts_directory, straininputfile[imdrun],
+					//			   stressoutputfile[imdrun], numrepl, md_timestep_length, md_temperature,
+					//			   md_nsteps_sample, md_strain_rate, md_force_field,
+					//			   output_homog, checkpoint_save);
 				}
-			}
 		}
 		mcout << std::endl;
 	}
@@ -853,8 +837,10 @@ namespace HMM
 			   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 			   std::string nlogloctmp,std::string nloglochom, std::string mslocout,
 			   std::string mdsdir, int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
-			   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups){
+			   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
+				 boost::property_tree::ptree inconfig){
 
+		input_config = inconfig;
 		start_timestep = sstp;
 
 		md_timestep_length = mdtlength;
@@ -910,16 +896,18 @@ namespace HMM
 		if (timestep%freq_checkpoint==0) checkpoint_save = true;
 		else checkpoint_save = false;
 
-		prepare_md_simulations(scale_bridging_data);
+		std::vector< MDSim<dim> > requested_simulations;
+		requested_simulations = prepare_md_simulations(scale_bridging_data);
 
 		MPI_Barrier(mmd_communicator);
-		mcout << "TEST1: there are "<< ncupd<<" cells to be updated" << std::endl;
-		if (ncupd>0){
+		int n_md = requested_simulations.size();
+		mcout << "TEST1: there are "<< n_md <<" quadrature points to be updated" << std::endl;
+		if (n_md>0){
 			if(use_pjm_scheduler){
 				execute_pjm_md_simulations();
 			}
 			else{
-				execute_inside_md_simulations();
+				execute_inside_md_simulations(requested_simulations);
 			}
 
 			MPI_Barrier(mmd_communicator);

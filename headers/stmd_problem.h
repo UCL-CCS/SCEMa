@@ -24,7 +24,9 @@
 #include <deal.II/base/mpi.h>
 
 // Specifically built header files
+//#include "md_sim.h"
 #include "read_write.h"
+#include "stmd_sync.h"
 
 namespace HMM
 {
@@ -38,12 +40,13 @@ namespace HMM
 	public:
 		STMDProblem (MPI_Comm mdcomm, int pcolor);
 		~STMDProblem ();
-		void strain (std::string cid, std::string 	tid, std::string cmat,
-				  std::string slocout, std::string slocres, std::string llochom,
-				  std::string qplogloc, std::string scrloc,
-				  std::string strainif, std::string stressof,
-				  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
-				  double mdss, std::string mdff, bool outhom, bool checksav);
+		void strain (MDSim<dim> md_sim);
+		//void strain (std::string cid, std::string 	tid, std::string cmat,
+		//		  std::string slocout, std::string slocres, std::string llochom,
+		//		  std::string qplogloc, std::string scrloc,
+		//		  std::string strainif, std::string stressof,
+		//		  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
+		//		  double mdss, std::string mdff, bool outhom, bool checksav);
 
 	private:
 
@@ -69,8 +72,8 @@ namespace HMM
 		std::string 						qpreplogloc;
 		std::string 						scriptsloc;
 
-		std::string 						straininputfile;
-		std::string 						stressoutputfile;
+		SymmetricTensor<2,dim>	strain_in;
+		SymmetricTensor<2,dim>	stress_out;
 
 		unsigned int 						repl;
 
@@ -116,7 +119,6 @@ namespace HMM
 		if (md_force_field == "reax"){
 			sprintf(locff, "%s/ffield.reax.2", scriptsloc.c_str()); /*reaxff*/
 		}
-
 		// Name of nanostate binary files
 		char mdstate[1024];
 		sprintf(mdstate, "%s_%d", cellmat.c_str(), repl);
@@ -173,6 +175,7 @@ namespace HMM
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
+
 		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "in.set.lammps");
 		lammps_file(lmp,cfile);
 
@@ -207,11 +210,13 @@ namespace HMM
 		}
 		else{
 			/*mdcout << "  initially computed." << std::endl;*/
-
-			sprintf(cline, "read_restart %s", initdata); lammps_command(lmp,cline);
-
+			std::cout<<"else "<<std::endl;
+			std::cout<<"init "<<initdata<<std::endl;
+			sprintf(cline, "read_restart %s", initdata); 
+			lammps_command(lmp,cline);
 			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
 		}
+		
 
 		// Query box dimensions
 		char vdir[1024];
@@ -354,36 +359,39 @@ namespace HMM
 
 
 	template <int dim>
-	void STMDProblem<dim>::strain (std::string cid, std::string 	tid, std::string cmat,
-							  std::string slocout, std::string slocres, std::string llochom,
-							  std::string qplogloc, std::string scrloc,
-							  std::string strainif, std::string stressof,
-							  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
-							  double mdss, std::string mdff, bool outhom, bool checksav)
+  void STMDProblem<dim>::strain (MDSim<dim> md_sim)
+	//void STMDProblem<dim>::strain (std::string cid, std::string 	tid, std::string cmat,
+	//						  std::string slocout, std::string slocres, std::string llochom,
+	//						  std::string qplogloc, std::string scrloc,
+	//						  std::string strainif, std::string stressof,
+	//						  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
+	//						  double mdss, std::string mdff, bool outhom, bool checksav)
 	{
-		cellid = cid;
-		timeid = tid;
-		cellmat = cmat;
+		cellid = std::to_string(md_sim.qp_id);
+		timeid = md_sim.time_id;
+		char temp[1024];
+		sprintf(temp, "g%d", md_sim.material);
+		cellmat = temp;
 
-		statelocout = slocout;
-		statelocres = slocres;
-		loglochom = llochom;
-		qpreplogloc = qplogloc;
-		scriptsloc = scrloc;
+		statelocout = md_sim.output_file;
+		statelocres = md_sim.restart_file;
+		loglochom = md_sim.log_file;
+		qpreplogloc = md_sim.log_file;
+		scriptsloc = "./lammps_scripts_opls/";
 
-		straininputfile = strainif;
-		stressoutputfile = stressof;
+		strain_in = md_sim.strain;
+		stress_out = md_sim.stress;
 
-		repl = rep;
+		repl = md_sim.replica;
 
-		md_timestep_length = mdts;
-		md_temperature = mdtem;
-		md_nsteps_sample = mdnss;
-		md_strain_rate = mdss;
-		md_force_field = mdff;
+		md_timestep_length 	= md_sim.timestep_length;
+		md_temperature 			= md_sim.temperature;
+		md_nsteps_sample 		= md_sim.nsteps_sample;
+		md_strain_rate 			= md_sim.strain_rate;
+		md_force_field 			=	md_sim.force_field;
 
-		output_homog = outhom;
-		checkpoint_save = checksav;
+		output_homog = md_sim.output_homog;
+		checkpoint_save = md_sim.checkpoint;
 
 		if (md_force_field != "opls" && md_force_field != "reax"){
 			std::cerr << "Error: Force field is " << md_force_field
@@ -391,11 +399,38 @@ namespace HMM
 					  << std::endl;
 			exit(1);
 		}
+/*
+		std::cout << "TEST MD INPUT" << std::endl;
+		// loc_rep_strain, loc_rep_strain are tensors not not filenames
+		std::cout<< 						"1 "<<cellid<<std::endl;
+		std::cout <<						"2 "<<timeid<<std::endl;
+		std::cout 	<<					"3 "<<cellmat<<std::endl;
 
+		std::cout 		<<				"4 "<<statelocout<<std::endl;
+		std::cout 			<<			"5 "<<statelocres<<std::endl;
+		std::cout 				<<		"6 "<<loglochom<<std::endl;
+		std::cout 					<<	"7 "<<qpreplogloc<<std::endl;
+		std::cout 						<<"8 "<<scriptsloc<<std::endl;
+
+		//SymmetricTensor<2,dim>	strain_in;
+		//SymmetricTensor<2,dim>	stress_out;
+
+		unsigned int 						repl;
+
+		double								md_timestep_length;
+		double								md_temperature;
+		unsigned int 						md_nsteps_sample;
+		double								md_strain_rate;
+		std::string							md_force_field;
+
+		bool								output_homog;
+		bool								checkpoint_save;
+
+		std::cout << "FINISH MD TEST"<<std::endl;*/
 		// Argument of the MD simulation: strain to apply
 		//sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cellid, repl);
-		read_tensor<dim>(straininputfile.c_str(), loc_rep_strain);
-
+		//read_tensor<dim>(straininputfile.c_str(), loc_rep_strain);
+		loc_rep_strain = md_sim.strain;
 		// Then the lammps function instanciates lammps, starting from an initial
 		// microstructure and applying the complete new_strain or starting from
 		// the microstructure at the old_strain and applying the difference between
@@ -407,7 +442,7 @@ namespace HMM
 			std::cout << " \t" << cellid <<"-"<< repl << std::flush;
 
 			//sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cellid, repl);
-			write_tensor<dim>(stressoutputfile.c_str(), loc_rep_stress);
+			//write_tensor<dim>(stressoutputfile.c_str(), loc_rep_stress);
 		}
 	}
 }

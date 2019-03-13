@@ -36,8 +36,10 @@
 // Specifically built header files
 #include "headers/read_write.h"
 #include "headers/tensor_calc.h"
-#include "headers/stmd_sync.h"
 #include "headers/scale_bridging_data.h"
+//#include "headers/stmd_problem.h"
+#include "headers/md_sim.h"
+#include "headers/stmd_sync.h"
 
 // Include of the FE model to solve in the simulation
 // (hardcoded for the moment, but should try to split the solving and
@@ -407,11 +409,9 @@ namespace HMM
 	{
 		int n_updates = scale_bridging_data.update_list.size();
 		MPI_Bcast(&n_updates , 1, MPI_INT, 0, world_communicator);
-
 		if (this_world_process != 0) {
 			scale_bridging_data.update_list.resize(n_updates);
 		}
-
 		MPI_Bcast(&(scale_bridging_data.update_list[0]), n_updates, MPI_QP, 0, world_communicator);
 	}
 
@@ -448,7 +448,6 @@ namespace HMM
 
 			share_scale_bridging_data(scale_bridging_data);
 
-			MPI_Barrier(world_communicator);
 			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep, scale_bridging_data);
 			MPI_Barrier(world_communicator);
 
@@ -501,7 +500,7 @@ namespace HMM
 											   nanologloctmp, nanologlochom, macrostatelocout,
 											   md_scripts_directory, freq_checkpoint, freq_output_homog,
 											   batch_nnodes_min, machine_ppn, mdtype, cg_dir, nrepl,
-											   use_pjm_scheduler);
+											   use_pjm_scheduler, input_config);
 
 		// Initialization of MMD must be done before initialization of FE, because FE needs initial
 		// materials properties obtained from MMD initialization

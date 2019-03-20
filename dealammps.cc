@@ -448,10 +448,22 @@ namespace HMM
 
 			share_scale_bridging_data(scale_bridging_data);
 
+			//hcout << "ENTERING HELL" << std::endl;
+
 			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep, scale_bridging_data);
 			MPI_Barrier(world_communicator);
 
-			if(fe_pcolor==0) continue_newton = fe_problem->check();
+			/*hcout << "DONEZO" << std::endl;
+      for (int i=0; i<scale_bridging_data.update_list.size(); i++){
+      hcout << "STRESS "<<std::endl;
+      for (int j=0; j<6; j++){
+        hcout <<i<< " " << scale_bridging_data.update_list[i].update_stress[j];
+      } hcout << std::endl;
+			}*/
+			
+			MPI_Barrier(world_communicator);
+
+			if(fe_pcolor==0) continue_newton = fe_problem->check(scale_bridging_data);
 
 			// Share the value of previous_res with processors outside of dealii allocation
 			MPI_Bcast(&continue_newton, 1, MPI_C_BOOL, root_fe_process, world_communicator);

@@ -238,7 +238,7 @@ namespace HMM
 											boost::property_tree::ptree inconfig);
 							void beginstep (int tstp, double ptime);
 							void solve (int nstp, ScaleBridgingData &scale_bridging_data);
-							bool check ();
+							bool check (ScaleBridgingData scale_bridging_data);
 							void endstep ();
 
 					private:
@@ -272,7 +272,7 @@ namespace HMM
 							template <typename T>
 							std::vector<T> gather_vector(std::vector<T> local_vector);
 							void update_stress_quadrature_point_history
-									(const Vector<double>& displacement_update);
+									(const Vector<double>& displacement_update, ScaleBridgingData scale_bridging_data);
 							void clean_transfer();
 
 							Vector<double>  compute_internal_forces () const;
@@ -1191,7 +1191,6 @@ namespace HMM
 							Vector<double>       cell_v_rhs (dofs_per_cell);
 
 							std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell);
-
 		BodyForce<dim>      body_force;
 		std::vector<Vector<double> > body_force_values (n_q_points,
 				Vector<double>(dim));
@@ -1823,7 +1822,7 @@ namespace HMM
 		gather_qp_update_list(scale_bridging_data);
 		//std::vector<int> all_qpupdates;
 		///all_qpupdates = gather_vector<int>(qpupdates);
-		
+		;
 		/*for (int i=0; i < all_qpupdates.size(); i++){
 			QP qp;
 			qp.id = all_qpupdates[i];
@@ -1900,9 +1899,29 @@ namespace HMM
 		return gathered_vector;
 	}
 
+	QP get_qp_with_id (int cell_id, ScaleBridgingData scale_bridging_data)
+	{
+		QP qp; 
+		bool found = false;
+		int n_qp = scale_bridging_data.update_list.size();
+
+		for (int i=0; i<n_qp; i++){
+			if (scale_bridging_data.update_list[i].id == cell_id){
+				qp = scale_bridging_data.update_list[i];
+				found = true;
+				break;
+			}
+		}
+		if (found == false){
+			std::cout << "Error: No QP objecr with id "<< cell_id << std::endl;
+			exit(1);
+		}
+		return qp;
+	}
 
 	template <int dim>
-	void FEProblem<dim>::update_stress_quadrature_point_history(const Vector<double>& displacement_update)
+	void FEProblem<dim>::update_stress_quadrature_point_history(const Vector<double>& displacement_update,
+																															ScaleBridgingData scale_bridging_data)
 	{
 		FEValues<dim> fe_values (fe, quadrature_formula,
 				update_values | update_gradients);
@@ -1940,6 +1959,7 @@ namespace HMM
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].hist_strain.get_ID_to_update_from());
+					int qp_id = local_quadrature_points_history[q].hist_strain.get_ID_to_update_from();
 
 					if (newtonstep == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
@@ -1956,15 +1976,21 @@ namespace HMM
 						 */
 
 						// Updating stress tensor
-						bool load_stress;
+						bool load_stress = true;
 
 						/*SymmetricTensor<4,dim> loc_stiffness;
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
 						read_tensor<dim>(filename, loc_stiffness);*/
 
-						SymmetricTensor<2,dim> loc_stress;
-						sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id);
-						load_stress = read_tensor<dim>(filename, loc_stress);
+						QP qp;
+						qp = get_qp_with_id(qp_id, scale_bridging_data);
+						//sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id);
+						//load_stress = read_tensor<dim>(filename, loc_stress);
+			//std::cout << "Putting stress into quadrature_points_history" << std::endl;
+      //for (int i=0; i<6; i++){
+      //  std::cout << " " << qp.update_stress[i];
+      //} std::cout << std::endl;
+						SymmetricTensor<2,dim> loc_stress(qp.update_stress);
 
 						// Rotate the output stress wrt the flake angles
 						if (load_stress) local_quadrature_points_history[q].new_stress =
@@ -2672,10 +2698,10 @@ namespace HMM
 
 
 	template <int dim>
-	bool FEProblem<dim>::check (){
+	bool FEProblem<dim>::check (ScaleBridgingData scale_bridging_data){
 		double previous_res;
 
-		update_stress_quadrature_point_history (newton_update_displacement);
+		update_stress_quadrature_point_history (newton_update_displacement, scale_bridging_data);
 
 		dcout << "    Re-assembling FE system..." << std::flush;
 		previous_res = assemble_system (false);

@@ -40,7 +40,7 @@ namespace HMM
 	public:
 		STMDProblem (MPI_Comm mdcomm, int pcolor);
 		~STMDProblem ();
-		void strain (MDSim<dim> md_sim);
+		void strain (MDSim<dim>& md_sim);
 		//void strain (std::string cid, std::string 	tid, std::string cmat,
 		//		  std::string slocout, std::string slocres, std::string llochom,
 		//		  std::string qplogloc, std::string scrloc,
@@ -210,8 +210,6 @@ namespace HMM
 		}
 		else{
 			/*mdcout << "  initially computed." << std::endl;*/
-			std::cout<<"else "<<std::endl;
-			std::cout<<"init "<<initdata<<std::endl;
 			sprintf(cline, "read_restart %s", initdata); 
 			lammps_command(lmp,cline);
 			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
@@ -359,7 +357,7 @@ namespace HMM
 
 
 	template <int dim>
-  void STMDProblem<dim>::strain (MDSim<dim> md_sim)
+  void STMDProblem<dim>::strain (MDSim<dim>& md_sim)
 	//void STMDProblem<dim>::strain (std::string cid, std::string 	tid, std::string cmat,
 	//						  std::string slocout, std::string slocres, std::string llochom,
 	//						  std::string qplogloc, std::string scrloc,
@@ -399,8 +397,8 @@ namespace HMM
 					  << std::endl;
 			exit(1);
 		}
-/*
-		std::cout << "TEST MD INPUT" << std::endl;
+
+		/*std::cout << "TEST MD INPUT" << std::endl;
 		// loc_rep_strain, loc_rep_strain are tensors not not filenames
 		std::cout<< 						"1 "<<cellid<<std::endl;
 		std::cout <<						"2 "<<timeid<<std::endl;
@@ -411,7 +409,8 @@ namespace HMM
 		std::cout 				<<		"6 "<<loglochom<<std::endl;
 		std::cout 					<<	"7 "<<qpreplogloc<<std::endl;
 		std::cout 						<<"8 "<<scriptsloc<<std::endl;
-
+		*/
+		/*
 		//SymmetricTensor<2,dim>	strain_in;
 		//SymmetricTensor<2,dim>	stress_out;
 
@@ -435,11 +434,32 @@ namespace HMM
 		// microstructure and applying the complete new_strain or starting from
 		// the microstructure at the old_strain and applying the difference between
 		// the new_ and _old_strains, returns the new_stress state.
-		lammps_straining();
-
+		MPI_Barrier(md_batch_communicator);
+		/*if(this_md_batch_process == 0)
+		{std::cout<<"T1"<<std::endl;}
+		MPI_Barrier(md_batch_communicator);*/
+				
+		 lammps_straining();
+		/*MPI_Barrier(md_batch_communicator);
+		if(this_md_batch_process == 0)
+		{std::cout<<"T2"<<std::endl;}
+		MPI_Barrier(md_batch_communicator);*/
+		 md_sim.stress = loc_rep_stress;
+//		SymmetricTensor<2,dim> tmp({0.0001,0.0001,0.0001,0.00001,0.0001,0.0001});
+//		md_sim.stress = tmp;
+		MPI_Barrier(md_batch_communicator);
 		if(this_md_batch_process == 0)
 		{
 			std::cout << " \t" << cellid <<"-"<< repl << std::flush;
+
+			/*std::cout << std::endl << "stress";	
+			for (int i=0; i<6; i++){
+				std::cout << " " << md_sim.stress.access_raw_entry(i);
+			} std::cout << std::endl; 
+			std::cout << "strain " ;
+			for (int i=0; i<6; i++){
+				std::cout << " " << md_sim.strain.access_raw_entry(i);
+			} std::cout << std::endl; */
 
 			//sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cellid, repl);
 			//write_tensor<dim>(stressoutputfile.c_str(), loc_rep_stress);

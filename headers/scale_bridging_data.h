@@ -14,6 +14,7 @@ namespace HMM {
 		int 		id;
 		int 		material;
 		double 	update_strain[6];
+		double	update_stress[6];
 	};
 
 	struct ScaleBridgingData

@@ -1665,6 +1665,7 @@ namespace HMM
 
 		// Building vector of (updateable) histories of cells on rank
 		std::vector<MatHistPredict::Strain6D*> histories;
+		int flag1 = 0;
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1678,7 +1679,7 @@ namespace HMM
 				Assert (local_quadrature_points_history <
 						&quadrature_point_history.back(),
 						ExcInternalError());
-
+				flag1++; 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					if(local_quadrature_points_history[q].to_be_updated)
@@ -1688,7 +1689,7 @@ namespace HMM
 					}
 				}
 			}
-
+		MPI_Barrier(FE_communicator);
 		// Launch MPI communication to compare strain histories on this rank with histories on all other ranks (including this one).
 		// Results will be stored in the Strain6D objects - a vector of all other similar strain histories (i.e. within the given threshold difference).
 		MatHistPredict::compare_histories_with_all_ranks(histories, acceptable_diff_threshold, FE_communicator);

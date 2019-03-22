@@ -408,22 +408,25 @@ namespace HMM
 							<< replica_data[imdrun].repl << std::endl;
 				}
 
-				// Copying replica input system
-				bool statesystem_exists = file_exists(systemoutputfile[imdrun].c_str());
-				if (statesystem_exists){
-					std::ifstream  nanoin(systemoutputfile[imdrun].c_str(), std::ios::binary);
-					char nanofilenameout[1024];
-					sprintf(nanofilenameout, "%s/init.%s_%d.bin", nanostatelocout.c_str(),
-							replica_data[imdrun].mat.c_str(), replica_data[imdrun].repl);
-					std::ofstream  nanoout(nanofilenameout,   std::ios::binary);
-					nanoout << nanoin.rdbuf();
-					nanoin.close();
-					nanoout.close();
-				}
-				else{
-					std::cerr << "Missing equilibrated initial system for material "
-							<< replica_data[imdrun].mat.c_str() << " replica #"
-							<< replica_data[imdrun].repl << std::endl;
+		    if (this_mmd_process==0)
+  		  {
+					// Copying replica input system
+					bool statesystem_exists = file_exists(systemoutputfile[imdrun].c_str());
+					if (statesystem_exists){
+						std::ifstream  nanoin(systemoutputfile[imdrun].c_str(), std::ios::binary);
+						char nanofilenameout[1024];
+						sprintf(nanofilenameout, "%s/init.%s_%d.bin", nanostatelocout.c_str(),
+								replica_data[imdrun].mat.c_str(), replica_data[imdrun].repl);
+						std::ofstream  nanoout(nanofilenameout,   std::ios::binary);
+						nanoout << nanoin.rdbuf();
+						nanoin.close();
+						nanoout.close();
+					}
+					else{
+						std::cerr << "Missing equilibrated initial system for material "
+								<< replica_data[imdrun].mat.c_str() << " replica #"
+								<< replica_data[imdrun].repl << std::endl;
+					}
 				}
 			}
 	}
@@ -901,11 +904,13 @@ namespace HMM
 		nrepl = nr;
 
 		use_pjm_scheduler = ups;
-
 		restart ();
 		load_replica_generation_data();
 		load_replica_equilibration_data();
-		average_replica_data();
+		if (this_mmd_process==0)
+		{	
+			average_replica_data();
+		}
 	}
 
 	template <int dim>

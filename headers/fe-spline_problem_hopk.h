@@ -1937,7 +1937,7 @@ namespace HMM
 		// quadrature_points_history structure
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
-				cell != dof_handler.end(); ++cell)
+				cell != dof_handler.end(); ++cell){
 			if (cell->is_locally_owned())
 			{
 				SymmetricTensor<2,dim> avg_upd_strain_tensor;

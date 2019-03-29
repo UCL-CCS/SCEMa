@@ -235,7 +235,7 @@ namespace HMM
 											std::string mslocres, std::string mlogloc, int fchpt, int fovis, int folhis,
 											bool actmdup, std::vector<std::string> mdt, Tensor<1,dim> cgd, 
 											std::string twodmfile, double extrudel, int extrudep, 
-											boost::property_tree::ptree inconfig);
+											boost::property_tree::ptree inconfig, bool hookeslaw);
 							void beginstep (int tstp, double ptime);
 							void solve (int nstp, ScaleBridgingData &scale_bridging_data);
 							bool check (ScaleBridgingData scale_bridging_data);
@@ -366,6 +366,7 @@ namespace HMM
 							int                     extrude_points;
 
 							boost::property_tree::ptree     input_config;
+							bool														approx_md_with_hookes_law;
 							
 							CellData<dim> celldata;
 			};
@@ -1961,7 +1962,7 @@ namespace HMM
 				{
 					char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].hist_strain.get_ID_to_update_from());
 					int qp_id = local_quadrature_points_history[q].hist_strain.get_ID_to_update_from();
-
+				
 					if (newtonstep == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
 					if (local_quadrature_points_history[q].to_be_updated){
@@ -1994,20 +1995,25 @@ namespace HMM
 						SymmetricTensor<2,dim> loc_stress(qp.update_stress);
 
 						// Rotate the output stress wrt the flake angles
-						if (load_stress) local_quadrature_points_history[q].new_stress =
-									rotate_tensor(loc_stress, transpose(local_quadrature_points_history[q].rotam));
-						else local_quadrature_points_history[q].new_stress +=
-                                                        0.00*local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
+						loc_stress = rotate_tensor(loc_stress, transpose(local_quadrature_points_history[q].rotam));
+
+						if (approx_md_with_hookes_law == false){
+							local_quadrature_points_history[q].new_stress = loc_stress;
+						}
+						else {
+							local_quadrature_points_history[q].new_stress = loc_stress + local_quadrature_points_history[q].old_stress;
+						}
 
 						// Resetting the update strain tensor
 						local_quadrature_points_history[q].upd_strain = 0;
 					}
 					else{
-						// Tangent stiffness computation of the new stress tensor
+					// Tangent stiffness computation of the new stress tensor
 						local_quadrature_points_history[q].new_stress +=
 							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 					}
-
+				}
+			
 					// Secant stiffness computation of the new stress tensor
 					//local_quadrature_points_history[q].new_stress =
 					//		local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].new_strain;
@@ -2596,8 +2602,10 @@ namespace HMM
 							   int fchpt, int fovis, int folhis, bool actmdup,
 							   std::vector<std::string> mdt, Tensor<1,dim> cgd,
 							   std::string twodmfile, double extrudel, int extrudep,
-						           boost::property_tree::ptree inconfig){
+						     boost::property_tree::ptree inconfig, 
+								 bool hookes_law){
 
+		approx_md_with_hookes_law = hookes_law;
 		input_config = inconfig;		
  
 		// Setting up checkpoint and output frequencies
@@ -2703,6 +2711,7 @@ namespace HMM
 		double previous_res;
 
 		update_stress_quadrature_point_history (newton_update_displacement, scale_bridging_data);
+					
 
 		dcout << "    Re-assembling FE system..." << std::flush;
 		previous_res = assemble_system (false);

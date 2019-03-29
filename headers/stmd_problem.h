@@ -38,15 +38,10 @@ namespace HMM
 	class STMDProblem
 	{
 	public:
-		STMDProblem (MPI_Comm mdcomm, int pcolor);
+		STMDProblem (MPI_Comm mdcomm, int pcolorr);
 		~STMDProblem ();
-		void strain (MDSim<dim>& md_sim);
-		//void strain (std::string cid, std::string 	tid, std::string cmat,
-		//		  std::string slocout, std::string slocres, std::string llochom,
-		//		  std::string qplogloc, std::string scrloc,
-		//		  std::string strainif, std::string stressof,
-		//		  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
-		//		  double mdss, std::string mdff, bool outhom, bool checksav);
+		void strain (MDSim<dim>& md_sim, bool approx_md_with_hookes_law);
+  	SymmetricTensor<2,dim> stress_from_hookes_law (SymmetricTensor<2,dim> strain, int id);
 
 	private:
 
@@ -355,9 +350,21 @@ namespace HMM
 	}
 
 
+	template <int dim>
+  SymmetricTensor<2,dim> STMDProblem<dim>::stress_from_hookes_law (SymmetricTensor<2,dim> strain, int id)
+	{
+		SymmetricTensor<2,dim> stress;
+
+		SymmetricTensor<4,dim> stiffness;
+    read_tensor<dim>("nanoscale_input/init.g0_1.stiff", stiffness);
+
+		stress = stiffness * strain;
+		return stress;
+	}
+
 
 	template <int dim>
-  void STMDProblem<dim>::strain (MDSim<dim>& md_sim)
+  void STMDProblem<dim>::strain (MDSim<dim>& md_sim, bool approx_md_with_hookes_law)
 	//void STMDProblem<dim>::strain (std::string cid, std::string 	tid, std::string cmat,
 	//						  std::string slocout, std::string slocres, std::string llochom,
 	//						  std::string qplogloc, std::string scrloc,
@@ -438,15 +445,17 @@ namespace HMM
 		/*if(this_md_batch_process == 0)
 		{std::cout<<"T1"<<std::endl;}
 		MPI_Barrier(md_batch_communicator);*/
-				
-		 lammps_straining();
-		/*MPI_Barrier(md_batch_communicator);
-		if(this_md_batch_process == 0)
-		{std::cout<<"T2"<<std::endl;}
-		MPI_Barrier(md_batch_communicator);*/
-		 md_sim.stress = loc_rep_stress;
-//		SymmetricTensor<2,dim> tmp({0.0001,0.0001,0.0001,0.00001,0.0001,0.0001});
-//		md_sim.stress = tmp;
+
+		if (approx_md_with_hookes_law == true){
+			md_sim.stress = stress_from_hookes_law(md_sim.strain,md_sim.qp_id);
+			md_sim.stress_updated = true;
+		}
+		else {
+			lammps_straining();
+			md_sim.stress = loc_rep_stress;
+			md_sim.stress_updated = true;
+		}
+
 		MPI_Barrier(md_batch_communicator);
 		if(this_md_batch_process == 0)
 		{

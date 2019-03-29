@@ -163,6 +163,7 @@ namespace HMM
 		boost::property_tree::ptree	input_config;
 
 		bool				activate_md_update;
+		bool				approx_md_with_hookes_law;
 		bool				use_pjm_scheduler;
 
 		double				md_timestep_length;
@@ -238,6 +239,7 @@ namespace HMM
 
 	    // Scale-bridging parameters
 	    activate_md_update 	= input_config.get<bool>("scale-bridging.activate md update");
+	    approx_md_with_hookes_law	=input_config.get<bool>("scale-bridging.approximate md with hookes law");
 	    use_pjm_scheduler 	= input_config.get<bool>("scale-bridging.use pjm scheduler");
 
 	    // Continuum input, output, restart and log location
@@ -452,16 +454,8 @@ namespace HMM
 
 			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep, scale_bridging_data);
 			MPI_Barrier(world_communicator);
-
-			/*hcout << "DONEZO" << std::endl;
-      for (int i=0; i<scale_bridging_data.update_list.size(); i++){
-      hcout << "STRESS "<<std::endl;
-      for (int j=0; j<6; j++){
-        hcout <<i<< " " << scale_bridging_data.update_list[i].update_stress[j];
-      } hcout << std::endl;
-			}*/
 			
-			MPI_Barrier(world_communicator);
+			share_scale_bridging_data(scale_bridging_data);
 
 			if(fe_pcolor==0) continue_newton = fe_problem->check(scale_bridging_data);
 
@@ -512,7 +506,7 @@ namespace HMM
 											   nanologloctmp, nanologlochom, macrostatelocout,
 											   md_scripts_directory, freq_checkpoint, freq_output_homog,
 											   batch_nnodes_min, machine_ppn, mdtype, cg_dir, nrepl,
-											   use_pjm_scheduler, input_config);
+											   use_pjm_scheduler, input_config, approx_md_with_hookes_law);
 
 		// Initialization of MMD must be done before initialization of FE, because FE needs initial
 		// materials properties obtained from MMD initialization
@@ -525,7 +519,7 @@ namespace HMM
 										freq_checkpoint, freq_output_visu, freq_output_lhist,
 										activate_md_update, mdtype, cg_dir,
 										twod_mesh_file, extrude_length, extrude_points, 
-										input_config);
+										input_config, approx_md_with_hookes_law);
                                                                                 
 		MPI_Barrier(world_communicator);                                
 

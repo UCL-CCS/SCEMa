@@ -65,7 +65,7 @@ namespace HMM
 				   std::string nlogloctmp,std::string nloglochom, std::string mslocout, std::string mdsdir,
 				   int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
 				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
-					 boost::property_tree::ptree inconfig);
+					 boost::property_tree::ptree inconfig, bool approx_md_with_hookes_law); 
 		void update (int tstp, double ime, int nstp, ScaleBridgingData& scale_bridging_data);
 
 	private:
@@ -81,6 +81,7 @@ namespace HMM
 		std::vector<MDSim<dim> > prepare_md_simulations(ScaleBridgingData scale_bridging_data);
 
 		void execute_inside_md_simulations(std::vector<MDSim<dim> >& requested_simulations);
+		void share_stresses(std::vector<MDSim<dim> >& md_simulations);
 
 		void write_exec_script_md_job();
 		void generate_job_list(bool& elmj, int& tta, char* filenamelist);
@@ -154,6 +155,7 @@ namespace HMM
 		bool								use_pjm_scheduler;
 		boost::property_tree::ptree input_config;
 
+		bool 															 approx_md_with_hookes_law;
 	};
 
 
@@ -215,9 +217,13 @@ namespace HMM
 
 		//int nrounds = int(nmdruns/nbtch_max)+1;
 		//int nmdruns_round = nmdruns/nrounds;
-
-		int fair_npbtch = int(mmd_n_processes/(nmdruns));
-
+		int fair_npbtch;
+		if (nmdruns > 0){
+			fair_npbtch = int(mmd_n_processes/(nmdruns));
+		}
+		else {	
+			fair_npbtch = mmd_n_processes;
+		}
 		int npb = std::max(npbtch_min, fair_npbtch - fair_npbtch%npbtch_min);
 		//int nbtch = int(n_world_processes/npbtch);
 
@@ -506,6 +512,7 @@ namespace HMM
 
 					MDSim<dim> md_sim;
 					md_sim.qp_id = update_list[qp].id;
+
 					md_sim.replica = repl + 1; // +1 to match input file lables... fix 
 					md_sim.material = update_list[qp].material;
 					md_sim.time_id = time_id;
@@ -529,15 +536,15 @@ namespace HMM
 
 					// Rotate strain tensor from common ground to replica orientation
 				  md_sim.strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[replica_data_index].rotam));
-
 					// Resize applied strain with initial length of the md sample, the resulting variable is not
 					// a strain but a length variation, which will be transformed back into a strain during the
 					// execution of the MD code where the current length of the nanosystem will be available
-					for (unsigned int j=0; j<dim; j++){
-						md_sim.strain[j][j] *= replica_data[replica_data_index].init_length[j];
-						md_sim.strain[j][(j+1)%dim] *= replica_data[replica_data_index].init_length[(j+2)%dim];
+					if (approx_md_with_hookes_law == false){
+						for (unsigned int j=0; j<dim; j++){
+							md_sim.strain[j][j] *= replica_data[replica_data_index].init_length[j];
+							md_sim.strain[j][(j+1)%dim] *= replica_data[replica_data_index].init_length[(j+2)%dim];
+						}
 					}
-
 			/*std::cout << "Set MDSim strain resize ";
 			for (int i=0; i<6; i++){
 				std::cout << md_sim.strain.access_raw_entry(i) << " ";
@@ -591,7 +598,6 @@ namespace HMM
 		{
 				// Allocation of a MD run to a batch of processes
 				if (md_batch_pcolor == (i%n_md_batches)){
-
 					// Executing from an external MPI_Communicator (avoids failure of the main communicator
 					// when the specific/external communicator fails)
 					// Does not work as OpenMPI cannot be started from an existing OpenMPI run...
@@ -618,34 +624,111 @@ namespace HMM
 		//MPI_Barrier(mmd_communicator);
 					STMDProblem<3> stmd_problem (md_batch_communicator, md_batch_pcolor);
 
-	//MPI_Barrier(mmd_communicator);
-					stmd_problem.strain(md_simulations[i]);
-		//MPI_Barrier(mmd_communicator);
-      /*std::cout << "STRESS2 " ;
-      for (int j=0; j<6; j++){
-        std::cout << " " << md_simulations[i].stress.access_raw_entry(j);
-      } std::cout << std::endl;		*/
-					//stmd_problem.strain(cell_id[c], time_id, cell_mat[c], nanostatelocout, nanostatelocres,
-					//			   nanologlochom, qpreplogloc[imdrun], md_scripts_directory, straininputfile[imdrun],
-					//			   stressoutputfile[imdrun], numrepl, md_timestep_length, md_temperature,
-					//			   md_nsteps_sample, md_strain_rate, md_force_field,
-					//			   output_homog, checkpoint_save);
+					stmd_problem.strain(md_simulations[i], approx_md_with_hookes_law);
 				}
 		}
 		mcout << std::endl;
-		
+
 		MPI_Barrier(mmd_communicator);
 
-		// Check stresses are set on all ranks
-		// - stress tensor is initialised as zero, so check its first element is not close to zero
-		for (int i=0; i<md_simulations.size(); i++){
-			if (    (md_simulations[i].stress.access_raw_entry(0)) < 1e-15 
-					 && (md_simulations[i].stress.access_raw_entry(0)) > 0.0  ){
-				for (int j=0; j<6; j++){
-					std::cout << md_simulations[i].stress.access_raw_entry(j) << " ";
-				} std::cout << std::endl;
-				std::cout << "Stress not set or not communicated to rank ("<<this_mmd_process<<") . " << i <<std::endl;
-				exit(1);
+	}
+
+	template <int dim>
+	void STMDSync<dim>::share_stresses(std::vector<MDSim<dim> >& md_simulations)
+	{
+		// share all the stresses calculated in different batches to rank 0
+
+		MPI_Request  request;
+		MPI_Status 	 status;
+
+    int n_md_runs = md_simulations.size();
+		
+		std::vector<int> pcolors(mmd_n_processes);
+		for (unsigned int i=0; i<mmd_n_processes; i++){
+      pcolors[i] = int(i/md_batch_n_processes); // this is the commmand in set_md_procs 
+		}
+		
+		if (pcolors[0] != 0){
+			std::cout << "Error: root rank has pcolor != 0" << std::endl;
+			exit(1);
+		}
+
+		// for eah batch, send stresses it calculated to rank 0
+		for (uint32_t	pcolor=1; pcolor<n_md_batches; pcolor++){
+
+			// find lowest rank in this batch - this will be used to send the batch's information
+			int batch_root;
+			bool found = false;
+			for (uint32_t i=0; i<mmd_n_processes; i++){
+				if (pcolors[i] == pcolor){
+					batch_root = i;
+					found = true;
+					break;
+				}
+			}
+			assert(found==true);
+
+ 			// number of sims to share from this batch
+			int n_sends = 0;
+			if (this_mmd_process == batch_root){
+				for (uint32_t i=0; i<n_md_runs; i++){
+					if (md_simulations[i].stress_updated == true){
+						n_sends++ ;
+					}
+				}
+			}
+   		MPI_Bcast(&n_sends, 1, MPI_INT, batch_root, mmd_communicator);
+
+			// ids of sims to share from this batch
+			int md_send_indexes[n_sends];
+			int count = 0;
+			if (this_mmd_process == batch_root){
+				for (uint32_t i=0; i<n_md_runs; i++){
+					if (md_simulations[i].stress_updated == true){
+						md_send_indexes[count] = i;
+						count++;
+					}
+				}
+			}
+			MPI_Bcast(&md_send_indexes, n_sends, MPI_INT, batch_root, mmd_communicator);
+
+			// for each md run calculated on this batch
+			for (uint32_t i=0; i<n_sends; i++){
+				int md_run_index = md_send_indexes[i];
+					
+				// share stresses calculated to rank 0
+				if (this_mmd_process == batch_root){
+					//build array to send
+					double send_stress[6];
+					for (uint32_t j=0; j<6; j++){
+						send_stress[j] = md_simulations[md_run_index].stress.access_raw_entry(j);
+					}
+					//send to rank 0
+					MPI_Isend(&send_stress[0], 6, MPI_DOUBLE, 0, md_run_index, mmd_communicator, &request);
+
+				} else if (this_mmd_process == 0){
+					//recieve stress and convert to symmetric tensor
+					double recv_stress[6];
+					MPI_Recv(&recv_stress[0], 6, MPI_DOUBLE, batch_root, md_run_index, mmd_communicator, &status); 
+					SymmetricTensor<2,dim> stress(recv_stress);
+					
+					md_simulations[md_run_index].stress = stress; 
+					md_simulations[md_run_index].stress_updated = true;
+				}
+			}
+		}
+	 
+		// Check all stresses are set on rank 0
+		if (this_mmd_process == 0){
+			for (int i=0; i<md_simulations.size(); i++){
+				if (md_simulations[i].stress_updated != true){
+					for (int j=0; j<6; j++){
+						std::cout << md_simulations[i].stress.access_raw_entry(j) << " ";
+					} std::cout << std::endl;
+					std::cout << "Stress not set or not communicated to rank ("<<this_mmd_process<<") . " 
+										<< md_simulations[i].qp_id <<std::endl;
+					exit(1);
+				}
 			}
 		}
 	}
@@ -685,8 +768,6 @@ namespace HMM
 			}
 		}
 	}
-
-
 
 
 	template <int dim>
@@ -827,8 +908,10 @@ namespace HMM
 					loc_rep_stress = md_simulation.stress; 
 					
 					// subtract the intial stress in the starting structure
-					loc_rep_stress -= replica_data[replica_data_index].init_stress;
-
+					if (approx_md_with_hookes_law == false){
+						loc_rep_stress -= replica_data[replica_data_index].init_stress;
+					}
+				
 					// Rotation of the stress tensor to common ground direction before averaging
 					cg_loc_rep_stress = rotate_tensor(loc_rep_stress, replica_data[replica_data_index].rotam);
 
@@ -861,7 +944,6 @@ namespace HMM
 		for (int i=0; i<6; i++){
     	scale_bridging_data.update_list[qp].update_stress[i] = cg_loc_stress.access_raw_entry(i);
     }
-
 		}
 	}
 
@@ -872,7 +954,9 @@ namespace HMM
 			   std::string nlogloctmp,std::string nloglochom, std::string mslocout,
 			   std::string mdsdir, int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
 			   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
-				 boost::property_tree::ptree inconfig){
+				 boost::property_tree::ptree inconfig, bool hookeslaw){
+
+		approx_md_with_hookes_law = hookeslaw;
 
 		input_config = inconfig;
 		start_timestep = sstp;
@@ -950,8 +1034,10 @@ namespace HMM
 			}
 			else{
 				execute_inside_md_simulations(md_simulations);
+				MPI_Barrier(mmd_communicator);
+				share_stresses(md_simulations);
+				MPI_Barrier(mmd_communicator);
 			}
-			MPI_Barrier(mmd_communicator);
 			/*for (int i=0; i<n_md; i++){
 			mcout << i << " ";
       for (int j=0; j<6; j++){
@@ -959,7 +1045,12 @@ namespace HMM
       } mcout << std::endl;  
 			MPI_Barrier(mmd_communicator);*/
 		//}
-		store_md_simulations(md_simulations, scale_bridging_data);
+	
+			//average stresses over md replicas, and store them in scale_bridging_data
+			if (this_mmd_process == 0){
+				store_md_simulations(md_simulations, scale_bridging_data);
+			}
+
 		}
 	}
 }

@@ -2,16 +2,17 @@
 	"drop weight":{
 		"diameter": 0.03,
 		"acceleration": 10000000,
-		"steps to accelerate": 3 
+		"steps to accelerate": 5 
  	},
   "scale-bridging":{
-    "activate md update": 0,
+    "activate md update": 1,
+		"approximate md with hookes law": 1,
     "use pjm scheduler": 0
   },
   "continuum time":{
     "timestep length": 5.0e-7,
     "start timestep": 1,
-    "end timestep": 500
+    "end timestep": 200
   },
   "continuum mesh":{
     "fe degree": 1,
@@ -26,13 +27,23 @@
       "z cells" : 1
      }
   },
+  "model precision":{
+    "md":{
+      "min quadrature strain norm": 1.0e-10
+    },
+    "spline":{
+      "points": 10,
+      "min steps": 500,
+      "diff threshold": 0.000001
+    }
+  },
   "molecular dynamics material":{
     "number of replicas": 1,
     "list of materials": ["g0"],
     "distribution": {
       "style": "uniform",
       "proportions": [1.0]
-	},
+	  },
     "rotation common ground vector":[1.0, 0.0, 0.0]
   },
   "molecular dynamics parameters":{

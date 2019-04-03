@@ -1142,10 +1142,10 @@ namespace HMM
 													double vertex_y = fabs(cell->face(face)->vertex(v)(1));
 
 													// is point on the edge, if so it will be kept stationary
-													if (   vertex_x > ( x_length/2 - eps)  
-													    || vertex_x < (-x_length/2 + eps) 
-													    || vertex_y > ( y_length/2 - eps) 
-													    || vertex_y < (-y_length/2 + eps))
+													if (   vertex_x > ( x_length/2 - 0.0000001)  
+													    || vertex_x < (-x_length/2 + 0.0000001) 
+													    || vertex_y > ( y_length/2 - 0.0000001) 
+													    || vertex_y < (-y_length/2 + 0.0000001))
 													{
 														value = 0.;
 														for (component = 0; component < 3; ++component)

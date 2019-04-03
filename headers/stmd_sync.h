@@ -1034,17 +1034,11 @@ namespace HMM
 			}
 			else{
 				execute_inside_md_simulations(md_simulations);
+
 				MPI_Barrier(mmd_communicator);
+
 				share_stresses(md_simulations);
-				MPI_Barrier(mmd_communicator);
 			}
-			/*for (int i=0; i<n_md; i++){
-			mcout << i << " ";
-      for (int j=0; j<6; j++){
-        mcout << " " << md_simulations[i].stress.access_raw_entry(j);
-      } mcout << std::endl;  
-			MPI_Barrier(mmd_communicator);*/
-		//}
 	
 			//average stresses over md replicas, and store them in scale_bridging_data
 			if (this_mmd_process == 0){

@@ -523,9 +523,12 @@ namespace HMM
 			    md_sim.nsteps_sample    = md_nsteps_sample;
 			    md_sim.strain_rate      = md_strain_rate;
 
-					md_sim.output_file					= nanostatelocout;
-					md_sim.restart_file					= nanostatelocres;
-					md_sim.output_homog					= false;
+					md_sim.output_folder		= nanostatelocout;
+					md_sim.restart_folder		= nanostatelocres;
+					md_sim.scripts_folder   = md_scripts_directory;
+					std::cout << "A " << md_sim.scripts_folder << std::endl;
+					md_sim.output_homog			= false;
+					md_sim.checkpoint 			= checkpoint_save;
         	// Setting up location for temporary log outputs of md simulation, input strains and output stresses
 	    		std::string macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
 					md_sim.define_file_names(nanologloctmp,macrostatelocout);
@@ -545,34 +548,9 @@ namespace HMM
 							md_sim.strain[j][(j+1)%dim] *= replica_data[replica_data_index].init_length[(j+2)%dim];
 						}
 					}
-			/*std::cout << "Set MDSim strain resize ";
-			for (int i=0; i<6; i++){
-				std::cout << md_sim.strain.access_raw_entry(i) << " ";
-			}std::cout << std::endl;*/
-
-					md_sim.checkpoint = checkpoint_save;
 
 					request_simulations.push_back(md_sim);
-					// Setting argument list for strain_md executable
-					/*md_args[imdrun].push_back(cell_id[c]);
-					md_args[imdrun].push_back(time_id);
-					md_args[imdrun].push_back(cell_mat[c]);
-					md_args[imdrun].push_back(nanostatelocout);
-					md_args[imdrun].push_back(nanostatelocres);
-					md_args[imdrun].push_back(nanologlochom);
-					md_args[imdrun].push_back(qpreplogloc[imdrun]);
-					md_args[imdrun].push_back(md_scripts_directory);
-					md_args[imdrun].push_back(straininputfile[imdrun]);
-					md_args[imdrun].push_back(stressoutputfile[imdrun]);
-					md_args[imdrun].push_back(std::to_string(numrepl));
-					md_args[imdrun].push_back(std::to_string(md_timestep_length));
-					md_args[imdrun].push_back(std::to_string(md_temperature));
-					md_args[imdrun].push_back(std::to_string(md_nsteps_sample));
-					md_args[imdrun].push_back(std::to_string(md_strain_rate));
-					md_args[imdrun].push_back(md_force_field);
-					md_args[imdrun].push_back(std::to_string(output_homog));
-					md_args[imdrun].push_back(std::to_string(checkpoint_save));*/
-				//}
+			//}
 			}
 		}
 		return request_simulations;
@@ -588,7 +566,6 @@ namespace HMM
 		mcout << "        " << "...cells and replicas completed: " << std::flush;
 		int n_md_runs = md_simulations.size();
 
-		mcout << std::endl<< " All MD Sims: ";
 		for (int i=0; i<n_md_runs; i++){
 			mcout << md_simulations[i].qp_id << " ";
 		}

@@ -1610,7 +1610,7 @@ namespace HMM
 					// (iii) cells based on their id
 					if (activate_md_update
 						// otherwise MD simulation unecessary, because no significant volume change and MD will fail
-										&& local_quadrature_points_history[q].upd_strain.norm() > min_qp_strain//> 1.0e-10
+										&& local_quadrature_points_history[q].upd_strain.norm() >= min_qp_strain//> 1.0e-10
 						)
 					//if (activate_md_update && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
 					/*if (activate_md_update && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
@@ -1786,12 +1786,12 @@ namespace HMM
 							// in case of extreme straining with reaxff
 							/*&& !(avg_new_stress_tensor.norm() < 1.0e8 && avg_new_strain_tensor.norm() > 3.0)*/
 							){
-							std::cout << "           "
-									<< " cell_id "<< cell->active_cell_index()
-									<< " upd norm " << local_quadrature_points_history[q].upd_strain.norm()
-									<< " total norm " << local_quadrature_points_history[q].new_strain.norm()
-									<< " total stress norm " << local_quadrature_points_history[q].new_stress.norm()
-									<< std::endl;
+							//std::cout << "           "
+							//		<< " cell_id "<< cell->active_cell_index()
+							//		<< " upd norm " << local_quadrature_points_history[q].upd_strain.norm()
+							//		<< " total norm " << local_quadrature_points_history[q].new_strain.norm()
+							//		<< " total stress norm " << local_quadrature_points_history[q].new_stress.norm()
+							//		<< std::endl;
 
 							QP qp; // Struct that holds information for md job
 
@@ -1816,6 +1816,12 @@ namespace HMM
 							// qpupdates.push_back(local_quadrature_points_history[q].qpid); //MPI list of qps to update on this rank
 							//std::cout<< "local qpid "<< local_quadrature_points_history[q].qpid << std::endl;
 						}
+					} else{
+						std::cout << "SIM NOT REQUESTED " << cell->active_cell_index() << " "
+										 << local_quadrature_points_history[q].qpid << " "
+										 << local_quadrature_points_history[q].to_be_updated << " "
+              			 << local_quadrature_points_history[q].hist_strain.run_new_md() << " "
+										 << local_quadrature_points_history[q].upd_strain.norm() << std::endl;
 					}
 			}
 		// Gathering in a single file all the quadrature points to be updated...
@@ -1831,6 +1837,7 @@ namespace HMM
 			qp.material = celldata.get_composition(qp.id);
 			scale_bridging_data.update_list.push_back(qp);		
 		}*/
+		
 	}
 
 	template <int dim>

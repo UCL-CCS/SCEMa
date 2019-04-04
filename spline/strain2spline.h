@@ -471,12 +471,18 @@ namespace MatHistPredict {
 		for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
 			histories[h]->clear_most_similar_history();
 		}
+		
+		// check if communication is the problem
+		//for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
+		//	assert(	histories[a]->get_spline()->size() == 60);
+		//}
 
 		// Cycle through all ranks in the communicator in a ring-like fashion, sending
 		// to this_rank+i (periodic) and receiving from this_rank-i (periodic). This
 		// ensures that every rank gets the data from every other rank (for comparison)
 		// wihout ever needing to hold all cells in memory at once.
 		for(int32_t i = 0; i < num_ranks; i++) {
+			MPI_Barrier(comm);
 			int32_t target_rank = modulo_neg(this_rank + i, num_ranks); // send data to target_rank
 			int32_t from_rank = modulo_neg(this_rank - i, num_ranks); // receive data sent by from_rank
 			
@@ -501,7 +507,10 @@ namespace MatHistPredict {
 					receive_strain6D_mpi(&recv, from_rank, comm);
 
 					for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
-						double diff = compare_L2_norm(histories[h], &recv);
+//		std::cout << "COMP1 "<< this_rank << " " << histories.size();
+//		std::cout <<" \t"<< histories[h]->get_spline()->size() << "-" << recv.recv_count;
+//		std::cout << std::endl << std::flush;
+							double diff = compare_L2_norm(histories[h], &recv);
 						histories[h]->choose_most_similar_history(diff, recv.ID, threshold);
 //						std::cout << "Comparison between rank " << this_rank << ", cell " << histories[h]->get_ID() << " and rank " <<  from_rank << ", cell " << recv.ID << ": " << diff << "\n";
 					}
@@ -510,9 +519,9 @@ namespace MatHistPredict {
 			} else { // Considering cells on the same rank
 				for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
 					for(uint32_t b = a + 1; b < num_histories_on_this_rank; b++) {
-		std::cout << "COMP3 "<< this_rank << " " << histories.size();
-		std::cout <<" "<< histories[a]->get_spline()->size() << "-" << histories[b]->get_spline()->size();
-		std::cout << std::endl << std::flush;
+//		std::cout << "COMP3 "<< this_rank << " " << histories.size();
+//		std::cout <<" \t"<< histories[a]->get_spline()->size() << "-"<< histories[b]->get_spline()->size();
+//		std::cout << std::endl << std::flush;
 						double diff = compare_L2_norm(histories[a], histories[b]);
 						histories[a]->choose_most_similar_history(diff, histories[b]->get_ID(), threshold); // both Strain6D's need this info
 						histories[b]->choose_most_similar_history(diff, histories[a]->get_ID(), threshold); // both Strain6D's need this info

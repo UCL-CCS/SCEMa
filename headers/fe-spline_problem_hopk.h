@@ -24,6 +24,7 @@
 #include "read_write.h"
 #include "tensor_calc.h"
 #include "scale_bridging_data.h"
+#include "problem_type.h"
 
 // Reduction model based on spline comparison
 #include "../spline/strain2spline.h"
@@ -410,38 +411,8 @@ namespace HMM
 					
 					if (mesh_input_style == "cuboid")
 					{
-						double 	x_length;
-						double 	y_length;
-						double 	z_length;
-						int 	x_cells;
-						int 	y_cells;
-						int 	z_cells;
-
-						x_length = input_config.get<double>("continuum mesh.input.x length");
-						y_length = input_config.get<double>("continuum mesh.input.y length");
-						z_length = input_config.get<double>("continuum mesh.input.z length");
-						x_cells = input_config.get<int>("continuum mesh.input.x cells");
-						y_cells = input_config.get<int>("continuum mesh.input.y cells");
-						z_cells = input_config.get<int>("continuum mesh.input.z cells");
-
-						if (x_length < 0 || y_length < 0 || z_length < 0){
-							dcout << "Mesh lengths must be positive" << std::endl;
-							exit(1);
-						}
-						if (x_cells < 1 || y_cells < 1 || z_cells < 1 ){
-							dcout << "Must be at least 1 cell per axis" << std::endl;
-							exit(1);
-						}
-					
-						// Generate grid centred on 0,0 ; the top face is at z=0	
-						Point<dim> corner1 (-x_length/2, -y_length/2, -z_length);
-						Point<dim> corner2 (x_length/2, y_length/2, 0);
-						std::vector<unsigned int> reps (dim); 
-						reps[0] = x_cells; 
-						reps[1] = y_cells;
-						reps[2] = z_cells;
-
-						GridGenerator::subdivided_hyper_rectangle(triangulation, reps, corner1, corner2);
+						ImpactTest<dim> impact_test(input_config);
+						triangulation = impact_test.make_grid();
 					}
 					else if (mesh_input_style == "file")
 					{

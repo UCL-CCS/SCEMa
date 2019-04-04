@@ -526,7 +526,6 @@ namespace HMM
 					md_sim.output_folder		= nanostatelocout;
 					md_sim.restart_folder		= nanostatelocres;
 					md_sim.scripts_folder   = md_scripts_directory;
-					std::cout << "A " << md_sim.scripts_folder << std::endl;
 					md_sim.output_homog			= false;
 					md_sim.checkpoint 			= checkpoint_save;
         	// Setting up location for temporary log outputs of md simulation, input strains and output stresses
@@ -565,11 +564,6 @@ namespace HMM
 		mcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
 		mcout << "        " << "...cells and replicas completed: " << std::flush;
 		int n_md_runs = md_simulations.size();
-
-		for (int i=0; i<n_md_runs; i++){
-			mcout << md_simulations[i].qp_id << " ";
-		}
-		mcout << std::endl;
 
 		for (unsigned int i=0; i<n_md_runs; ++i)
 		{
@@ -998,7 +992,6 @@ namespace HMM
 
 		MPI_Barrier(mmd_communicator);
 		int n_md = md_simulations.size();
-		mcout << "TEST1: there are "<< n_md <<" quadrature points to be updated" << std::endl;
 		/*for (int i=0; i<n_md; i++){
 			mcout << i << " ";
       for (int j=0; j<6; j++){

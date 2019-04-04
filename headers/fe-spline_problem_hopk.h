@@ -1816,13 +1816,7 @@ namespace HMM
 							// qpupdates.push_back(local_quadrature_points_history[q].qpid); //MPI list of qps to update on this rank
 							//std::cout<< "local qpid "<< local_quadrature_points_history[q].qpid << std::endl;
 						}
-					} else{
-						std::cout << "SIM NOT REQUESTED " << cell->active_cell_index() << " "
-										 << local_quadrature_points_history[q].qpid << " "
-										 << local_quadrature_points_history[q].to_be_updated << " "
-              			 << local_quadrature_points_history[q].hist_strain.run_new_md() << " "
-										 << local_quadrature_points_history[q].upd_strain.norm() << std::endl;
-					}
+					} 
 			}
 		// Gathering in a single file all the quadrature points to be updated...
 		// Might be worth replacing indivual local file writings by a parallel vector of string
@@ -2705,7 +2699,7 @@ namespace HMM
 
 		check_strain_quadrature_point_history();
 		history_analysis();
-		dcout <<" 		Communicating scale bridging data"<< std::endl;
+
 		MPI_Barrier(FE_communicator);
 		write_md_updates_list(scale_bridging_data);
 

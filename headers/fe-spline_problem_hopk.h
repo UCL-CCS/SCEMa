@@ -473,7 +473,6 @@ namespace HMM
 					}
 
 					// Check that the FEM is not passed less ranks than cells
-					dcout << " Proces:" << triangulation.n_active_cells() << n_FE_processes << n_world_processes << std::endl; 
 					if ( triangulation.n_active_cells() < n_FE_processes &&
 									triangulation.n_active_cells() < n_world_processes ){
 							dcout << "Exception: Cells < ranks in FE communicator... " << std::endl;
@@ -1856,8 +1855,8 @@ namespace HMM
 						0,
 						FE_communicator);	
 		
-		int total_elements = 0; 
-		for (int i = 0; i < n_FE_processes; i++)
+		uint32_t total_elements = 0; 
+		for (uint32_t i = 0; i < n_FE_processes; i++)
 		{
 			total_elements += elements_per_proc[i];
 		}
@@ -1956,9 +1955,6 @@ namespace HMM
 				fe_values.get_function_gradients (displacement_update,
 						displacement_update_grads);
 
-				// Restore the new stiffness tensors from ./macroscale_state/out/last.cellid-qid.stiff
-				char filename[1024];
-
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].hist_strain.get_ID_to_update_from());
@@ -1979,7 +1975,7 @@ namespace HMM
 						 */
 
 						// Updating stress tensor
-						bool load_stress = true;
+						//bool load_stress = true;
 
 						/*SymmetricTensor<4,dim> loc_stiffness;
 						sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);

@@ -147,10 +147,6 @@ namespace MatHistPredict {
 					spline.push_back(splXZ(t));
 					spline.push_back(splYZ(t));
 				}
-				if (spline.size() != 60){
-					fprintf(stderr, "SHIIT %d %d \n", num_spline_points_per_component, spline.size() );
-					exit(1);
-				}
 				up_to_date = true;
 			}
 

@@ -92,18 +92,18 @@ namespace HMM
 
 		MPI_Comm 							mmd_communicator;
 		MPI_Comm 							md_batch_communicator;
-		int 								mmd_n_processes;
-		int 								md_batch_n_processes;
-		int 								n_md_batches;
-		int 								this_mmd_process;
-		int 								this_md_batch_process;
-		int 								mmd_pcolor;
-		int									md_batch_pcolor;
+		uint32_t 								mmd_n_processes;
+		uint32_t 								md_batch_n_processes;
+		uint32_t 								n_md_batches;
+		int32_t 								this_mmd_process;
+		int32_t 								this_md_batch_process;
+		int32_t 								mmd_pcolor;
+		int32_t									md_batch_pcolor;
 
-		unsigned int						ncupd;
+		uint32_t						ncupd;
 
-		unsigned int						machine_ppn;
-		unsigned int						batch_nnodes_min;
+		uint32_t						machine_ppn;
+		uint32_t						batch_nnodes_min;
 
 		ConditionalOStream 					mcout;
 
@@ -124,7 +124,7 @@ namespace HMM
 		std::vector<std::string>			systemoutputfile;
 
 		std::vector<std::string>			mdtype;
-		unsigned int						nrepl;
+		uint32_t						nrepl;
 		std::vector<ReplicaData<dim> > 		replica_data;
 		Tensor<1,dim> 						cg_dir;
 
@@ -488,25 +488,18 @@ namespace HMM
 		std::vector< MDSim<dim> > request_simulations;
 		std::vector< QP > update_list = scale_bridging_data.update_list;
 
-		int n_qp = update_list.size();
+		uint32_t n_qp = update_list.size();
 
 		// Number of MD simulations at this iteration...
-		int nmdruns = n_qp * nrepl;
+		uint32_t nmdruns = n_qp * nrepl;
 
 		// Setting up batch of processes
 		set_md_procs(nmdruns);
 		mcout << "set md procs"<<std::endl;
-		for (unsigned int qp=0; qp<n_qp; ++qp)
+		for (uint32_t qp=0; qp<n_qp; ++qp)
 		{
-			for(unsigned int repl=0; repl<nrepl; repl++)
+			for(uint32_t repl=0; repl<nrepl; repl++)
 			{
-				// Offset replica number because in filenames, replicas start at 1
-				//int numrepl = repl+1e
-				//int numrepl = repl;
-
-				// imdrun is assigned to a run and is a multiple of the batch number the run will be run on
-				int imdrun = qp*nrepl + (repl);
-				
 			  // Allocation of a MD run to a batch of processes
 				//if (md_batch_pcolor == (imdrun%n_md_batches)){
 
@@ -530,7 +523,7 @@ namespace HMM
 					md_sim.checkpoint 			= checkpoint_save;
         	// Setting up location for temporary log outputs of md simulation, input strains and output stresses
 	    		std::string macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
-					md_sim.define_file_names(nanologloctmp,macrostatelocout);
+					md_sim.define_file_names(nanologloctmp);
 
 					int replica_data_index = md_sim.material*nrepl+repl; // imd*nrepl+nrepl;
 					// Argument of the MD simulation: strain to apply
@@ -563,9 +556,9 @@ namespace HMM
 		// Computing cell state update running one simulation per MD replica (basic job scheduling and executing)
 		mcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
 		mcout << "        " << "...cells and replicas completed: " << std::flush;
-		int n_md_runs = md_simulations.size();
+		uint32_t n_md_runs = md_simulations.size();
 
-		for (unsigned int i=0; i<n_md_runs; ++i)
+		for (uint32_t i=0; i<n_md_runs; ++i)
 		{
 				// Allocation of a MD run to a batch of processes
 				if (md_batch_pcolor == (i%n_md_batches)){
@@ -612,7 +605,7 @@ namespace HMM
 		MPI_Request  request;
 		MPI_Status 	 status;
 
-    int n_md_runs = md_simulations.size();
+    uint32_t n_md_runs = md_simulations.size();
 		
 		std::vector<int> pcolors(mmd_n_processes);
 		for (unsigned int i=0; i<mmd_n_processes; i++){
@@ -625,10 +618,10 @@ namespace HMM
 		}
 
 		// for eah batch, send stresses it calculated to rank 0
-		for (uint32_t	pcolor=1; pcolor<n_md_batches; pcolor++){
+		for (int32_t	pcolor=1; pcolor<n_md_batches; pcolor++){
 
 			// find lowest rank in this batch - this will be used to send the batch's information
-			int batch_root;
+			int32_t batch_root;
 			bool found = false;
 			for (uint32_t i=0; i<mmd_n_processes; i++){
 				if (pcolors[i] == pcolor){
@@ -640,7 +633,7 @@ namespace HMM
 			assert(found==true);
 
  			// number of sims to share from this batch
-			int n_sends = 0;
+			uint32_t n_sends = 0;
 			if (this_mmd_process == batch_root){
 				for (uint32_t i=0; i<n_md_runs; i++){
 					if (md_simulations[i].stress_updated == true){
@@ -651,8 +644,9 @@ namespace HMM
    		MPI_Bcast(&n_sends, 1, MPI_INT, batch_root, mmd_communicator);
 
 			// ids of sims to share from this batch
-			int md_send_indexes[n_sends];
-			int count = 0;
+			//int md_send_indexes[n_sends];
+			std::vector<uint32_t> md_send_indexes(n_sends);
+			uint32_t count = 0;
 			if (this_mmd_process == batch_root){
 				for (uint32_t i=0; i<n_md_runs; i++){
 					if (md_simulations[i].stress_updated == true){
@@ -661,11 +655,11 @@ namespace HMM
 					}
 				}
 			}
-			MPI_Bcast(&md_send_indexes, n_sends, MPI_INT, batch_root, mmd_communicator);
+			MPI_Bcast(&md_send_indexes[0], n_sends, MPI_INT, batch_root, mmd_communicator);
 
 			// for each md run calculated on this batch
 			for (uint32_t i=0; i<n_sends; i++){
-				int md_run_index = md_send_indexes[i];
+				uint32_t md_run_index = md_send_indexes[i];
 					
 				// share stresses calculated to rank 0
 				if (this_mmd_process == batch_root){
@@ -691,9 +685,9 @@ namespace HMM
 	 
 		// Check all stresses are set on rank 0
 		if (this_mmd_process == 0){
-			for (int i=0; i<md_simulations.size(); i++){
+			for (uint32_t i=0; i<md_simulations.size(); i++){
 				if (md_simulations[i].stress_updated != true){
-					for (int j=0; j<6; j++){
+					for (uint32_t j=0; j<6; j++){
 						std::cout << md_simulations[i].stress.access_raw_entry(j) << " ";
 					} std::cout << std::endl;
 					std::cout << "Stress not set or not communicated to rank ("<<this_mmd_process<<") . " 
@@ -864,14 +858,13 @@ namespace HMM
 			//{
 				SymmetricTensor<2,dim> cg_loc_stress;
 
-				for (int rep=0; rep<nrepl; rep++){
-					int numrepl = rep + 1;
-					int md_sim_id = get_sim_id(md_simulations, qp_id, numrepl);
+				for (uint32_t rep=0; rep<nrepl; rep++){
+					uint32_t numrepl = rep + 1;
+					uint32_t md_sim_id = get_sim_id(md_simulations, qp_id, numrepl);
 
 					md_simulation = md_simulations[md_sim_id];
 
-					int imdrun = qp*nrepl + (rep);
-					int replica_data_index = md_simulation.material * nrepl + rep;
+					uint32_t replica_data_index = md_simulation.material * nrepl + rep;
 
 					SymmetricTensor<2,dim> cg_loc_rep_stress, loc_rep_stress;
 					
@@ -896,7 +889,7 @@ namespace HMM
 
 					// Clean "nanoscale_logs" of the finished timestep
 					char command[1024];
-					sprintf(command, "rm -rf %s", md_simulation.log_file);
+					sprintf(command, "rm -rf %s", md_simulation.log_file.c_str());
 					//std::cout<< "Logfile "<< md_simulation.log_file <<std::endl;
 					//int ret = system(command);
 					//if (ret!=0){
@@ -912,7 +905,7 @@ namespace HMM
       } std::cout << std::endl;		*/
 
 		// serialse qp stress into scale bridging data array
-		for (int i=0; i<6; i++){
+		for (uint32_t i=0; i<6; i++){
     	scale_bridging_data.update_list[qp].update_stress[i] = cg_loc_stress.access_raw_entry(i);
     }
 		}

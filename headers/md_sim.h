@@ -44,7 +44,7 @@ namespace HMM {
 			bool output_homog; // what is this? seems to add an extra dump of atom coords	
 			bool checkpoint;
 
-			void define_file_names(std::string nanologloctmp, std::string macrostatelocout)
+			void define_file_names(std::string nanologloctmp)
 			{
     	  log_file = nanologloctmp + "/" + time_id  + "." + std::to_string(qp_id) + "." + std::to_string(material) + "_" + std::to_string(replica);
 				// Preparing directory to write MD simulation log files

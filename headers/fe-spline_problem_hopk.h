@@ -244,6 +244,7 @@ namespace HMM
 
 					private:
 							void make_grid ();
+						  void visualise_mesh(parallel::shared::Triangulation<dim> &triangulation);
 							void setup_system ();
 							CellData<dim> get_microstructure ();
 							std::vector<Vector<double> > generate_microstructure_uniform();
@@ -370,6 +371,8 @@ namespace HMM
 							bool														approx_md_with_hookes_law;
 							
 							CellData<dim> celldata;
+
+							ProblemType<dim>* problem_type = NULL;
 			};
 
 
@@ -400,9 +403,6 @@ namespace HMM
 					dof_handler.clear ();
 			}
 
-
-
-
 	template <int dim>
 			void FEProblem<dim>::make_grid ()
 			{
@@ -411,8 +411,8 @@ namespace HMM
 					
 					if (mesh_input_style == "cuboid")
 					{
-						ImpactTest<dim> impact_test(input_config);
-						triangulation = impact_test.make_grid();
+						problem_type = (ProblemType<dim>*) new DropWeight<dim>(input_config);
+						problem_type->make_grid(triangulation);
 					}
 					else if (mesh_input_style == "file")
 					{
@@ -450,15 +450,8 @@ namespace HMM
 							exit(1);
 					}
 
-					//visualise extruded mesh
-					if (this_FE_process==0){
-							char filename[1024];
-							sprintf(filename, "%s/3D_mesh.eps", macrostatelocout.c_str());
-							std::ofstream out (filename);
-							GridOut grid_out;
-							grid_out.write_eps (triangulation, out);
-							dcout << "    written to " << filename << std::endl;	
-					}
+					visualise_mesh(triangulation);
+
 					// Saving triangulation, not usefull now and costly...
 					//sprintf(filename, "%s/mesh.tria", macrostatelocout.c_str());
 					//std::ofstream oss(filename);
@@ -474,6 +467,19 @@ namespace HMM
 													count_cells_with_subdomain_association (triangulation,p));
 					dcout << ")" << std::endl;
 			}
+
+	template<int dim>
+	void FEProblem<dim>::visualise_mesh(parallel::shared::Triangulation<dim> &triangulation)
+	{
+	if (this_FE_process==0){
+		char filename[1024];
+		sprintf(filename, "%s/3D_mesh.eps", macrostatelocout.c_str());
+		std::ofstream out (filename);
+		GridOut grid_out;
+		grid_out.write_eps (triangulation, out);
+		dcout << "    mesh .eps written to " << filename << std::endl;	
+		}
+	}
 
 
 
@@ -1009,10 +1015,6 @@ namespace HMM
 							}
 					}
 
-
-			// Might want to restructure this function to avoid repetitions
-			// with boundary conditions correction performed at the end of the
-			// assemble_system() function
 			template <int dim>
 					void FEProblem<dim>::set_boundary_values()
 					{
@@ -1137,7 +1139,7 @@ namespace HMM
 									incremental_velocity(p->first) = p->second;
 					}
 
-
+	
 
 			template <int dim>
 					double FEProblem<dim>::assemble_system (bool first_assemble)
@@ -2629,6 +2631,14 @@ namespace HMM
 		incremental_displacement = 0;
 
 		// Setting boudary conditions for current timestep
+		/*problem_type->set_boundary_values(dof_handler,
+                              fe_timestep_length,
+                              present_time,
+                              incremental_velocity,
+                              supp_boundary_dofs,
+                              clmp_boundary_dofs,
+                              load_boundary_dofs
+    );*/
 		set_boundary_values ();
 
 	}

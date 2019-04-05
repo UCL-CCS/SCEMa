@@ -335,7 +335,6 @@ namespace HMM
 
 							double 								inc_vsupport;
 							std::vector<bool> 					supp_boundary_dofs;
-							std::vector<bool> 					clmp_boundary_dofs;
 							std::vector<bool> 					load_boundary_dofs;
 
 							double 								ll;
@@ -1065,7 +1064,6 @@ namespace HMM
 							std::map<types::global_dof_index,double> boundary_values;
 
 							supp_boundary_dofs.resize(dof_handler.n_dofs());
-							clmp_boundary_dofs.resize(dof_handler.n_dofs());
 							load_boundary_dofs.resize(dof_handler.n_dofs());
 
 							typename DoFHandler<dim>::active_cell_iterator
@@ -1083,7 +1081,6 @@ namespace HMM
 											for (unsigned int v = 0; v < GeometryInfo<3>::vertices_per_face; ++v) {
 													for (unsigned int c = 0; c < dim; ++c) {
 															supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
-															clmp_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
 															load_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
 													}
 													
@@ -1294,11 +1291,6 @@ namespace HMM
 							(cell->face(face)->vertex_dof_index (v, component), value));
 						}
 
-						if (clmp_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)])
-						{
-							boundary_values.insert(std::pair<types::global_dof_index, double>
-							(cell->face(face)->vertex_dof_index (v, component), value));
-						}
 					}
 				}
 			}
@@ -2631,15 +2623,14 @@ namespace HMM
 		incremental_displacement = 0;
 
 		// Setting boudary conditions for current timestep
-		/*problem_type->set_boundary_values(dof_handler,
+		problem_type->set_boundary_values(dof_handler,
                               fe_timestep_length,
                               present_time,
                               incremental_velocity,
                               supp_boundary_dofs,
-                              clmp_boundary_dofs,
                               load_boundary_dofs
-    );*/
-		set_boundary_values ();
+    );
+		//set_boundary_values ();
 
 	}
 

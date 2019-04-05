@@ -33,12 +33,12 @@ namespace HMM {
 	{
     public:
 			virtual void make_grid(parallel::shared::Triangulation<dim> &triangulation);
+			virtual void define_boundary_values(DoFHandler<dim dof_handler);
 			virtual void set_boundary_values(DoFHandler<dim> &dof_handler,
                               double fe_timestep_length,
                               double present_time,
                               Vector<double>              &incremental_velocity,
                               std::vector<bool>           &supp_boundary_dofs,
-                              std::vector<bool>           &clmp_boundary_dofs,
                               std::vector<bool>           &load_boundary_dofs
     );
 
@@ -86,6 +86,43 @@ namespace HMM {
 				GridGenerator::subdivided_hyper_rectangle(triangulation, reps, corner1, corner2);
       }
 
+			void define_boundary_values(DoFHandler<dim> dof_handler)
+			{
+				DoFHandler<dim>::active_cell_iterator cell;
+        double eps = cell->minimum_vertex_distance();
+
+				for (cell = dof_handler.begin_active(); cell != dof_handler.end(); ++cell) {
+					for (uint32_t face = 0; face < GeometryInfo<3>::faces_per_cell; ++face){
+						for (uint32_t vert = 0; vert < GeometryInfo<3>::vertices_per_face; ++vert) {
+
+							// Point coords
+							double vertex_x = fabs(cell->face(face)->vertex(vert)(0));
+							double vertex_y = fabs(cell->face(face)->vertex(vert)(1));
+
+							// in plane distance between vertex and centre of dropweight, whihc is at 0,0
+							double x_dist = (vertex_x - 0.);
+							double y_dist = (vertex_y - 0.);
+							double dcwght = sqrt( x_dist*x_dist + y_dist*y_dist );
+
+							// is vertex impacted by the drop weight
+							if ((dcwght < diam_weight/2.)){ 
+								loaded_vertices.push_back( cell->face(face)->vertex_dof_index );
+							}
+													
+							// is point on the edge, if so it will be kept stationary
+							double delta = eps / 10.0; // in a grid, this will be small enough that only edges are used
+							if (   vertex_x > ( mesh.x/2 - delta)  
+							    || vertex_x < (-mesh.x/2 + delta) 
+							    || vertex_y > ( mesh.y/2 - delta) 
+							    || vertex_y < (-mesh.y/2 + delta))
+							{
+								support_vertices.push_back( cell->face(face)->vertex_dof_index );
+							}
+						}
+					}
+				}
+			}
+
 			// Might want to restructure this function to avoid repetitions
 			// with boundary conditions correction performed at the end of the
 			// assemble_system() function
@@ -94,7 +131,6 @@ namespace HMM {
 															double present_time,
               								Vector<double>              &incremental_velocity,
 															std::vector<bool>           &supp_boundary_dofs,
-								              std::vector<bool>           &clmp_boundary_dofs,
               								std::vector<bool>           &load_boundary_dofs
 		)
 			{
@@ -146,7 +182,6 @@ namespace HMM {
 				std::map<types::global_dof_index,double> boundary_values;
 
 				supp_boundary_dofs.resize(dof_handler.n_dofs());
-				clmp_boundary_dofs.resize(dof_handler.n_dofs());
 				load_boundary_dofs.resize(dof_handler.n_dofs());
 
 				typename DoFHandler<dim>::active_cell_iterator
@@ -164,7 +199,6 @@ namespace HMM {
 
 							for (unsigned int c = 0; c < dim; ++c) {
 								supp_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
-								clmp_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
 								load_boundary_dofs[cell->face(face)->vertex_dof_index (v, c)] = false;
 							}
 													
@@ -176,8 +210,7 @@ namespace HMM {
 							// is q point being impacted by the drop weight
 							if(is_loaded){
 								if ((dcwght < diam_weight/2.)){ 
-									value = -1.0*inc_vsupport;
-									component = 2;
+									loaded_verticies
 									load_boundary_dofs[cell->face(face)->vertex_dof_index (v, component)] = true;
 									boundary_values.insert(std::pair<types::global_dof_index, double>
 									(cell->face(face)->vertex_dof_index (v, component), value));
@@ -222,7 +255,10 @@ namespace HMM {
 
 		private:
 			boost::property_tree::ptree input_config;
-	
+			MeshDimensions							mesh;
+
+			std::vector<int>			fixed_vertices;
+      std::vector<int>			loaded_vertices;
 	};
 }
 

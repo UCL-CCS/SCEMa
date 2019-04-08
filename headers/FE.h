@@ -1,5 +1,5 @@
-#ifndef FE_PROBLEM_H
-#define FE_PROBLEM_H
+#ifndef FE_H
+#define FE_H
 
 
 #include <fstream>

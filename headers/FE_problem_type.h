@@ -17,7 +17,7 @@
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/lac/vector.h>
 
-#include "fe-spline_problem_hopk.h"
+#include "FE.h"
 
 
 namespace HMM {

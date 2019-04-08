@@ -90,8 +90,8 @@
 #include <deal.II/base/mpi.h>
 
 // Include of the FE model to solve in the simulation
-#include "headers/fe-spline_problem_hopk.h"
-
+//#include "headers/fe-spline_problem_hopk.h"
+#include "headers/FE_problem.h"
 
 namespace HMM
 {

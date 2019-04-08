@@ -17,7 +17,7 @@
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/lac/vector.h>
 
-
+#include "fe-spline_problem_hopk.h"
 
 
 namespace HMM {
@@ -33,8 +33,8 @@ namespace HMM {
 	{
     public:
 			virtual void make_grid(parallel::shared::Triangulation<dim> &triangulation);
-			virtual void define_boundary_values(DoFHandler<dim dof_handler);
-			virtual void set_boundary_values(DoFHandler<dim> &dof_handler,
+			virtual void define_boundary_values();
+			virtual void set_boundary_values(
                               double fe_timestep_length,
                               double present_time,
                               Vector<double>              &incremental_velocity,
@@ -86,9 +86,9 @@ namespace HMM {
 				GridGenerator::subdivided_hyper_rectangle(triangulation, reps, corner1, corner2);
       }
 
-			void define_boundary_values(DoFHandler<dim> dof_handler)
+			void define_boundary_values()
 			{
-				DoFHandler<dim>::active_cell_iterator cell;
+				typename DoFHandler<dim>::active_cell_iterator cell;
         double eps = cell->minimum_vertex_distance();
 
 				for (cell = dof_handler.begin_active(); cell != dof_handler.end(); ++cell) {

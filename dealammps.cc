@@ -41,13 +41,6 @@
 #include "headers/md_sim.h"
 #include "headers/stmd_sync.h"
 
-// Include of the FE model to solve in the simulation
-// (hardcoded for the moment, but should try to split the solving and
-// the mesh+BC in different headers)
-//#include "headers/fe_problem_dropweight.h"
-//#include "headers/fe_problem_hopk.h"
-#include "headers/fe-spline_problem_hopk.h"
-
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
 // which are later redefined in petsc headers
@@ -95,6 +88,10 @@
 #include <deal.II/base/symmetric_tensor.h>
 #include <deal.II/grid/filtered_iterator.h>
 #include <deal.II/base/mpi.h>
+
+// Include of the FE model to solve in the simulation
+#include "headers/fe-spline_problem_hopk.h"
+
 
 namespace HMM
 {

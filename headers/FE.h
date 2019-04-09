@@ -24,7 +24,6 @@
 #include "read_write.h"
 #include "tensor_calc.h"
 #include "scale_bridging_data.h"
-#include "problem_type.h"
 
 // Reduction model based on spline comparison
 #include "../spline/strain2spline.h"

@@ -77,8 +77,10 @@
 #include <deal.II/grid/filtered_iterator.h>
 #include <deal.II/base/mpi.h>
 
-#include "FE.h"
 #include "FE_problem_type.h"
+#include "drop_weight.h"
+#include "compact_tension.h"
+#include "FE.h"
 
 namespace HMM
 {
@@ -114,15 +116,21 @@ namespace HMM
 	template <int dim>
 			void FEProblem<dim>::make_grid ()
 			{
-					std::string mesh_input_style;
-					mesh_input_style    = input_config.get<std::string>("continuum mesh.input.style");
+					std::string problem_class;
+					problem_class = input_config.get<std::string>("problem type.class");
 					
-					if (mesh_input_style == "cuboid")
-					{
-						problem_type = (ProblemType<dim>*) new DropWeight<dim>(input_config);
-						problem_type->make_grid(triangulation);
+					if (problem_class == "drop weight"){
+							problem_type = (ProblemType<dim>*) new DropWeight<dim>(input_config);
 					}
-					else if (mesh_input_style == "file")
+					else if (problem_class == "compact tension"){
+							problem_type = (ProblemType<dim>*) new CompactTension<dim>(input_config);
+					}
+					else {
+							std::cout << "Problem type not implemented" << std::endl;
+							exit(1);
+					}
+					problem_type->make_grid(triangulation);
+					/*else if (mesh_input_style == "file")
 					{
 						std::string         twod_mesh_file;
 		                double              extrude_length;
@@ -149,7 +157,7 @@ namespace HMM
 							dcout << " with "<< extrude_points << " points" << std::endl; 
 							GridGenerator::extrude_triangulation (triangulation2D, extrude_points, extrude_length, triangulation);
 						}
-					}
+					}*/
 
 					// Check that the FEM is not passed less ranks than cells
 					if ( triangulation.n_active_cells() < n_FE_processes &&
@@ -382,7 +390,6 @@ namespace HMM
 					for (int imat=1; imat<int(mdtype.size()); imat++)
 					if(imat == int(structure_data[n][0])){
 					mat = mdtype[imat];
-					}
 					 */
 
 					//std::cout << " box number: " << n << " is in cell " << cell->active_cell_index()
@@ -2178,10 +2185,11 @@ namespace HMM
 
 		dcout << " Initiation of the Mesh...       " << std::endl;
 		make_grid ();
-		problem_type->define_boundary_conditions(&dof_handler);
 
 		dcout << " Initiation of the global vectors and tensor...       " << std::endl;
 		setup_system ();
+
+		problem_type->define_boundary_conditions(dof_handler);
 
 		dcout << " Initiation of the local tensors...       " << std::endl;
 		setup_quadrature_point_history ();
@@ -2295,5 +2303,4 @@ namespace HMM
         dcout << std::endl;
     }
 }
-
 #endif    

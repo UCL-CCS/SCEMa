@@ -11,8 +11,8 @@ namespace HMM {
 
 			void make_grid(parallel::shared::Triangulation<dim> &triangulation)
       {	
-				MeshDimensions mesh = this->read_mesh_dimensions(input_config);
-					
+				mesh = this->read_mesh_dimensions(input_config);
+	
 				// Generate block with bottom in plane 0,0. Strain applied in z axis	
 				Point<dim> corner1 (0,0,0);
 				Point<dim> corner2 (mesh.x, mesh.y, mesh.z);
@@ -32,7 +32,7 @@ namespace HMM {
 						for (uint32_t vert = 0; vert < GeometryInfo<3>::vertices_per_face; ++vert) {
 
 							// Point coords
-							double vertex_z = cell->face(face)->vertex(vert)(3);
+							double vertex_z = cell->face(face)->vertex(vert)(2);
 
 							// is vertex at base
 							if ( abs(vertex_z-0.0) < delta ){ 
@@ -42,12 +42,16 @@ namespace HMM {
 							}
 							
 							// is vertex on top	
-							if ( (vertex_z-mesh.z) < delta){
+							if ( abs(vertex_z-mesh.z) < delta){
+								// fix in x,y; load along z axis
+								fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 0) );
+								fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 1) );
 								loaded_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 2) );
 							}
 						}
 					}
 				}
+							std::cout<< "BOUNDS fixed: " << fixed_vertices.size() << " , loaded: " << loaded_vertices.size() << std::endl;
 			}
 
 			std::map<types::global_dof_index,double> set_boundary_conditions(double t)
@@ -63,7 +67,7 @@ namespace HMM {
 				}
 
 				// apply constant strain to top 
-				double strain_rate = input_config.get<double>("problem type.strain_rate");
+				double strain_rate = input_config.get<double>("problem type.strain rate");
 
 				double current_length = mesh.z * (1.0 + strain_rate * t);
 				double velocity = strain_rate * current_length;

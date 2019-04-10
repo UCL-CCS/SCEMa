@@ -11,7 +11,7 @@ namespace HMM {
 
 			void make_grid(parallel::shared::Triangulation<dim> &triangulation)
       {	
-				MeshDimensions mesh = this->read_mesh_dimensions(input_config);
+				mesh = this->read_mesh_dimensions(input_config);
 					
 				// Generate grid centred on 0,0 ; the top face is in plane with z=0	
 				Point<dim> corner1 (-mesh.x/2, -mesh.y/2, -mesh.z);
@@ -23,7 +23,7 @@ namespace HMM {
 
 			void define_boundary_conditions(DoFHandler<dim> &dof_handler)
 			{
-				double diam_weight = input_config.get<double>("drop weight.diameter");
+				double diam_weight = input_config.get<double>("problem type.diameter");
 
 				typename DoFHandler<dim>::active_cell_iterator cell;
 
@@ -43,25 +43,32 @@ namespace HMM {
 
 							// is vertex impacted by the drop weight
 							if ((dcwght < diam_weight/2.)){ 
-								for (uint32_t i=0; i<dim; i++){
-									loaded_vertices.push_back( cell->face(face)->vertex_dof_index(vert, i) );
-								}
+								//for (uint32_t i=0; i<dim; i++){
+									loaded_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 2) );
+								//}
 							}
 													
 							// is point on the edge, if so it will be kept stationary
 							double delta = eps / 10.0; // in a grid, this will be small enough that only edges are used
-							uint32_t axis = 2;
-							if (   vertex_x > ( mesh.x/2 - delta)  
-							    || vertex_x < (-mesh.x/2 + delta) 
-							    || vertex_y > ( mesh.y/2 - delta) 
-							    || vertex_y < (-mesh.y/2 + delta))
+							if (   ( abs(vertex_x - mesh.x/2) < delta )  
+							    || ( abs(vertex_x + mesh.x/2) < delta ) 
+							    || ( abs(vertex_y - mesh.y/2) < delta ) 
+							    || ( abs(vertex_y + mesh.y/2) < delta ))
+
+							//if (   vertex_x > ( mesh.x/2 - delta)  
+							//    || vertex_x < (-mesh.x/2 + delta) 
+							//    || vertex_y > ( mesh.y/2 - delta) 
+							//    || vertex_y < (-mesh.y/2 + delta))
 							{
-								std::cout <<"HERE " << face << vert << axis << std::endl;
-								fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert,axis) );
+								std::cout<<"HERE "<<mesh.x<<" "<<mesh.y<<" "<<vertex_x<<" "<<vertex_y<<std::endl;
+								for (uint32_t axis=0; axis<dim; axis++){
+									fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, axis) );
+								}
 							}
 						}
 					}
 				}
+std::cout<< "BOUNDS fixed: " << fixed_vertices.size() << " , loaded: " << loaded_vertices.size() << std::endl;
 			}
 
 			std::map<types::global_dof_index,double> set_boundary_conditions(double t)
@@ -77,8 +84,8 @@ namespace HMM {
 				}
 
 				// loaded verticies have const acceleration for first acc_steps
-				double acc_steps = input_config.get<double>("drop weight.steps to accelerate");
-				double acceleration = input_config.get<double>("drop weight.acceleration");
+				double acc_steps = input_config.get<double>("problem type.steps to accelerate");
+				double acceleration = input_config.get<double>("problem type.acceleration");
       	double fe_timestep_length  = input_config.get<double>("continuum time.timestep length");
 				double inc_acceleration = acceleration * fe_timestep_length;
 

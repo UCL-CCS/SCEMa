@@ -2189,6 +2189,7 @@ namespace HMM
 		dcout << " Initiation of the global vectors and tensor...       " << std::endl;
 		setup_system ();
 
+		dcout << " Defining the boundary conditions...			" << std::endl;
 		problem_type->define_boundary_conditions(dof_handler);
 
 		dcout << " Initiation of the local tensors...       " << std::endl;

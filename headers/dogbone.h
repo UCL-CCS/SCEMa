@@ -51,7 +51,6 @@ namespace HMM {
 						}
 					}
 				}
-							std::cout<< "BOUNDS fixed: " << fixed_vertices.size() << " , loaded: " << loaded_vertices.size() << std::endl;
 			}
 
 			std::map<types::global_dof_index,double> set_boundary_conditions(double t)

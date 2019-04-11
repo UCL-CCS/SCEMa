@@ -60,7 +60,6 @@ namespace HMM {
 							//    || vertex_y > ( mesh.y/2 - delta) 
 							//    || vertex_y < (-mesh.y/2 + delta))
 							{
-								std::cout<<"HERE "<<mesh.x<<" "<<mesh.y<<" "<<vertex_x<<" "<<vertex_y<<std::endl;
 								for (uint32_t axis=0; axis<dim; axis++){
 									fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, axis) );
 								}
@@ -68,7 +67,6 @@ namespace HMM {
 						}
 					}
 				}
-std::cout<< "BOUNDS fixed: " << fixed_vertices.size() << " , loaded: " << loaded_vertices.size() << std::endl;
 			}
 
 			std::map<types::global_dof_index,double> set_boundary_conditions(double t)

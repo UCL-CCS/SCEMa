@@ -79,7 +79,7 @@
 
 #include "FE_problem_type.h"
 #include "drop_weight.h"
-#include "compact_tension.h"
+#include "dogbone.h"
 #include "FE.h"
 
 namespace HMM
@@ -122,8 +122,8 @@ namespace HMM
 					if (problem_class == "drop weight"){
 							problem_type = (ProblemType<dim>*) new DropWeight<dim>(input_config);
 					}
-					else if (problem_class == "compact tension"){
-							problem_type = (ProblemType<dim>*) new CompactTension<dim>(input_config);
+					else if (problem_class == "dogbone"){
+							problem_type = (ProblemType<dim>*) new Dogbone<dim>(input_config);
 					}
 					else {
 							std::cout << "Problem type not implemented" << std::endl;

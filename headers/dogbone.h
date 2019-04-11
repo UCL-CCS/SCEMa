@@ -1,10 +1,10 @@
 namespace HMM {
 
 	template <int dim>
-	class CompactTension: public ProblemType<dim>
+	class Dogbone: public ProblemType<dim>
 	{
 		public:
-			CompactTension (boost::property_tree::ptree input)
+			Dogbone (boost::property_tree::ptree input)
       {
         input_config = input;
       }

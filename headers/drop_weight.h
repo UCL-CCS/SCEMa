@@ -7,6 +7,8 @@ namespace HMM {
 			DropWeight (boost::property_tree::ptree input)
       {
         input_config = input;
+				n_accelerate_steps = input_config.get<double>("problem type.steps to accelerate");
+				acceleration = input_config.get<double>("problem type.acceleration");
       }
 
 			void make_grid(parallel::shared::Triangulation<dim> &triangulation)
@@ -69,7 +71,7 @@ namespace HMM {
 				}
 			}
 
-			std::map<types::global_dof_index,double> set_boundary_conditions(double t)
+			std::map<types::global_dof_index,double> set_boundary_conditions(uint32_t timestep, double dt)
 			{
 				// define accelerations of boundary verticies
 				std::map<types::global_dof_index, double> boundary_values;
@@ -82,15 +84,10 @@ namespace HMM {
 				}
 
 				// loaded verticies have const acceleration for first acc_steps
-				double acc_steps = input_config.get<double>("problem type.steps to accelerate");
-				double acceleration = input_config.get<double>("problem type.acceleration");
-      	double fe_timestep_length  = input_config.get<double>("continuum time.timestep length");
-				double inc_acceleration = acceleration * fe_timestep_length;
-
-				for (uint32_t i=0; i<loaded_vertices.size(); i++){
-					if (t < acc_steps * fe_timestep_length){
-	        	vert = loaded_vertices[i];
-  	      	boundary_values.insert( std::pair<types::global_dof_index,double> (vert, inc_acceleration) );
+				if (timestep <= n_accelerate_steps){
+					for (uint32_t i=0; i<loaded_vertices.size(); i++){
+		       	vert = loaded_vertices[i];
+  	      	boundary_values.insert( std::pair<types::global_dof_index,double> (vert, acceleration) );
 					}
 				}
 			
@@ -123,6 +120,9 @@ namespace HMM {
 
 			std::vector<uint32_t>			fixed_vertices;
       std::vector<uint32_t>			loaded_vertices;
+
+			uint32_t 	n_accelerate_steps;
+			double		acceleration;
 	};
 
 }

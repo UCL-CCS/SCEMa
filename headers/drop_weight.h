@@ -94,7 +94,7 @@ namespace HMM {
 				return boundary_values;
 			}
 
-			std::map<types::global_dof_index,double> boundary_conditions_to_zero()
+			std::map<types::global_dof_index,double> boundary_conditions_to_zero(uint32_t timestep)
 			{
 				std::map<types::global_dof_index, double> boundary_values;
 				uint32_t vert;
@@ -103,10 +103,12 @@ namespace HMM {
 					vert = fixed_vertices[i];
 					boundary_values.insert( std::pair<types::global_dof_index,double> (vert, 0.0) );
 				}
-
-				for (uint32_t i=0; i<loaded_vertices.size(); i++){
-					vert = loaded_vertices[i];
-					boundary_values.insert( std::pair<types::global_dof_index,double> (vert, 0.0) );
+				
+			  if (timestep <= n_accelerate_steps){
+					for (uint32_t i=0; i<loaded_vertices.size(); i++){
+						vert = loaded_vertices[i];
+						boundary_values.insert( std::pair<types::global_dof_index,double> (vert, 0.0) );
+					}
 				}
 
 				return boundary_values;

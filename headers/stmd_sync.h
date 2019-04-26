@@ -985,12 +985,15 @@ namespace HMM
 
 		MPI_Barrier(mmd_communicator);
 		int n_md = md_simulations.size();
-		/*for (int i=0; i<n_md; i++){
-			mcout << i << " ";
-      for (int j=0; j<6; j++){
-        mcout << " " << md_simulations[i].strain.access_raw_entry(j);
-      } mcout << std::endl;  
-		}*/
+		for (int i=0; i<n_md; i++){
+			mcout << md_simulations[i].qp_id << " ";
+			//mcout << i << " ";
+      //for (int j=0; j<6; j++){
+      //   mcout << " " << md_simulations[i].strain.access_raw_entry(j);
+      //} mcout << std::endl;  
+		}
+		mcout << std::endl;
+
 		if (n_md>0){
 			if(use_pjm_scheduler){
 				execute_pjm_md_simulations();

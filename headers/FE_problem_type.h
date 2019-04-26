@@ -32,7 +32,7 @@ namespace HMM {
 			virtual void make_grid(parallel::shared::Triangulation<dim> &triangulation);
 			virtual void define_boundary_conditions(DoFHandler<dim> &dof_handler);
 			virtual std::map<types::global_dof_index, double> set_boundary_conditions(uint32_t timestep, double dt);
-			virtual std::map<types::global_dof_index, double> boundary_conditions_to_zero();
+			virtual std::map<types::global_dof_index, double> boundary_conditions_to_zero(uint32_t timestep);
 
 			MeshDimensions read_mesh_dimensions(boost::property_tree::ptree input_config)
 			{

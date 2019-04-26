@@ -879,7 +879,7 @@ namespace HMM
 		FEValuesExtractors::Scalar z_component (dim-1);
 
 		std::map<types::global_dof_index,double> boundary_values;
-		boundary_values = problem_type->boundary_conditions_to_zero();
+		boundary_values = problem_type->boundary_conditions_to_zero(timestep);
 
 		PETScWrappers::MPI::Vector tmp (locally_owned_dofs,FE_communicator);
 		MatrixTools::apply_boundary_values (boundary_values,

@@ -351,6 +351,10 @@ namespace HMM
 		// microstructure and applying the complete new_strain or starting from
 		// the microstructure at the old_strain and applying the difference between
 		// the new_ and _old_strains, returns the new_stress state.
+		if(this_md_batch_process == 0)
+		{
+			std::cout << " \t" << md_sim.qp_id <<"-"<< md_sim.replica<<"-start" << std::flush;
+		}
 		MPI_Barrier(md_batch_communicator);
 
 		if (approx_md_with_hookes_law == true){

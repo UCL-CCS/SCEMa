@@ -102,7 +102,7 @@ namespace HMM {
 				return boundary_values;
 			}
 
-			std::map<types::global_dof_index,double> boundary_conditions_to_zero()
+			std::map<types::global_dof_index,double> boundary_conditions_to_zero(uint32_t timestep)
 			{
 				std::map<types::global_dof_index, double> boundary_values;
 				uint32_t vert;

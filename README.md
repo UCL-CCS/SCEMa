@@ -7,7 +7,7 @@ Heterogeneous Multiscale Method implementation featuring Deal.II (FE) and LAMMPS
 More details about this algorithm can be found in the following publication:
 > Maxime Vassaux, Robin A. Richardson and Peter V. Coveney. [*The heterogeneous multiscale method applied to inelastic polymer mechanics.*](https://www.researchgate.net/publication/328930018_The_heterogeneous_multiscale_method_applied_to_inelastic_polymer_mechanics) Philosophical Transactions A, doi:10.1098/rsta.2018.0150. 
 
-> Maxime Vassaux  Robert C. Sinclair  Robin A. Richardson  James L. Suter  Peter V. Coveney [*The Role of Graphene in Enhancing the Material Properties of Thermosetting Polymers*]
+> Maxime Vassaux, Robert C. Sinclair, Robin A. Richardson, James L. Suter, Peter V. Coveney [*The Role of Graphene in Enhancing the Material Properties of Thermosetting Polymers*]
 (https://onlinelibrary.wiley.com/doi/full/10.1002/adts.201800168) Advanced Theory and Simulation, doi:10.1002/adts.201800168
 
 

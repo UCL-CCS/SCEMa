@@ -240,8 +240,8 @@ namespace HMM
 					newton_update_displacement.reinit (dof_handler.n_dofs());
 					incremental_displacement.reinit (dof_handler.n_dofs());
 					displacement.reinit (dof_handler.n_dofs());
-					old_displacement.reinit (dof_handler.n_dofs());
-					for (unsigned int i=0; i<dof_handler.n_dofs(); ++i) old_displacement(i) = 0.0;
+					//old_displacement.reinit (dof_handler.n_dofs());
+					//for (unsigned int i=0; i<dof_handler.n_dofs(); ++i) old_displacement(i) = 0.0;
 
 					newton_update_velocity.reinit (dof_handler.n_dofs());
 					incremental_velocity.reinit (dof_handler.n_dofs());
@@ -2291,7 +2291,7 @@ namespace HMM
 		dcout << std::endl << "VEL  " << timestep << " " << velocity( 272) << std::endl;
 		velocity+=incremental_velocity;
 		displacement+=incremental_displacement;
-		old_displacement=displacement;
+		//old_displacement=displacement;
 
 		dcout << std::endl << "VEL2 " << timestep << " "<< velocity( 272) << std::endl;
 		dcout << "INCV " << timestep << " "<< incremental_velocity(272) << std::endl;

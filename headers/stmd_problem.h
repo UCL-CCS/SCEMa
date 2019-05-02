@@ -353,7 +353,7 @@ namespace HMM
 		// the new_ and _old_strains, returns the new_stress state.
 		if(this_md_batch_process == 0)
 		{
-			std::cout << " \t" << md_sim.qp_id <<"-"<< md_sim.replica<<"-start" << std::flush;
+			std::cout << " \t" << md_sim.qp_id <<"-"<< md_sim.replica<<"-start" << std::endl << std::flush;
 		}
 		MPI_Barrier(md_batch_communicator);
 
@@ -370,7 +370,7 @@ namespace HMM
 		MPI_Barrier(md_batch_communicator);
 		if(this_md_batch_process == 0)
 		{
-			std::cout << " \t" << md_sim.qp_id <<"-"<< md_sim.replica << std::flush;
+			std::cout << " \t" << md_sim.qp_id <<"-"<< md_sim.replica << std::endl << std::flush;
 		}
 	}
 }

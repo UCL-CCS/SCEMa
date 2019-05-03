@@ -195,11 +195,10 @@ namespace HMM
 			md_sim.strain[i][(i+1)%dim] /= lbdim[(i+2)%dim];
 		}
 
-		// Number of timesteps in the MD simulation, enforcing at least one.
+		// Number of timesteps in the MD simulation, enforcing at least 10
 		int nts;
 		nts = md_sim.strain.norm() / (md_sim.timestep_length * md_sim.strain_rate);
-		nts = std::max(nts,1);
-		
+		nts = std::max(nts,10);
 
 		sprintf(cline, "variable dts equal %f", md_sim.timestep_length); lammps_command(lmp,cline);
 		sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);

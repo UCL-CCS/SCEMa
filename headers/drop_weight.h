@@ -10,7 +10,7 @@ namespace HMM {
 				n_accelerate_steps = input_config.get<double>("problem type.steps to accelerate");
 				acceleration = input_config.get<double>("problem type.acceleration");
         timestep_length = input_config.get<double>("continuum time.timestep length");
-        velocity_increment = acceleration * timestep_length;
+        velocity_increment = -acceleration * timestep_length;
       }
 
 			void make_grid(parallel::shared::Triangulation<dim> &triangulation)

@@ -280,6 +280,8 @@ namespace HMM
 			sprintf(cline, "read_restart %s", straindata_last); /*opls*/
 			lammps_command(lmp,cline); /*opls*/
 		}
+    
+		sprintf(cline, "reset_timestep 0"); lammps_command(lmp,cline);
 
 		sprintf(cline, "variable dts equal %f", md_sim.timestep_length); lammps_command(lmp,cline);
 

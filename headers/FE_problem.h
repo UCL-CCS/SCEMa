@@ -2288,14 +2288,9 @@ namespace HMM
 	void FEProblem<dim>::endstep (){
 
 		// Updating the total displacement and velocity vectors
-		dcout << std::endl << "VEL  " << timestep << " " << velocity( 272) << std::endl;
 		velocity+=incremental_velocity;
 		displacement+=incremental_displacement;
 		//old_displacement=displacement;
-
-		dcout << std::endl << "VEL2 " << timestep << " "<< velocity( 272) << std::endl;
-		dcout << "INCV " << timestep << " "<< incremental_velocity(272) << std::endl;
-		dcout << std::endl << "DISP " << timestep << " "<< displacement( 272) << std::endl;
 
 		// Outputs
 		output_results ();

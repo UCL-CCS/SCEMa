@@ -48,7 +48,7 @@ namespace HMM {
 								fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 0) );
 								fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 1) );
 								loaded_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 2) );
-								std::cout << "LOAD " << cell->face(face)->vertex_dof_index(vert, 2) << std::endl;
+								//std::cout << "LOAD " << cell->face(face)->vertex_dof_index(vert, 2) << std::endl;
 							}
 						}
 					}
@@ -74,7 +74,7 @@ namespace HMM {
 				if (timestep == 1){
 					//acceleration = strain_rate * mesh.z / dt;
 					acceleration = strain_rate * mesh.z / dt;
-					std::cout << "SET ACC " << acceleration << " "<< strain_rate * mesh.z << std::endl;
+					//std::cout << "SET ACC " << acceleration << " "<< strain_rate * mesh.z << std::endl;
 				}
 				else {
 					acceleration = 0;
@@ -93,7 +93,7 @@ namespace HMM {
 	
 						acceleration = (current_velocity - prev_velocity) / dt;
 				}*/
-				std::cout << "ACCELERATION " << acceleration << std::endl;
+				//std::cout << "ACCELERATION " << acceleration << std::endl;
 				for (uint32_t i=0; i<loaded_vertices.size(); i++){
 	       	vert = loaded_vertices[i];
   	     	boundary_values.insert( std::pair<types::global_dof_index,double> (vert, acceleration) );

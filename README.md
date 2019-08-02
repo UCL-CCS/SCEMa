@@ -22,7 +22,7 @@ Deal.II need to be compiled with dependencies required to run the tutorial [step
 
 Continuum mechanics equilibrium equations are solved on the basis of a linear elastic material. Non-linear stress/strain beahvior is captured running MD simulations of a sample of material subject to the continuum strain when needed. 
 
-A database is populated with the stress/strain history computed using MD simulations. When sufficiently filled, the database is used to infer the induced stress given a current strain history. Such technique reduces rapidly and drastically the number of MD simulations to run.
+The number of MD simulations can be drastically reduced through a graph reduction method with thresholding of "similarity" of one microstate's material history (strain vs time) with another - currently using L2 norm.
 
 ## Compile and run:
 After installing separately LAMMPS and Deal.II, and building your MD input lammps data file.

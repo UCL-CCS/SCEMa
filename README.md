@@ -5,7 +5,8 @@
 Heterogeneous Multiscale Method implementation featuring Deal.II (FE) and LAMMPS (MD). Enables simulations coupling semi-concurrently the evolution of an atomistic and a continuum system. The evolution of the continuum system drives the mechanical evolution of the periodic homogeneous atomistic replicas.
 
 More details about this algorithm can be found in the following publication:
-> Maxime Vassaux, Robin Richardson and Peter Coveney. [*The heterogeneous multiscale method applied to inelastic polymer mechanics.*](https://www.researchgate.net/publication/328930018_The_heterogeneous_multiscale_method_applied_to_inelastic_polymer_mechanics) Philosophical Transactions A (in press), doi:10.1098/rsta.2018.0150. 
+> Maxime Vassaux, Robin Richardson and Peter Coveney. [*The heterogeneous multiscale method applied to inelastic polymer mechanics.*](https://www.researchgate.net/publication/328930018_The_heterogeneous_multiscale_method_applied_to_inelastic_polymer_mechanics) Philosophical Transactions A, 377(2142), doi:10.1098/rsta.2018.0150.
+
 
 ## Dependencies:
 Works (at least) using [Deal.II/8.4.1](https://dealii.kyomu.43-1.org/downloads/dealii-9.0.1.tar.gz) or above, and [LAMMPS/17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz).
@@ -36,3 +37,7 @@ cmake ../
 ```
 Additionally, a FE mesh can be imported from a GMSH file, and most of the parameters of the simulation can be found in dealammps.cc
 
+Publications:
+Vassaux, M., Richardson, R. A., & Coveney, P. V. (2019). The heterogeneous multiscale method applied to inelastic polymer mechanics. Philosophical Transactions of the Royal Society A, 377(2142), 20180150.
+Vassaux, M., Sinclair, R. C., Richardson, R. A., Suter, J. L., & Coveney, P. V. (2019). The Role of Graphene in Enhancing the Material Properties of Thermosetting Polymers. Advanced Theory and Simulations, 2(5), 1800168.
+Vassaux, M., Sinclair, R. C., Richardson, R. A., Suter, J. L., & Coveney, P. V. (2019). Towards high fidelity materials property prediction from multiscale modelling and simulation", Advanced Theory and Simulations. Accepted for publication.

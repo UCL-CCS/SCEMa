@@ -20,7 +20,7 @@
 // Specifically built header files
 #include "read_write.h"
 #include "tensor_calc.h"
-#include "stmd_problem.h"
+//#include "stmd_problem.h"
 #include "eqmd_problem.h"
 
 // To avoid conflicts...

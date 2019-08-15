@@ -132,27 +132,26 @@ namespace HMM
 	template <int dim>
 	void EMDProblem<dim>::read_inputs (std::string inputfile)
 	{
-	    using boost::property_tree::ptree;
-
-	    std::ifstream jsonFile(inputfile);
-	    ptree pt;
-	    try{
-		    read_json(jsonFile, pt);
-	    }
-	    catch (const boost::property_tree::json_parser::json_parser_error& e)
-	    {
-	        hcout << "Invalid JSON HMM input file (" << inputfile << ")" << std::endl;  // Never gets here
-	    }
-
+      std::ifstream jsonFile(inputfile);
+      try{
+        read_json(jsonFile, input_config);
+      }
+      catch (const boost::property_tree::json_parser::json_parser_error& e)
+      {
+          hcout << "Invalid JSON HMM input file (" << inputfile << ")" << std::endl;  // Never gets here
+      }
+                  
+      boost::property_tree::read_json(inputfile, input_config);
+            
 	    // Scale-bridging parameters
-	    use_pjm_scheduler = std::stoi(bptree_read(pt, "scale-bridging", "use pjm scheduler"));
+	    use_pjm_scheduler = input_config.git<bool>("scale-bridging.use pjm scheduler");
 
-		// Atomic input, output, restart and log location
-		nanostatelocin = bptree_read(pt, "directory structure", "nanoscale input");
-		nanologloc = bptree_read(pt, "directory structure", "nanoscale log");
+		  // Atomic input, output, restart and log location
+		  nanostatelocin = input_config.get<std::string>("directory structure.nanoscale input");
+		  nanologloc = input_config.get<std::string>("directory structure.nanoscale log");
 
 		// Molecular dynamics material data
-		nrepl = std::stoi(bptree_read(pt, "molecular dynamics material", "number of replicas"));
+		nrepl = input_config.get<int>(_read(pt, "molecular dynamics material.number of replicas"));
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
 				get_subbptree(pt, "molecular dynamics material").get_child("list of materials.")) {
 			mdtype.push_back(v.second.data());
@@ -172,18 +171,18 @@ namespace HMM
 		}
 
 		// Molecular dynamics simulation parameters
-		md_timestep_length = std::stod(bptree_read(pt, "molecular dynamics parameters", "timestep length"));
-		md_temperature = std::stod(bptree_read(pt, "molecular dynamics parameters", "temperature"));
-		md_nsteps_sample = std::stoi(bptree_read(pt, "molecular dynamics parameters", "number of sampling steps"));
-		md_nsteps_equil = std::stoi(bptree_read(pt, "molecular dynamics parameters", "number of equilibration steps"));
-		md_strain_rate = std::stod(bptree_read(pt, "molecular dynamics parameters", "strain rate"));
-		md_strain_ampl = std::stod(bptree_read(pt, "molecular dynamics parameters", "strain amplitude"));
-		md_force_field = bptree_read(pt, "molecular dynamics parameters", "force field");
-		md_scripts_directory = bptree_read(pt, "molecular dynamics parameters", "scripts directory");
+		md_timestep_length = input_config.get<double>("molecular dynamics parameters.timestep length");
+		md_temperature = input_config.get<double>("molecular dynamics parameters.temperature");
+		md_nsteps_sample = input_config.get<int>("molecular dynamics parameters.number of sampling steps");
+		md_nsteps_equil = input_config.get<int>("molecular dynamics parameters.number of equilibration steps");
+		md_strain_rate = input_config.get<double>("molecular dynamics parameters.strain rate");
+		md_strain_ampl = input_config.get<double>("molecular dynamics parameters.strain amplitude");
+		md_force_field = input_config.get<std::string>("molecular dynamics parameters.force field");
+		md_scripts_directory = input_config.get<std::string>("molecular dynamics parameters.scripts directory");
 
 		// Computational resources
-		machine_ppn = std::stoi(bptree_read(pt, "computational resources", "machine cores per node"));
-		batch_nnodes_min = std::stoi(bptree_read(pt, "computational resources", "minimum nodes per MD simulation"));
+		machine_ppn = input_config.get<int>("computational resources.machine cores per node");
+		batch_nnodes_min = input_config.get<int>("computational resource.minimum nodes per MD simulation");
 
 		// Print a recap of all the parameters...
 		hcout << "Parameters listing:" << std::endl;

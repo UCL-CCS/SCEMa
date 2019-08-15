@@ -36,7 +36,7 @@
 // Specifically built header files
 #include "headers/read_write.h"
 #include "headers/tensor_calc.h"
-#include "headers/eqmd_sync.h"
+#include "headers/init_material_sync.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -105,6 +105,7 @@ namespace HMM
 
 		std::string							md_scripts_directory;
 
+    boost::property_tree::ptree input_config;
 
 	};
 
@@ -144,16 +145,16 @@ namespace HMM
       boost::property_tree::read_json(inputfile, input_config);
             
 	    // Scale-bridging parameters
-	    use_pjm_scheduler = input_config.git<bool>("scale-bridging.use pjm scheduler");
+	    use_pjm_scheduler = input_config.get<bool>("scale-bridging.use pjm scheduler");
 
 		  // Atomic input, output, restart and log location
 		  nanostatelocin = input_config.get<std::string>("directory structure.nanoscale input");
 		  nanologloc = input_config.get<std::string>("directory structure.nanoscale log");
 
 		// Molecular dynamics material data
-		nrepl = input_config.get<int>(_read(pt, "molecular dynamics material.number of replicas"));
+		nrepl = input_config.get<int>("molecular dynamics material.number of replicas");
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(pt, "molecular dynamics material").get_child("list of materials.")) {
+				get_subbptree(input_config, "molecular dynamics material").get_child("list of materials.")) {
 			mdtype.push_back(v.second.data());
 		}
 		// Direction to which all MD data are rotated to, to later ease rotation in the FE problem. The
@@ -161,7 +162,7 @@ namespace HMM
 		// tensors are rotated to this referential from the microstructure given orientation
 		std::vector<double> tmp_dir;
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(pt, "molecular dynamics material").get_child("rotation common ground vector.")) {
+				get_subbptree(input_config, "molecular dynamics material").get_child("rotation common ground vector.")) {
 			tmp_dir.push_back(std::stod(v.second.data()));
 		}
 		if(tmp_dir.size()==dim){

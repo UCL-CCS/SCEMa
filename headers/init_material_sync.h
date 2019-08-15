@@ -20,8 +20,7 @@
 // Specifically built header files
 #include "read_write.h"
 #include "tensor_calc.h"
-//#include "stmd_problem.h"
-#include "eqmd_problem.h"
+#include "init_material_problem.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX

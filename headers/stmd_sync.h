@@ -22,7 +22,6 @@
 #include "read_write.h"
 #include "tensor_calc.h"
 #include "stmd_problem.h"
-#include "eqmd_problem.h"
 #include "scale_bridging_data.h"
 
 

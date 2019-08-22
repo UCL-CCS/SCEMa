@@ -1,7 +1,7 @@
 {
 	"problem type":{
 		"class": "dogbone",
-		"strain rate": 0.005
+		"strain rate": 0.002
  	},
   "scale-bridging":{
     "activate md update": 1,
@@ -11,11 +11,11 @@
   "continuum time":{
     "timestep length": 5.0e-7,
     "start timestep": 1,
-    "end timestep": 200
+    "end timestep": 500
   },
   "continuum mesh":{
     "fe degree": 1,
-    "quadrature formula": 1,
+    "quadrature formula": 2,
     "input": {
       "style" : "cuboid",
       "x length" : 0.03,

@@ -984,8 +984,9 @@ namespace HMM
 
 		MPI_Barrier(mmd_communicator);
 		int n_md = md_simulations.size();
+    mcout << "        Running " << n_md << " simulations:\n";
 		for (int i=0; i<n_md; i++){
-			mcout << md_simulations[i].qp_id << " ";
+			mcout << md_simulations[i].qp_id <<"-"<<md_simulations[i].replica << " ";
 			//mcout << i << " ";
       //for (int j=0; j<6; j++){
       //   mcout << " " << md_simulations[i].strain.access_raw_entry(j);

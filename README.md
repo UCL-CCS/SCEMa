@@ -9,7 +9,7 @@ More details about this algorithm can be found in the following publication:
 
 
 ## Dependencies:
-Works (at least) using [Deal.II/8.4.1](https://dealii.kyomu.43-1.org/downloads/dealii-9.0.1.tar.gz) or above, and [LAMMPS/17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz).
+Works using [Deal.II/8.4.1](https://dealii.kyomu.43-1.org/downloads/dealii-9.0.1.tar.gz) or above, and [LAMMPS/17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz).
 
 LAMMPS need to be compiled as a shared library, with the RIGID and USER-REAXC packages:
 ```sh

@@ -9,17 +9,34 @@ More details about this algorithm can be found in the following publication:
 
 
 ## Dependencies:
-Works (at least) using [Deal.II/8.4.1](https://dealii.kyomu.43-1.org/downloads/dealii-9.0.1.tar.gz) or above, and [LAMMPS/17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz).
+At the moment, there are __strict dependencies__ on the versions of various packages required by this softare stack.
+The bootstrap/platform infrastructure below has been tested on a number of clusters/supercomputers (running linux) and is therefore recommended.
 
-LAMMPS need to be compiled as a shared library, with the RIGID and USER-REAXC packages:
+>
+* gcc 6.3.0
+* cmake 3.5.2
+* gnu make 4.1 or greater, preferably 4.2.1
+
+[v8.4.1 of Deal.II](https://dealii.org) is required along with the following specific dependencies
+>
+* Boost libraries 1.60.0
+* Petsc & slepc 3.6.4 with 64-bit int support
+* HDF5 libraries
+* built with MPICH (will not work with OpenMPI!)
+
+Deal.II need to be compiled with dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), that is the following dependencies: MPI, PETSc, METIS, BOOST, HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html).
+
+LAMMPS versions [17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz) through [7Aug19](https://lammps.sandia.gov/tars/lammps-7Aug19.tar.gz) have been tested.
+
+LAMMPS need to be compiled as a shared library with MPI support, along with the RIGID and USER-REAXC packages:
+
+Here is an example `make` invocation for the 16Nov16 version
 ```sh
 cd /path/to/lammps-17Nov16/src
 make yes-RIGID
 make yes-USER-REAXC
 make mode=shlib mpi
 ```
-
-Deal.II need to be compiled with dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), that is the following dependencies: MPI, PETSc, METIS, BOOST, HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, and UMFPACK. Complete instructions can be found [here](https://www.dealii.org/9.0.0/readme.html), and more specified directions for the ARCHER supercomputer, [here](https://github.com/ARCHER-CSE/build-instructions/tree/master/deal.II/build-gnu-64-petsc).
 
 Continuum mechanics equilibrium equations are solved on the basis of a linear elastic material. Non-linear stress/strain beahvior is captured running MD simulations of a sample of material subject to the continuum strain when needed. 
 

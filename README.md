@@ -17,14 +17,13 @@ The bootstrap/platform infrastructure below has been tested on a number of clust
 * cmake 3.5.2
 * gnu make 4.1 or greater, preferably 4.2.1
 
-[v8.4.1 of Deal.II](https://dealii.org) is required along with the following specific dependencies
+[v8.4.1 of Deal.II](https://dealii.org) is the only supported one. Deal.II need to be compiled with the dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), that is the following dependencies: MPI, PETSc, METIS, BOOST, HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, HDF5, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html).
+An important aspect is that the MPI support for DealII and its dependencies must be built with __MPICH__ (will not work with OpenMPI!)
+
+The recommended versions of a few libraries are given below
 >
 * Boost libraries 1.60.0
 * Petsc & slepc 3.6.4 with 64-bit int support
-* HDF5 libraries
-* built with MPICH (will not work with OpenMPI!)
-
-Deal.II need to be compiled with dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), that is the following dependencies: MPI, PETSc, METIS, BOOST, HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html).
 
 LAMMPS versions [17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz) through [7Aug19](https://lammps.sandia.gov/tars/lammps-7Aug19.tar.gz) have been tested.
 

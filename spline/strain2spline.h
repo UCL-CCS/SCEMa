@@ -10,13 +10,14 @@
 
 #include "spline.h"
 
-typedef struct
-{
-	uint32_t ID;
-	double diff;
-} HISTORY_ID_DIFF_PAIR;
 
 namespace MatHistPredict {
+
+    typedef struct
+    {
+        uint32_t ID;
+        double diff;
+    } HISTORY_ID_DIFF_PAIR;
 
 	class Strain6D
 	{
@@ -211,7 +212,7 @@ namespace MatHistPredict {
 			{
 				return most_similar_history.diff;
 			}
-			
+
 			void clear_most_similar_history()
 			{
 				most_similar_history.ID = std::numeric_limits<uint32_t>::max();;
@@ -355,7 +356,7 @@ namespace MatHistPredict {
 			// The ID and L2 norm difference of the most similar strain history, calculated by running compare_histories_with_all_ranks()
 			HISTORY_ID_DIFF_PAIR most_similar_history;
 
-			// List of all (other) histories within threshold difference of this history			
+			// List of all (other) histories within threshold difference of this history
 			std::vector<HISTORY_ID_DIFF_PAIR> most_similar_histories;
 			std::vector<HISTORY_ID_DIFF_PAIR> all_similar_histories;
 
@@ -420,8 +421,6 @@ namespace MatHistPredict {
 
 	void send_strain6D_mpi(Strain6D *in_s6D, int32_t target_rank, int32_t this_rank, MPI_Comm comm)
 	{
-		MPI_Request request;
-
 		std::vector<double> *strain = in_s6D->get_spline();
 		uint32_t ID = in_s6D->get_ID();
 		int32_t num_doubles_to_send = strain->size();
@@ -447,14 +446,12 @@ namespace MatHistPredict {
 
 	void compare_histories_with_all_ranks(std::vector<Strain6D*>& histories, double threshold, MPI_Comm comm)
 	{
-	
-		MPI_Request request;
 		MPI_Status status;
 
 		int32_t this_rank, num_ranks;
 		MPI_Comm_rank(comm, &this_rank);
 		MPI_Comm_size(comm, &num_ranks);
-		
+
 		// For receiving the strain history and ID from another rank
 		const int32_t max_buf_size = 2000;
 		Strain6DReceiver recv(max_buf_size);
@@ -467,11 +464,6 @@ namespace MatHistPredict {
 		for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
 			histories[h]->clear_most_similar_history();
 		}
-		
-		// check if communication is the problem
-		//for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
-		//	assert(	histories[a]->get_spline()->size() == 60);
-		//}
 
 		// Cycle through all ranks in the communicator in a ring-like fashion, sending
 		// to this_rank+i (periodic) and receiving from this_rank-i (periodic). This
@@ -480,9 +472,8 @@ namespace MatHistPredict {
 		for(int32_t i = 0; i < num_ranks; i++) {
 			int32_t target_rank = modulo_neg(this_rank + i, num_ranks); // send data to target_rank
 			int32_t from_rank = modulo_neg(this_rank - i, num_ranks); // receive data sent by from_rank
-			
+
 			// If we are not considering cells on the same rank
-//			std::cout << "Rank " << this_rank << ": Targetting " << target_rank << " Expecting " << from_rank << "\n";
 			if(target_rank != this_rank) {
 				// Indicate the number of histories that will be sent to target_rank
 				MPI_Send(&num_histories_on_this_rank, 1, MPI_UNSIGNED, target_rank, this_rank, comm);
@@ -502,25 +493,18 @@ namespace MatHistPredict {
 					receive_strain6D_mpi(&recv, from_rank, comm);
 
 					for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
-//		std::cout << "COMP1 "<< this_rank << " " << histories.size();
-//		std::cout <<" \t"<< histories[h]->get_spline()->size() << "-" << recv.recv_count;
-//		std::cout << std::endl << std::flush;
 							double diff = compare_L2_norm(histories[h], &recv);
 						histories[h]->choose_most_similar_history(diff, recv.ID, threshold);
-//						std::cout << "Comparison between rank " << this_rank << ", cell " << histories[h]->get_ID() << " and rank " <<  from_rank << ", cell " << recv.ID << ": " << diff << "\n";
 					}
 				}
 
-			} else { // Considering cells on the same rank
+			} else {
+                // Considering cells on the same rank
 				for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
 					for(uint32_t b = a + 1; b < num_histories_on_this_rank; b++) {
-//		std::cout << "COMP3 "<< this_rank << " " << histories.size();
-//		std::cout <<" \t"<< histories[a]->get_spline()->size() << "-"<< histories[b]->get_spline()->size();
-//		std::cout << std::endl << std::flush;
 						double diff = compare_L2_norm(histories[a], histories[b]);
 						histories[a]->choose_most_similar_history(diff, histories[b]->get_ID(), threshold); // both Strain6D's need this info
 						histories[b]->choose_most_similar_history(diff, histories[a]->get_ID(), threshold); // both Strain6D's need this info
-						//std::cout << "Same rank comparison (" << this_rank << ") cell " << histories[a]->get_ID() << " vs cell " << histories[b]->get_ID() << ": " << diff << "\n";
 					}
 				}
 			}

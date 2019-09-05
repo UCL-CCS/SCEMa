@@ -13,22 +13,30 @@
 
 namespace MatHistPredict {
 
+    // Data type for storing the results of a comparison between this strain history
+    // and another (with the specified ID)
     typedef struct
     {
         uint32_t ID;
         double diff;
     } HISTORY_ID_DIFF_PAIR;
 
+    /**
+     * A Strain6D object is intended to hold the strain history (6 unique components) for a given gauss point in the FE mesh.
+     * Provides helper methods for fitting splines to this trajectory to allow for comparison with other Strain6D objects.
+     */
 	class Strain6D
 	{
 		public:
+
+            /* Construct a Strain6D object initialized with an empty strain history */
 			Strain6D()
 			{
 				up_to_date = false;
 				num_steps_added = 0;
 				num_spline_points_per_component = 0;
 
-				ID = std::numeric_limits<uint32_t>::max(); // Should be set correctly using set_ID
+				ID = std::numeric_limits<uint32_t>::max(); // Should be set correctly using set_ID()
 				ID_is_set = false;
 
 				most_similar_history.ID = 0;
@@ -39,12 +47,14 @@ namespace MatHistPredict {
 				ID_to_get_results_from = std::numeric_limits<uint32_t>::max();
 			}
 
+            /* Set the ID of this Strain6D. This should be a unique identifier of the gauss point this strain history is associated with. */
 			void set_ID(uint32_t ID)
 			{
 				this->ID = ID;
 				this->ID_is_set = true;
 			}
 
+            /* Add a new strain state to this history */
 			void add_current_strain(double strain_xx, double strain_yy, double strain_zz, double strain_xy, double strain_xz, double strain_yz)
 			{
 				up_to_date = false;
@@ -58,6 +68,7 @@ namespace MatHistPredict {
 				num_steps_added++;
 			}
 
+            /* Add a new strain state, and the associated stress (only needed for testing with ML techniques) */
 			void add_current_strain(double strain_xx, double strain_yy, double strain_zz, double strain_xy, double strain_xz, double strain_yz,
 						double stress_xx, double stress_yy, double stress_zz, double stress_xy, double stress_xz, double stress_yz)
 			{
@@ -151,6 +162,7 @@ namespace MatHistPredict {
 				up_to_date = true;
 			}
 
+            /* Print out the spline version of this history (if calculated) */
 			void print()
 			{
 				if(!up_to_date) {
@@ -161,6 +173,7 @@ namespace MatHistPredict {
 				}
 			}
 
+            /* Write the spline data to file */
 			void spline_to_file(char *out_fname)
 			{
 				if(!up_to_date) {
@@ -180,15 +193,17 @@ namespace MatHistPredict {
 				outfile.close();
 			}
 
+            /* Return the splinified version of this strain history, or give an error if it was not recalculated since being updated. */
 			std::vector<double> * get_spline()
 			{
 				if(!up_to_date) {
 					std::cout << "Spline is not up to date.\n";
 					exit(1);
 					}
-          return &spline;
+                return &spline;
 			}
 
+            /* Get the ID of the gauss point associated with this strain history */
 			uint32_t get_ID()
 			{
 				if(!ID_is_set) {
@@ -198,21 +213,26 @@ namespace MatHistPredict {
 				return ID;
 			}
 
+            /* Return the number of points used in the spline of each of the 6 unique strain components */
 			uint32_t get_num_spline_points_per_component()
 			{
 				return num_spline_points_per_component;
 			}
 
+
+            /* For legacy reasons only */
 			uint32_t get_most_similar_history_ID()
 			{
 				return most_similar_history.ID;
 			}
 
+            /* For legacy reasons only */
 			double get_most_similar_history_diff()
 			{
 				return most_similar_history.diff;
 			}
 
+            /* Clear the list of most similar history IDs (in preparation for rebuilding it) */
 			void clear_most_similar_history()
 			{
 				most_similar_history.ID = std::numeric_limits<uint32_t>::max();;
@@ -222,6 +242,7 @@ namespace MatHistPredict {
 				all_similar_histories.clear();
 			}
 
+
 			void choose_most_similar_history(double candidate_diff, uint32_t candidate_ID, double threshold)
 			{
 				HISTORY_ID_DIFF_PAIR hp;
@@ -230,12 +251,10 @@ namespace MatHistPredict {
 
 				all_similar_histories.push_back(hp);
 				if(candidate_diff < threshold) {
-					/*HISTORY_ID_DIFF_PAIR hp;
-					hp.diff = candidate_diff;
-					hp.ID = candidate_ID;*/
 					most_similar_histories.push_back(hp);
 				}
 
+                // NOTE: The following is only here for legacy reasons and will be removed
 				if(candidate_diff <= most_similar_history.diff) {
 
 					// In the rare case where several histories may be exactly equidistant,
@@ -251,6 +270,7 @@ namespace MatHistPredict {
 				}
 			}
 
+            /* Print IDs of gauss points with most similar histories to stdout */
 			void print_most_similar_histories()
 			{
 				for(uint32_t i = 0; i < most_similar_histories.size(); i++) {
@@ -258,6 +278,7 @@ namespace MatHistPredict {
 				}
 			}
 
+            /* Dump IDs and similarities of gauss points with most similar histories to file. For later use with the graph reduction python script. */
 			void most_similar_histories_to_file(const char *out_fname)
 			{
 				std::ofstream outfile(out_fname);
@@ -273,6 +294,7 @@ namespace MatHistPredict {
 				outfile.close();
 			}
 
+            /* For theory-checking/development only. This method will be eventually removed. */
 			void all_similar_histories_to_file(const char *out_fname)
 			{
 				std::ofstream outfile(out_fname);
@@ -288,6 +310,7 @@ namespace MatHistPredict {
 				outfile.close();
 			}
 
+            /* Returns true if a new molecular dynamics simulation must be run for the gauss point associated to this Strain6D */
 			bool run_new_md()
 			{
 				if(ID_to_get_results_from == ID) {
@@ -315,8 +338,6 @@ namespace MatHistPredict {
 				}
 				infile >> id_from >> id_to;
 
-				//std::cout << "cell " << ID << "id_from " << id_from << ", id_to " << id_to << std::endl;
-
 				if(id_from != ID) {
 					fprintf(stderr, "ID in mapping file (%u) does not match cell ID (%u)\n", id_from, ID);
 					exit(1);
@@ -338,31 +359,49 @@ namespace MatHistPredict {
 			}
 
 		private:
+
+            // True if the spline has been recalculated for the current history
 			bool up_to_date;
 
+            // How many strain states have been added to this history
 			uint32_t num_steps_added;
-			std::vector<double> in_XX, in_YY, in_ZZ, in_XY, in_XZ, in_YZ; // input strain at each timestep (used to build spline)
+
+            // Input strain history at each timestep (used to build spline).
+            // Represents the 6 unique components of the strain tensor.
+			std::vector<double> in_XX, in_YY, in_ZZ, in_XY, in_XZ, in_YZ;
 
 			// Stress at most recent step
 			double stress[6];
 
-			// Integer ID of the cell/quad point that this strain history belongs to
-			bool ID_is_set;
+            // Integer ID of the cell/quad point that this strain history belongs to
 			uint32_t ID;
 
+			// True if an ID has indeed been set for this Strain6D object
+			bool ID_is_set;
+
+            // How many spline points will be used to represent each of the 6 strain component histories
 			uint32_t num_spline_points_per_component;
-			std::vector<double> spline; // built spline
+
+            // Contains the most recently built spline
+			std::vector<double> spline;
 
 			// The ID and L2 norm difference of the most similar strain history, calculated by running compare_histories_with_all_ranks()
 			HISTORY_ID_DIFF_PAIR most_similar_history;
 
 			// List of all (other) histories within threshold difference of this history
 			std::vector<HISTORY_ID_DIFF_PAIR> most_similar_histories;
+
+            // Contains full list of comparisons - required for theory-checking only, and will be removed
 			std::vector<HISTORY_ID_DIFF_PAIR> all_similar_histories;
 
+            // After the graph reduction python script has run, this should be the ID of the gauss point whose
+            // MD simulation results (stress) should be used for updating this cell.
 			uint32_t ID_to_get_results_from;
 	};
 
+    /**
+     * Data type for serializing Strain6D objects to for sending/receiving via MPI
+     */
 	class Strain6DReceiver
 	{
 		public:
@@ -401,6 +440,9 @@ namespace MatHistPredict {
 		return sqrt(sum);
 	}
 
+    /**
+     * Calculate the L2 norm difference of two arrays (a and b)
+     */
 	double compare_L2_norm(Strain6D *a, Strain6D *b)
 	{
 		double *hist_A = a->get_spline()->data();
@@ -410,6 +452,9 @@ namespace MatHistPredict {
 		return compare_L2_norm(hist_A, hist_B, num_points_A, num_points_B);
 	}
 
+    /**
+     * Calculate the L2 norm difference of two Strain6D objects
+     */
 	double compare_L2_norm(Strain6D *a, Strain6DReceiver *b)
 	{
 		double *hist_A = a->get_spline()->data();
@@ -419,6 +464,9 @@ namespace MatHistPredict {
 		return compare_L2_norm(hist_A, hist_B, num_points_A, num_points_B);
 	}
 
+    /**
+     *  Sends the given strain6D object to the target_rank
+     */
 	void send_strain6D_mpi(Strain6D *in_s6D, int32_t target_rank, int32_t this_rank, MPI_Comm comm)
 	{
 		std::vector<double> *strain = in_s6D->get_spline();
@@ -430,6 +478,9 @@ namespace MatHistPredict {
 		MPI_Send(&ID, 1, MPI_UNSIGNED, target_rank, this_rank, comm);
 	}
 
+    /**
+     *  Receives a strain6D object (in Strain6DReceiver form) from the target_rank
+     */
 	void receive_strain6D_mpi(Strain6DReceiver *recv, int32_t from_rank, MPI_Comm comm)
 	{
 		MPI_Status status;
@@ -444,6 +495,11 @@ namespace MatHistPredict {
 		return ((x%n + n) % n);
 	}
 
+    /**
+     * Compares all strain histories across all ranks in given MPI communicator. Proceeds in a ring-like fashion,
+     * with every rank sending to RANKID + 1 and receiving from RANKID - 1, then sending/receiving to/from RANKID +/- 2
+     * and so on until all ranks have compared all histories.
+     */
 	void compare_histories_with_all_ranks(std::vector<Strain6D*>& histories, double threshold, MPI_Comm comm)
 	{
 		MPI_Status status;

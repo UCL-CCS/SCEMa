@@ -512,7 +512,7 @@ namespace MatHistPredict {
         MPI_Recv(&(recv->ID), 1, MPI_UNSIGNED, from_rank, from_rank, comm, &status);
     }
 
-    // Allow taking the modulo of negative numbers too
+    /* Allow taking the modulo of negative numbers too */
     int32_t modulo_neg(int32_t x, int32_t n)
     {
         return ((x%n + n) % n);
@@ -572,7 +572,7 @@ namespace MatHistPredict {
                     receive_strain6D_mpi(&recv, from_rank, comm);
 
                     for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
-                            double diff = compare_L2_norm(histories[h], &recv);
+                        double diff = compare_L2_norm(histories[h], &recv);
                         histories[h]->choose_most_similar_history(diff, recv.ID, threshold);
                     }
                 }

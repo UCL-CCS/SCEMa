@@ -30,6 +30,7 @@ def coarsegrain_dependency_network(input_folder, out_mapping_fname, num_gps):
     ----------
     input_folder : str
         Path of the directory containing similarity input files.
+        Files are assumed to be named in the pattern "last.*.similar_hist".
     out_mapping_fname : str
         File name of output mapping file.
     num_gps:
@@ -63,7 +64,6 @@ def coarsegrain_dependency_network(input_folder, out_mapping_fname, num_gps):
     # Recursively remove the highest degree node (and all neighbours) from the network until all nodes
     # are gone. When a node is removed, it and all its neighbours are mapped to obtain their results
     # from that node's MD simulation in the next MD step.
-    print("Coarsegraining dependency network...", end='')
     while num_nodes_remaining > 0:
 
         # get max degree node
@@ -84,14 +84,14 @@ def coarsegrain_dependency_network(input_folder, out_mapping_fname, num_gps):
         num_nodes_remaining = len(G)
         iterations += 1
 
-    print(" converged in", iterations, "iterations")
-
     # Output mapping to file
     with open(out_mapping_fname, "w") as outfile_map:
         for i, mapp in enumerate(mapping):
             outfile_map.write(str(i) + " " + str(mapp) + "\n");
 
-    print("Number of gauss points to be udpated:", num_gp_tbu, " - number of simulations required: ", num_gp_tbu-neighbour_removed)
+    print("Converged in", iterations, "iterations")
+    print("Number of gauss points to be udpated: ", num_gp_tbu)
+    print("Number of simulations required: ", num_gp_tbu-neighbour_removed)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,21 @@
 
 #include "spline.h"
 
-
+/**
+ * This file implements the comparison (L2 norm) between the strain histories of every gauss point,
+ * across all ranks. The Strain6D class handles the storing of the strain history for a given
+ * gauss point, and conversion to spline for the similarity check.
+ *
+ * The compare_histories_with_all_ranks() function, called simultaneously by all participating ranks,
+ * will carry out the MPI communication necessary to calculate this all-to-all comparison. The result
+ * is that each Strain6D object obtains a list of all the other Strain6D objects which are within
+ * a certain threshold similarity.
+ *
+ * These similarities can be passed to the coarsegrain_dependency_network.py script, in which a
+ * a dependency graph is created. The graph is iteratively reduced by culling the node with the
+ * highest degree (and assigning all neighbours to get their results from the corresponding gauss
+ * point's MD simulation) until all nodes are accounted for.
+ */
 namespace MatHistPredict {
 
     // Data type for storing the results of a comparison between this strain history
@@ -348,11 +362,17 @@ namespace MatHistPredict {
                 infile.close();
             }
 
+            /* What guass point (defined by its ID) should this gauss point be expecting its next
+             * MD results from.
+             */
             void set_ID_to_get_results_from(uint32_t ID)
             {
                 this->ID_to_get_results_from = ID;
             }
 
+            /* Returns the ID of the gauss point whose MD simulation(s) results should be used
+             * also by this gauss point.
+             */
             uint32_t get_ID_to_update_from()
             {
                 return ID_to_get_results_from;
@@ -423,6 +443,9 @@ namespace MatHistPredict {
             uint32_t recv_count;
     };
 
+    /**
+     * Calculate the L2 norm difference of two arrays (a and b)
+     */
     double compare_L2_norm(double *a, double *b, uint32_t num_points_a, uint32_t num_points_b)
     {
         if(num_points_a != num_points_b) {
@@ -489,7 +512,7 @@ namespace MatHistPredict {
         MPI_Recv(&(recv->ID), 1, MPI_UNSIGNED, from_rank, from_rank, comm, &status);
     }
 
-    // Handle negative numbers too
+    // Allow taking the modulo of negative numbers too
     int32_t modulo_neg(int32_t x, int32_t n)
     {
         return ((x%n + n) % n);

@@ -11,8 +11,10 @@
 #include "spline.h"
 
 /**
- * This file implements the comparison (L2 norm) between the strain histories of every gauss point,
- * across all ranks. The Strain6D class handles the storing of the strain history for a given
+ * This file implements the comparison (L2 norm) between the strain histories of every gauss point
+ * in the finite element mesh, across all ranks.
+ *
+ * The Strain6D class handles the storing of the strain history for a given
  * gauss point, and conversion to spline for the similarity check.
  *
  * The compare_histories_with_all_ranks() function, called simultaneously by all participating ranks,
@@ -256,7 +258,9 @@ namespace MatHistPredict {
                 all_similar_histories.clear();
             }
 
-
+            /* If the candidate similarity is less than the prescribed threshold, then add its ID
+             * to the list of most_similar_histories.
+             */
             void choose_most_similar_history(double candidate_diff, uint32_t candidate_ID, double threshold)
             {
                 HISTORY_ID_DIFF_PAIR hp;
@@ -577,13 +581,16 @@ namespace MatHistPredict {
                     }
                 }
 
-            } else {
-                // Considering cells on the same rank
+
+            } else { // Considering cells on the same rank
+
                 for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
                     for(uint32_t b = a + 1; b < num_histories_on_this_rank; b++) {
                         double diff = compare_L2_norm(histories[a], histories[b]);
-                        histories[a]->choose_most_similar_history(diff, histories[b]->get_ID(), threshold); // both Strain6D's need this info
-                        histories[b]->choose_most_similar_history(diff, histories[a]->get_ID(), threshold); // both Strain6D's need this info
+
+                        // Both Strain6D's need this info
+                        histories[a]->choose_most_similar_history(diff, histories[b]->get_ID(), threshold);
+                        histories[b]->choose_most_similar_history(diff, histories[a]->get_ID(), threshold);
                     }
                 }
             }

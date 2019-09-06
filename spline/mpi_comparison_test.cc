@@ -12,7 +12,6 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-
 #include <mpi.h>
 
 #include "strain2spline.h"
@@ -53,7 +52,7 @@ int main(int argc, char **argv)
 
 	char *straindir = argv[1];
 	uint32_t num_points = atoi(argv[2]);
-	double acceptable_diff_threshold = atof(argv[3]); 
+	double acceptable_diff_threshold = atof(argv[3]);
 
 	MPI_Comm comm = MPI_COMM_WORLD;
 
@@ -69,7 +68,6 @@ int main(int argc, char **argv)
 	read_directory(straindir, fnames);
 
 	// Read all strain histories to vector
-	//time_t start_read = time(NULL);
 	std::vector<MatHistPredict::Strain6D*> histories;
 	int32_t i = 0;
 	for(std::string fname : fnames) {
@@ -86,7 +84,6 @@ int main(int argc, char **argv)
 
 			erase_substring(fname, "strain_");
 			uint32_t id = atoi(fname.c_str());
-//			std::cout << id << "\n";
 			new_s6D->set_ID(id);
 
 			histories.push_back(new_s6D);
@@ -94,16 +91,12 @@ int main(int argc, char **argv)
 		i++;
 	}
 	uint32_t num_histories_on_this_rank = histories.size();
-	//time_t end_read = time(NULL);
 
-	
 	// Find the most similar strain histories
 	MatHistPredict::compare_histories_with_all_ranks(histories, acceptable_diff_threshold, comm);
 
 	// Results
 	for(uint32_t i=0; i < num_histories_on_this_rank; i++) {
-		//bool will_run_new_MD = histories[i]->run_new_sim(acceptable_diff_threshold);
-//		std::cout << "Rank " << this_rank << ": Hist" << histories[i]->get_ID() << " is most similar to Hist" << histories[i]->get_most_similar_history_ID() << " with diff " << histories[i]->get_most_similar_history_diff() << " => will_run_new_MD=" << will_run_new_MD << "\n";
 
 		//histories[i]->print_most_similar_histories();
 		histories[i]->most_similar_histories_to_file(("__results/ID_" + std::to_string(histories[i]->get_ID()) + ".txt").c_str());

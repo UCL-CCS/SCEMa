@@ -24,7 +24,9 @@
 #include <deal.II/base/mpi.h>
 
 // Specifically built header files
+#include "md_sim.h"
 #include "read_write.h"
+#include "stmd_sync.h"
 
 namespace HMM
 {
@@ -36,18 +38,14 @@ namespace HMM
 	class STMDProblem
 	{
 	public:
-		STMDProblem (MPI_Comm mdcomm, int pcolor);
+		STMDProblem (MPI_Comm mdcomm, int pcolorr);
 		~STMDProblem ();
-		void strain (std::string cid, std::string 	tid, std::string cmat,
-				  std::string slocout, std::string slocres, std::string llochom,
-				  std::string qplogloc, std::string scrloc,
-				  std::string strainif, std::string stressof,
-				  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
-				  double mdss, std::string mdff, bool outhom, bool checksav);
+		void strain (MDSim<dim>& md_sim, bool approx_md_with_hookes_law);
 
 	private:
 
-		void lammps_straining();
+		SymmetricTensor<2,dim> lammps_straining(MDSim<dim> md_sim);
+  	SymmetricTensor<2,dim> stress_from_hookes_law (SymmetricTensor<2,dim> strain);
 
 		MPI_Comm 							md_batch_communicator;
 		const int 							md_batch_n_processes;
@@ -56,35 +54,7 @@ namespace HMM
 
 		ConditionalOStream 					mdcout;
 
-		SymmetricTensor<2,dim> 				loc_rep_strain;
-		SymmetricTensor<2,dim> 				loc_rep_stress;
-
-		std::string 						cellid;
-		std::string 						timeid;
-		std::string 						cellmat;
-
-		std::string 						statelocout;
-		std::string 						statelocres;
-		std::string 						loglochom;
-		std::string 						qpreplogloc;
-		std::string 						scriptsloc;
-
-		std::string 						straininputfile;
-		std::string 						stressoutputfile;
-
-		unsigned int 						repl;
-
-		double								md_timestep_length;
-		double								md_temperature;
-		unsigned int 						md_nsteps_sample;
-		double								md_strain_rate;
-		std::string							md_force_field;
-
-		bool								output_homog;
-		bool								checkpoint_save;
-
 	};
-
 
 
 	template <int dim>
@@ -98,11 +68,9 @@ namespace HMM
 	{}
 
 
-
 	template <int dim>
 	STMDProblem<dim>::~STMDProblem ()
 	{}
-
 
 
 	// The straining function is ran on every quadrature point which
@@ -110,38 +78,34 @@ namespace HMM
 	// by a subset of processes N, we should automatically see lammps be
 	// parallelized on the N processes.
 	template <int dim>
-	void STMDProblem<dim>::lammps_straining ()
+	SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 	{
 		char locff[1024]; /*reaxff*/
-		if (md_force_field == "reax"){
-			sprintf(locff, "%s/ffield.reax.2", scriptsloc.c_str()); /*reaxff*/
+		if (md_sim.force_field == "reax"){
+			sprintf(locff, "%s/ffield.reax.2", md_sim.scripts_folder.c_str()); /*reaxff*/
 		}
-
 		// Name of nanostate binary files
 		char mdstate[1024];
-		sprintf(mdstate, "%s_%d", cellmat.c_str(), repl);
+		sprintf(mdstate, "g%d_%d", md_sim.material, md_sim.replica);
 
 		char initdata[1024];
-		sprintf(initdata, "%s/init.%s.bin", statelocout.c_str(), mdstate);
+		sprintf(initdata, "%s/init.%s.bin", md_sim.output_folder.c_str(), mdstate);
 
 		char straindata_last[1024];
-		sprintf(straindata_last, "%s/last.%s.%s.dump", statelocout.c_str(),
-				cellid.c_str(), mdstate);
-		// sprintf(straindata_last, "%s/last.%s.%s.bin", statelocout.c_str(), cellid, mdstate);
+		sprintf(straindata_last, "%s/last.%d.%s.dump", md_sim.output_folder.c_str(),
+				md_sim.qp_id, mdstate);
 
 		char straindata_time[1024];
-		sprintf(straindata_time, "%s/%s.%s.%s.dump", statelocres.c_str(),
-				timeid.c_str(), cellid.c_str(), mdstate);
-		// sprintf(straindata_lcts, "%s/lcts.%s.%s.bin", statelocres.c_str(), cellid, mdstate);
+		sprintf(straindata_time, "%s/%d.%d.%s.dump", md_sim.restart_folder.c_str(),
+				md_sim.time_id, md_sim.qp_id, mdstate);
 
 		char straindata_lcts[1024];
-		sprintf(straindata_lcts, "%s/lcts.%s.%s.dump", statelocres.c_str(),
-				cellid.c_str(), mdstate);
-		// sprintf(straindata_lcts, "%s/lcts.%s.%s.bin", statelocres.c_str(), cellid, mdstate);
+		sprintf(straindata_lcts, "%s/lcts.%d.%s.dump", md_sim.restart_folder.c_str(),
+				md_sim.qp_id, mdstate);
 
 		char homogdata_time[1024];
-		sprintf(homogdata_time, "%s/%s.%s.%s.lammpstrj", loglochom.c_str(),
-				timeid.c_str(), cellid.c_str(), mdstate);
+		sprintf(homogdata_time, "%s/%d.%d.%s.lammpstrj", md_sim.log_file.c_str(),
+				md_sim.time_id, md_sim.qp_id, mdstate);
 
 		char cline[1024];
 		char cfile[1024];
@@ -154,26 +118,27 @@ namespace HMM
 		lmparg[2] = (char *) "none";
 		lmparg[3] = (char *) "-log";
 		lmparg[4] = new char[1024];
-		sprintf(lmparg[4], "%s/log.stress_strain", qpreplogloc.c_str());
+		sprintf(lmparg[4], "%s/log.stress_strain", md_sim.log_file.c_str());
 
 		// Creating LAMMPS instance
 		LAMMPS *lmp = NULL;
 		lmp = new LAMMPS(nargs,lmparg,md_batch_communicator);
 
 		// Passing location for output as variable
-		sprintf(cline, "variable mdt string %s", cellmat.c_str()); lammps_command(lmp,cline);
-		sprintf(cline, "variable loco string %s", qpreplogloc.c_str()); lammps_command(lmp,cline);
-		if (md_force_field == "reax"){
+		sprintf(cline, "variable mdt string %d", md_sim.material); lammps_command(lmp,cline);
+		sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);
+		if (md_sim.force_field == "reax"){
 			sprintf(cline, "variable locf string %s", locff); /*reaxff*/
 			lammps_command(lmp,cline); /*reaxff*/
 		}
-
+		
 		// Setting testing temperature
-		sprintf(cline, "variable tempt equal %f", md_temperature); lammps_command(lmp,cline);
+		sprintf(cline, "variable tempt equal %f", md_sim.temperature); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
-		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "in.set.lammps");
+
+		sprintf(cfile, "%s/%s", md_sim.scripts_folder.c_str(), "in.set.lammps");
 		lammps_file(lmp,cfile);
 
 		/*mdcout << "               "
@@ -193,12 +158,12 @@ namespace HMM
 			/*mdcout << "  specifically computed." << std::endl;*/
 			ifile.close();
 
-			if (md_force_field == "reax") {
+			if (md_sim.force_field == "reax") {
 				sprintf(cline, "read_restart %s", initdata); lammps_command(lmp,cline); /*reaxff*/
 				sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", straindata_last); /*reaxff*/
 				lammps_command(lmp,cline); /*reaxff*/
 			}
-			else if (md_force_field == "opls") {
+			else if (md_sim.force_field == "opls") {
 				sprintf(cline, "read_restart %s", straindata_last); /*opls*/
 				lammps_command(lmp,cline); /*opls*/
 			}
@@ -207,11 +172,11 @@ namespace HMM
 		}
 		else{
 			/*mdcout << "  initially computed." << std::endl;*/
-
-			sprintf(cline, "read_restart %s", initdata); lammps_command(lmp,cline);
-
+			sprintf(cline, "read_restart %s", initdata); 
+			lammps_command(lmp,cline);
 			sprintf(cline, "print 'initially computed'"); lammps_command(lmp,cline);
 		}
+		
 
 		// Query box dimensions
 		char vdir[1024];
@@ -226,20 +191,26 @@ namespace HMM
 
 		// Correction of strain tensor with actual box dimensions
 		for (unsigned int i=0; i<dim; i++){
-			loc_rep_strain[i][i] /= lbdim[i];
-			loc_rep_strain[i][(i+1)%dim] /= lbdim[(i+2)%dim];
+			md_sim.strain[i][i] /= lbdim[i];
+			md_sim.strain[i][(i+1)%dim] /= lbdim[(i+2)%dim];
 		}
 
-		// Number of timesteps in the MD simulation, enforcing at least one.
-		int nts = std::max(int(std::ceil(loc_rep_strain.norm()/(md_timestep_length*md_strain_rate)/10)*10),1);
+		// Number of timesteps in the MD simulation, rounding to nearest 10, enforcing at least 10
+ //int nts = std::max(int(std::ceil(md_sim.strain.norm()/(md_sim.timestep_length*md_sim.strain_rate)/10)*10),1);
+		int nts;
+		double strain_time = md_sim.strain.norm() / md_sim.strain_rate;
+    nts = std::ceil( (strain_time/md_sim.timestep_length) /10.0) * 10;// rounded to the nearest 10
+		nts = std::max(nts,10); // check that its not 0
 
-		sprintf(cline, "variable dts equal %f", md_timestep_length); lammps_command(lmp,cline);
+
+		sprintf(cline, "variable dts equal %f", md_sim.timestep_length); lammps_command(lmp,cline);
 		sprintf(cline, "variable nts equal %d", nts); lammps_command(lmp,cline);
 
 		for(unsigned int k=0;k<dim;k++)
 			for(unsigned int l=k;l<dim;l++)
 			{
-				sprintf(cline, "variable ceeps_%d%d equal %.6e", k, l, loc_rep_strain[k][l]/(nts*md_timestep_length));
+				sprintf(cline, "variable ceeps_%d%d equal %.6e", k, l, 
+												md_sim.strain[k][l]/(nts*md_sim.timestep_length));
 				lammps_command(lmp,cline);
 			}
 
@@ -247,28 +218,28 @@ namespace HMM
 		/*mdcout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "   ... reading and executing in.strain.lammps.       " << std::endl;*/
-		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "in.strain.lammps");
+		sprintf(cfile, "%s/%s", md_sim.scripts_folder.c_str(), "in.strain.lammps");
 		lammps_file(lmp,cfile);
 
 		/*mdcout << "               "
 				<< "(MD - " << timeid <<"."<< cellid << " - repl " << repl << ") "
 				<< "Saving state data...       " << std::endl;*/
 		// Save data to specific file for this quadrature point
-		if (md_force_field == "opls"){
+		if (md_sim.force_field == "opls"){
 			sprintf(cline, "write_restart %s", straindata_last); /*opls*/
 			lammps_command(lmp,cline); /*opls*/
 		}
-		else if (md_force_field == "reax"){
+		else if (md_sim.force_field == "reax"){
 			sprintf(cline, "write_dump all custom %s id type xs ys zs vx vy vz ix iy iz", straindata_last); /*reaxff*/
 			lammps_command(lmp,cline); /*reaxff*/
 		}
 
-		if(checkpoint_save){
-			if (md_force_field == "opls") {
+		if(md_sim.checkpoint){
+			if (md_sim.force_field == "opls") {
 				sprintf(cline, "write_restart %s", straindata_lcts); lammps_command(lmp,cline); /*opls*/
 				sprintf(cline, "write_restart %s", straindata_time); lammps_command(lmp,cline); /*opls*/
 			}
-			else if (md_force_field == "reax") {
+			else if (md_sim.force_field == "reax") {
 				sprintf(cline, "write_dump all custom %s id type xs ys zs vx vy vz ix iy iz", straindata_lcts); lammps_command(lmp,cline); /*reaxff*/
 				sprintf(cline, "write_dump all custom %s id type xs ys zs vx vy vz ix iy iz", straindata_time); lammps_command(lmp,cline); /*reaxff*/
 			}
@@ -281,53 +252,55 @@ namespace HMM
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
 
 		// Creating LAMMPS instance
-		sprintf(lmparg[4], "%s/log.homogenization", qpreplogloc.c_str());
+		sprintf(lmparg[4], "%s/log.homogenization", md_sim.log_file.c_str());
 		lmp = new LAMMPS(nargs,lmparg,md_batch_communicator);
 
-		if (md_force_field == "reax"){
+		if (md_sim.force_field == "reax"){
 			sprintf(cline, "variable locf string %s", locff); /*reaxff*/
 			lammps_command(lmp,cline); /*reaxff*/
 		}
-        sprintf(cline, "variable loco string %s", qpreplogloc.c_str()); lammps_command(lmp,cline);
+        sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);
 
 		// Setting testing temperature
-		sprintf(cline, "variable tempt equal %f", md_temperature); lammps_command(lmp,cline);
+		sprintf(cline, "variable tempt equal %f", md_sim.temperature); lammps_command(lmp,cline);
 
 		// Setting general parameters for LAMMPS independentely of what will be
 		// tested on the sample next.
-		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "in.set.lammps");
+		sprintf(cfile, "%s/%s", md_sim.scripts_folder.c_str(), "in.set.lammps");
 		lammps_file(lmp,cfile);
 
-		if (md_force_field == "reax"){
+		if (md_sim.force_field == "reax"){
 			sprintf(cline, "read_restart %s", initdata); /*reaxff*/
 			lammps_command(lmp,cline); /*reaxff*/
 			sprintf(cline, "rerun %s dump x y z vx vy vz ix iy iz box yes scaled yes wrapped yes format native", straindata_last); /*reaxff*/
 			lammps_command(lmp,cline); /*reaxff*/
 
 		}
-		else if (md_force_field == "opls"){
+		else if (md_sim.force_field == "opls"){
 			sprintf(cline, "read_restart %s", straindata_last); /*opls*/
 			lammps_command(lmp,cline); /*opls*/
 		}
+    
+		sprintf(cline, "reset_timestep 0"); lammps_command(lmp,cline);
 
-		sprintf(cline, "variable dts equal %f", md_timestep_length); lammps_command(lmp,cline);
+		sprintf(cline, "variable dts equal %f", md_sim.timestep_length); lammps_command(lmp,cline);
 
-		if(output_homog){
+		if(md_sim.output_homog){
 			// Setting dumping of atom positions for post analysis of the MD simulation
 			// DO NOT USE CUSTOM DUMP: WRONG ATOM POSITIONS...
 			sprintf(cline, "dump atom_dump all atom %d %s", 1, homogdata_time); lammps_command(lmp,cline);
 		}
 
 		// Compute the secant stiffness tensor at the given stress/strain state
-		sprintf(cline, "variable locbe string %s/%s", scriptsloc.c_str(), "ELASTIC");
+		sprintf(cline, "variable locbe string %s/%s", md_sim.scripts_folder.c_str(), "ELASTIC");
 		lammps_command(lmp,cline);
 
 		// Set sampling and straining time-lengths
-		sprintf(cline, "variable nssample0 equal %d", md_nsteps_sample); lammps_command(lmp,cline);
-		sprintf(cline, "variable nssample  equal %d", md_nsteps_sample); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample0 equal %d", md_sim.nsteps_sample); lammps_command(lmp,cline);
+		sprintf(cline, "variable nssample  equal %d", md_sim.nsteps_sample); lammps_command(lmp,cline);
 
 		// Using a routine based on the example ELASTIC/ to compute the stress tensor
-		sprintf(cfile, "%s/%s", scriptsloc.c_str(), "ELASTIC/in.homogenization.lammps");
+		sprintf(cfile, "%s/%s", md_sim.scripts_folder.c_str(), "ELASTIC/in.homogenization.lammps");
 		lammps_file(lmp,cfile);
 
 		// Filling 3x3 stress tensor and conversion from ATM to Pa
@@ -339,75 +312,69 @@ namespace HMM
 			{
 				char vcoef[1024];
 				sprintf(vcoef, "pp%d%d", k+1, l+1);
-				loc_rep_stress[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*(-1.0)*1.01325e+05;
+				md_sim.stress[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*(-1.0)*1.01325e+05;
 			}
 
-		if(output_homog){
+		if(md_sim.output_homog){
 			// Unetting dumping of atom positions
 			sprintf(cline, "undump atom_dump"); lammps_command(lmp,cline);
 		}
 
 		// close down LAMMPS
 		delete lmp;
+
+		return md_sim.stress;
 	}
 
 
+	template <int dim>
+  SymmetricTensor<2,dim> STMDProblem<dim>::stress_from_hookes_law (SymmetricTensor<2,dim> strain)
+	{
+		SymmetricTensor<2,dim> stress;
+
+		SymmetricTensor<4,dim> stiffness;
+    read_tensor<dim>("nanoscale_input/init.g0_1.stiff", stiffness);
+
+		stress = stiffness * strain;
+		return stress;
+	}
+
 
 	template <int dim>
-	void STMDProblem<dim>::strain (std::string cid, std::string 	tid, std::string cmat,
-							  std::string slocout, std::string slocres, std::string llochom,
-							  std::string qplogloc, std::string scrloc,
-							  std::string strainif, std::string stressof,
-							  unsigned int rep, double mdts, double mdtem, unsigned int mdnss,
-							  double mdss, std::string mdff, bool outhom, bool checksav)
+  void STMDProblem<dim>::strain (MDSim<dim>& md_sim, bool approx_md_with_hookes_law)
 	{
-		cellid = cid;
-		timeid = tid;
-		cellmat = cmat;
 
-		statelocout = slocout;
-		statelocres = slocres;
-		loglochom = llochom;
-		qpreplogloc = qplogloc;
-		scriptsloc = scrloc;
-
-		straininputfile = strainif;
-		stressoutputfile = stressof;
-
-		repl = rep;
-
-		md_timestep_length = mdts;
-		md_temperature = mdtem;
-		md_nsteps_sample = mdnss;
-		md_strain_rate = mdss;
-		md_force_field = mdff;
-
-		output_homog = outhom;
-		checkpoint_save = checksav;
-
-		if (md_force_field != "opls" && md_force_field != "reax"){
-			std::cerr << "Error: Force field is " << md_force_field
+		if (md_sim.force_field != "opls" && md_sim.force_field != "reax"){
+			std::cerr << "Error: Force field is " << md_sim.force_field
 					  << " but only 'opls' and 'reax' are implemented... "
 					  << std::endl;
 			exit(1);
 		}
 
-		// Argument of the MD simulation: strain to apply
-		//sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cellid, repl);
-		read_tensor<dim>(straininputfile.c_str(), loc_rep_strain);
-
 		// Then the lammps function instanciates lammps, starting from an initial
 		// microstructure and applying the complete new_strain or starting from
 		// the microstructure at the old_strain and applying the difference between
 		// the new_ and _old_strains, returns the new_stress state.
-		lammps_straining();
-
 		if(this_md_batch_process == 0)
 		{
-			std::cout << " \t" << cellid <<"-"<< repl << std::flush;
+			std::cout << " \t" << md_sim.qp_id <<"-"<< md_sim.replica<<"-start" << std::endl << std::flush;
+		}
+		MPI_Barrier(md_batch_communicator);
 
-			//sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cellid, repl);
-			write_tensor<dim>(stressoutputfile.c_str(), loc_rep_stress);
+		if (approx_md_with_hookes_law == true){
+			// this option is meant for testing
+			md_sim.stress = stress_from_hookes_law(md_sim.strain);
+			md_sim.stress_updated = true;
+		}
+		else {
+			md_sim.stress = lammps_straining(md_sim);
+			md_sim.stress_updated = true;
+		}
+
+		MPI_Barrier(md_batch_communicator);
+		if(this_md_batch_process == 0)
+		{
+			std::cout << " \t" << md_sim.qp_id <<"-"<< md_sim.replica << std::endl << std::flush;
 		}
 	}
 }

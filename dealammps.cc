@@ -36,14 +36,10 @@
 // Specifically built header files
 #include "headers/read_write.h"
 #include "headers/tensor_calc.h"
+#include "headers/scale_bridging_data.h"
+//#include "headers/stmd_problem.h"
+#include "headers/md_sim.h"
 #include "headers/stmd_sync.h"
-
-// Include of the FE model to solve in the simulation
-// (hardcoded for the moment, but should try to split the solving and
-// the mesh+BC in different headers)
-//#include "headers/fe_problem_dropweight.h"
-#include "headers/fe_problem_hopk.h"
-//#include "headers/fe-spline_problem_hopk.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -93,6 +89,10 @@
 #include <deal.II/grid/filtered_iterator.h>
 #include <deal.II/base/mpi.h>
 
+// Include of the FE model to solve in the simulation
+//#include "headers/fe-spline_problem_hopk.h"
+#include "headers/FE_problem.h"
+
 namespace HMM
 {
 	using namespace dealii;
@@ -110,79 +110,84 @@ namespace HMM
 
 		void set_global_communicators ();
 		void set_repositories ();
+		void share_scale_bridging_data (ScaleBridgingData &scale_bridging_data);
 
 		void do_timestep ();
 
-		STMDSync<dim> 						*mmd_problem = NULL;
-		FEProblem<dim> 						*fe_problem = NULL;
+		STMDSync<dim> 			*mmd_problem = NULL;
+		FEProblem<dim> 			*fe_problem = NULL;
+		
+		MPI_Comm 			world_communicator;
+		const int 			n_world_processes;
+		const int 			this_world_process;
+		int 				world_pcolor;
 
-		MPI_Comm 							world_communicator;
-		const int 							n_world_processes;
-		const int 							this_world_process;
-		int 								world_pcolor;
+		MPI_Comm 			fe_communicator;
+		int				root_fe_process;
+		int 				n_fe_processes;
+		int 				this_fe_process;
+		int 				fe_pcolor;
 
-		MPI_Comm 							fe_communicator;
-		int									root_fe_process;
-		int 								n_fe_processes;
-		int 								this_fe_process;
-		int 								fe_pcolor;
+		MPI_Comm 			mmd_communicator;
+		int 				n_mmd_processes;
+		int				root_mmd_process;
+		int 				this_mmd_process;
+		int 				mmd_pcolor;
 
-		MPI_Comm 							mmd_communicator;
-		int 								n_mmd_processes;
-		int									root_mmd_process;
-		int 								this_mmd_process;
-		int 								mmd_pcolor;
+		unsigned int			machine_ppn;
+		int				fenodes;
+		unsigned int			batch_nnodes_min;
 
-		unsigned int						machine_ppn;
-		int									fenodes;
-		unsigned int						batch_nnodes_min;
+		ConditionalOStream 		hcout;
 
-		ConditionalOStream 					hcout;
+		int				start_timestep;
+		int				end_timestep;
+		double              		present_time;
+		double              		fe_timestep_length;
+		double              		end_time;
+		int        			timestep;
+		int        			newtonstep;
 
-		int									start_timestep;
-		int									end_timestep;
-		double              				present_time;
-		double              				fe_timestep_length;
-		double              				end_time;
-		int        							timestep;
-		int        							newtonstep;
+		int				fe_degree;
+		int				quadrature_formula;
+		std::string			twod_mesh_file;
+                double                          extrude_length;
+                int                             extrude_points;
 
-		int									fe_degree;
-		int									quadrature_formula;
+		std::vector<std::string>	mdtype;
+		unsigned int			nrepl;
+		Tensor<1,dim> 			cg_dir;
+		boost::property_tree::ptree	input_config;
 
-		std::vector<std::string>			mdtype;
-		unsigned int						nrepl;
-		Tensor<1,dim> 						cg_dir;
+		bool				activate_md_update;
+		bool				approx_md_with_hookes_law;
+		bool				use_pjm_scheduler;
 
-		bool								activate_md_update;
-		bool								use_pjm_scheduler;
+		double				md_timestep_length;
+		double				md_temperature;
+		int				md_nsteps_sample;
+		double				md_strain_rate;
+		std::string			md_force_field;
 
-		double								md_timestep_length;
-		double								md_temperature;
-		int									md_nsteps_sample;
-		double								md_strain_rate;
-		std::string							md_force_field;
+		int				freq_checkpoint;
+		int				freq_output_visu;
+		int				freq_output_lhist;
+		int				freq_output_homog;
+		
+		std::string                 	macrostatelocin;
+		std::string                	macrostatelocout;
+		std::string			macrostatelocres;
+		std::string			macrologloc;
 
-		int									freq_checkpoint;
-		int									freq_output_visu;
-		int									freq_output_lhist;
-		int									freq_output_homog;
+		std::string                 	nanostatelocin;
+		std::string			nanostatelocout;
+		std::string			nanostatelocres;
+		std::string			nanologloc;
+		std::string			nanologloctmp;
+		std::string			nanologlochom;
 
-		std::string                         macrostatelocin;
-		std::string                         macrostatelocout;
-		std::string							macrostatelocres;
-		std::string							macrologloc;
-
-		std::string                         nanostatelocin;
-		std::string							nanostatelocout;
-		std::string							nanostatelocres;
-		std::string							nanologloc;
-		std::string							nanologloctmp;
-		std::string							nanologlochom;
-
-		std::string							md_scripts_directory;
-
-
+		std::string			md_scripts_directory;
+		
 	};
 
 
@@ -209,47 +214,47 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::read_inputs (std::string inputfile)
 	{
-	    using boost::property_tree::ptree;
-
 	    std::ifstream jsonFile(inputfile);
-	    ptree pt;
 	    try{
-		    read_json(jsonFile, pt);
+		    read_json(jsonFile, input_config);
 	    }
 	    catch (const boost::property_tree::json_parser::json_parser_error& e)
 	    {
 	        hcout << "Invalid JSON HMM input file (" << inputfile << ")" << std::endl;  // Never gets here
 	    }
-	    
-            // Continuum timestepping
-	    fe_timestep_length = std::stod(bptree_read(pt, "continuum time", "timestep length"));
-	    start_timestep = std::stoi(bptree_read(pt, "continuum time", "start timestep"));
-	    end_timestep = std::stoi(bptree_read(pt, "continuum time", "end timestep"));
+            	    
+	    boost::property_tree::read_json(inputfile, input_config);
+            
+	    // Continuum timestepping
+	    fe_timestep_length 	= input_config.get<double>("continuum time.timestep length");
+	    start_timestep 	= input_config.get<int>("continuum time.start timestep");
+	    end_timestep 	= input_config.get<int>("continuum time.end timestep");
 
 	    // Continuum meshing
-	    fe_degree = std::stoi(bptree_read(pt, "continuum mesh", "fe degree"));
-	    quadrature_formula = std::stoi(bptree_read(pt, "continuum mesh", "quadrature formula"));
+	    fe_degree 		= input_config.get<int>("continuum mesh.fe degree");
+	    quadrature_formula 	= input_config.get<int>("continuum mesh.quadrature formula");
 
 	    // Scale-bridging parameters
-	    activate_md_update = std::stoi(bptree_read(pt, "scale-bridging", "activate md update"));
-	    use_pjm_scheduler = std::stoi(bptree_read(pt, "scale-bridging", "use pjm scheduler"));
+	    activate_md_update 	= input_config.get<bool>("scale-bridging.activate md update");
+	    approx_md_with_hookes_law	=input_config.get<bool>("scale-bridging.approximate md with hookes law");
+	    use_pjm_scheduler 	= input_config.get<bool>("scale-bridging.use pjm scheduler");
 
 	    // Continuum input, output, restart and log location
-		macrostatelocin = bptree_read(pt, "directory structure", "macroscale input");
-		macrostatelocout = bptree_read(pt, "directory structure", "macroscale output");
-		macrostatelocres = bptree_read(pt, "directory structure", "macroscale restart");
-		macrologloc= bptree_read(pt, "directory structure", "macroscale log");
+		macrostatelocin	 = input_config.get<std::string>("directory structure.macroscale input");
+		macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
+		macrostatelocres = input_config.get<std::string>("directory structure.macroscale restart");
+		macrologloc 	 = input_config.get<std::string>("directory structure.macroscale log");
 
 		// Atomic input, output, restart and log location
-		nanostatelocin = bptree_read(pt, "directory structure", "nanoscale input");
-		nanostatelocout = bptree_read(pt, "directory structure", "nanoscale output");
-		nanostatelocres = bptree_read(pt, "directory structure", "nanoscale restart");
-		nanologloc = bptree_read(pt, "directory structure", "nanoscale log");
+		nanostatelocin	 = input_config.get<std::string>("directory structure.nanoscale input");
+		nanostatelocout	 = input_config.get<std::string>("directory structure.nanoscale output");
+		nanostatelocres	 = input_config.get<std::string>("directory structure.nanoscale restart");
+		nanologloc	 = input_config.get<std::string>("directory structure.nanoscale log");
 
 		// Molecular dynamics material data
-		nrepl = std::stoi(bptree_read(pt, "molecular dynamics material", "number of replicas"));
+		nrepl = input_config.get<unsigned int>("molecular dynamics material.number of replicas");
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(pt, "molecular dynamics material").get_child("list of materials.")) {
+				get_subbptree(input_config, "molecular dynamics material").get_child("list of materials.")) {
 			mdtype.push_back(v.second.data());
 		}
 		// Direction to which all MD data are rotated to, to later ease rotation in the FE problem. The
@@ -257,7 +262,7 @@ namespace HMM
 		// tensors are rotated to this referential from the microstructure given orientation
 		std::vector<double> tmp_dir;
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(pt, "molecular dynamics material").get_child("rotation common ground vector.")) {
+				get_subbptree(input_config, "molecular dynamics material").get_child("rotation common ground vector.")) {
 			tmp_dir.push_back(std::stod(v.second.data()));
 		}
 		if(tmp_dir.size()==dim){
@@ -265,26 +270,26 @@ namespace HMM
 				cg_dir[imd] = tmp_dir[imd];
 			}
 		}
-
+		
 		// Molecular dynamics simulation parameters
-		md_timestep_length = std::stod(bptree_read(pt, "molecular dynamics parameters", "timestep length"));
-		md_temperature = std::stod(bptree_read(pt, "molecular dynamics parameters", "temperature"));
-		md_nsteps_sample = std::stoi(bptree_read(pt, "molecular dynamics parameters", "number of sampling steps"));
-		md_strain_rate = std::stod(bptree_read(pt, "molecular dynamics parameters", "strain rate"));
-		md_force_field = bptree_read(pt, "molecular dynamics parameters", "force field");
-		md_scripts_directory = bptree_read(pt, "molecular dynamics parameters", "scripts directory");
+		md_timestep_length = input_config.get<double>("molecular dynamics parameters.timestep length");
+		md_temperature = input_config.get<double>("molecular dynamics parameters.temperature");
+		md_nsteps_sample = input_config.get<int>("molecular dynamics parameters.number of sampling steps");
+		md_strain_rate = input_config.get<double>("molecular dynamics parameters.strain rate");
+		md_force_field = input_config.get<std::string>("molecular dynamics parameters.force field");
+		md_scripts_directory = input_config.get<std::string>("molecular dynamics parameters.scripts directory");
 
 		// Computational resources
-		machine_ppn = std::stoi(bptree_read(pt, "computational resources", "machine cores per node"));
-		fenodes = std::stoi(bptree_read(pt, "computational resources", "number of nodes for FEM simulation"));
-		batch_nnodes_min = std::stoi(bptree_read(pt, "computational resources", "minimum nodes per MD simulation"));
+		machine_ppn = input_config.get<unsigned int>("computational resources.machine cores per node");
+		fenodes = input_config.get<int>("computational resources.number of nodes for FEM simulation");
+		batch_nnodes_min = input_config.get<unsigned int>("computational resources.minimum nodes per MD simulation");
 
 		// Output and checkpointing frequencies
-		freq_checkpoint = std::stoi(bptree_read(pt, "output data", "checkpoint frequency"));
-		freq_output_lhist = std::stoi(bptree_read(pt, "output data", "visualisation output frequency"));
-		freq_output_visu = std::stoi(bptree_read(pt, "output data", "analytics output frequency"));
-		freq_output_homog = std::stoi(bptree_read(pt, "output data", "homogenization output frequency"));
-
+		freq_checkpoint   = input_config.get<int>("output data.checkpoint frequency");
+		freq_output_lhist = input_config.get<int>("output data.visualisation output frequency");
+		freq_output_visu  = input_config.get<int>("output data.analytics output frequency");
+		freq_output_homog = input_config.get<int>("output data.homogenization output frequency");
+		
 		// Print a recap of all the parameters...
 		hcout << "Parameters listing:" << std::endl;
 		hcout << " - Activate MD updates (1 is true, 0 is false): "<< activate_md_update << std::endl;
@@ -296,9 +301,19 @@ namespace HMM
 		hcout << " - FE quadrature formula: "<< quadrature_formula << std::endl;
 		hcout << " - Number of replicas: "<< nrepl << std::endl;
 		hcout << " - List of material names: "<< std::flush;
-		for(unsigned int imd=0; imd<mdtype.size(); imd++) hcout << " " << mdtype[imd] << std::flush; hcout << std::endl;;
+		for(unsigned int imd=0; imd<mdtype.size(); imd++) 
+		{
+			hcout << " " << mdtype[imd] << std::flush; 
+		}
+		hcout << std::endl;
+		
 		hcout << " - Direction use as a common ground/referential to transfer data between nano- and micro-structures : "<< std::flush;
-		for(unsigned int imd=0; imd<dim; imd++) hcout << " " << cg_dir[imd] << std::flush; hcout << std::endl;;
+		for(unsigned int imd=0; imd<dim; imd++) 
+		{
+			hcout << " " << cg_dir[imd] << std::flush; 
+		}
+		hcout << std::endl;
+		
 		hcout << " - MD timestep duration: "<< md_timestep_length << std::endl;
 		hcout << " - MD thermostat temperature: "<< md_temperature << std::endl;
 		hcout << " - MD deformation rate: "<< md_strain_rate << std::endl;
@@ -352,6 +367,9 @@ namespace HMM
 
 		MPI_Comm_split(world_communicator, mmd_pcolor, this_world_process, &mmd_communicator);
 		MPI_Comm_rank(mmd_communicator, &this_mmd_process);
+		
+		create_qp_mpi_datatype(); // Creates and commits MPI_QP for communicating quadrature point info
+															// between FE and MD solvers
 	}
 
 
@@ -385,13 +403,20 @@ namespace HMM
 		}
 	}
 
-
-
+	template <int dim>
+	void HMMProblem<dim>::share_scale_bridging_data (ScaleBridgingData &scale_bridging_data)
+	{
+		int n_updates = scale_bridging_data.update_list.size();
+		MPI_Bcast(&n_updates , 1, MPI_INT, 0, world_communicator);
+		if (this_world_process != 0) {
+			scale_bridging_data.update_list.resize(n_updates);
+		}
+		MPI_Bcast(&(scale_bridging_data.update_list[0]), n_updates, MPI_QP, 0, world_communicator);
+	}
 
 	template <int dim>
 	void HMMProblem<dim>::do_timestep ()
 	{
-
 		// Updating time variable
 		present_time += fe_timestep_length;
 		++timestep;
@@ -416,15 +441,20 @@ namespace HMM
 		do
 		{
 			++newtonstep;
+			
+			ScaleBridgingData scale_bridging_data;	
+			if(fe_pcolor==0) fe_problem->solve(newtonstep, scale_bridging_data);
 
-			if(fe_pcolor==0) fe_problem->solve(newtonstep);
+			share_scale_bridging_data(scale_bridging_data);
 
+			//hcout << "ENTERING HELL" << std::endl;
+
+			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep, scale_bridging_data);
 			MPI_Barrier(world_communicator);
+			
+			share_scale_bridging_data(scale_bridging_data);
 
-			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep);
-			MPI_Barrier(world_communicator);
-
-			if(fe_pcolor==0) continue_newton = fe_problem->check();
+			if(fe_pcolor==0) continue_newton = fe_problem->check(scale_bridging_data);
 
 			// Share the value of previous_res with processors outside of dealii allocation
 			MPI_Bcast(&continue_newton, 1, MPI_C_BOOL, root_fe_process, world_communicator);
@@ -432,7 +462,7 @@ namespace HMM
 		} while (continue_newton);
 
 		if(fe_pcolor==0) fe_problem->endstep();
-
+		
 		MPI_Barrier(world_communicator);
 	}
 
@@ -457,7 +487,7 @@ namespace HMM
 		if(mmd_pcolor==0) mmd_problem = new STMDSync<dim> (mmd_communicator, mmd_pcolor);
 
 		// Instantiation of the FE problem
-		if(fe_pcolor==0) fe_problem = new FEProblem<dim> (fe_communicator, fe_pcolor, fe_degree, quadrature_formula);
+		if(fe_pcolor==0) fe_problem = new FEProblem<dim> (fe_communicator, fe_pcolor, fe_degree, quadrature_formula, n_world_processes);
 
 		MPI_Barrier(world_communicator);
 
@@ -473,7 +503,7 @@ namespace HMM
 											   nanologloctmp, nanologlochom, macrostatelocout,
 											   md_scripts_directory, freq_checkpoint, freq_output_homog,
 											   batch_nnodes_min, machine_ppn, mdtype, cg_dir, nrepl,
-											   use_pjm_scheduler);
+											   use_pjm_scheduler, input_config, approx_md_with_hookes_law);
 
 		// Initialization of MMD must be done before initialization of FE, because FE needs initial
 		// materials properties obtained from MMD initialization
@@ -481,12 +511,14 @@ namespace HMM
 
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;
 		if(fe_pcolor==0) fe_problem->init(start_timestep, fe_timestep_length,
-										 macrostatelocin, macrostatelocout,
-										 macrostatelocres, macrologloc,
-										 freq_checkpoint, freq_output_visu, freq_output_lhist,
-										 activate_md_update, mdtype, cg_dir);
-
-		MPI_Barrier(world_communicator);
+										macrostatelocin, macrostatelocout,
+										macrostatelocres, macrologloc,
+										freq_checkpoint, freq_output_visu, freq_output_lhist,
+										activate_md_update, mdtype, cg_dir,
+										twod_mesh_file, extrude_length, extrude_points, 
+										input_config, approx_md_with_hookes_law);
+                                                                                
+		MPI_Barrier(world_communicator);                                
 
 		// Running the solution algorithm of the FE problem
 		hcout << "Beginning of incremental solution algorithm:       " << std::endl;

@@ -3,8 +3,8 @@
     "use pjm scheduler": 0
   },
   "molecular dynamics material":{
-    "number of replicas": 5,
-    "list of materials": ["g0", "g1"],
+    "number of replicas": 2,
+    "list of materials": ["epoxy80"],
     "rotation common ground vector":[1.0, 0.0, 0.0]
   },
   "molecular dynamics parameters":{
@@ -18,11 +18,11 @@
     "force field": "opls"
   },
   "computational resources":{
-    "machine cores per node": 16,
-    "minimum nodes per MD simulation": 3
+    "machine cores per node": 24,
+    "minimum nodes per MD simulation": 1
   },
   "directory structure":{
-    "nanoscale input": "./replicas_input",
-    "nanoscale log": "./replicas_log"
+    "nanoscale input": "./material_input",
+    "nanoscale log": "./initialization_log"
   }
 }

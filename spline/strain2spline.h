@@ -147,7 +147,6 @@ namespace MatHistPredict {
 					spline.push_back(splXZ(t));
 					spline.push_back(splYZ(t));
 				}
-
 				up_to_date = true;
 			}
 
@@ -182,7 +181,11 @@ namespace MatHistPredict {
 
 			std::vector<double> * get_spline()
 			{
-				return &spline;
+				if(!up_to_date) {
+					std::cout << "Spline is not up to date.\n";
+					exit(1);
+					}
+          return &spline;
 			}
 
 			uint32_t get_ID()
@@ -311,7 +314,7 @@ namespace MatHistPredict {
 				}
 				infile >> id_from >> id_to;
 
-				//std::cout << "cell " << ID << "id_from " << id_from << "id_to" << id_to << std::endl;
+				//std::cout << "cell " << ID << "id_from " << id_from << ", id_to " << id_to << std::endl;
 
 				if(id_from != ID) {
 					fprintf(stderr, "ID in mapping file (%u) does not match cell ID (%u)\n", id_from, ID);
@@ -423,9 +426,9 @@ namespace MatHistPredict {
 		uint32_t ID = in_s6D->get_ID();
 		int32_t num_doubles_to_send = strain->size();
 
-		MPI_Isend(&num_doubles_to_send, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
-		MPI_Isend(strain->data(), num_doubles_to_send, MPI_DOUBLE, target_rank, this_rank, comm, &request);
-		MPI_Isend(&ID, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
+		MPI_Send(&num_doubles_to_send, 1, MPI_UNSIGNED, target_rank, this_rank, comm);
+		MPI_Send(strain->data(), num_doubles_to_send, MPI_DOUBLE, target_rank, this_rank, comm);
+		MPI_Send(&ID, 1, MPI_UNSIGNED, target_rank, this_rank, comm);
 	}
 
 	void receive_strain6D_mpi(Strain6DReceiver *recv, int32_t from_rank, MPI_Comm comm)
@@ -444,6 +447,7 @@ namespace MatHistPredict {
 
 	void compare_histories_with_all_ranks(std::vector<Strain6D*>& histories, double threshold, MPI_Comm comm)
 	{
+	
 		MPI_Request request;
 		MPI_Status status;
 
@@ -463,6 +467,11 @@ namespace MatHistPredict {
 		for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
 			histories[h]->clear_most_similar_history();
 		}
+		
+		// check if communication is the problem
+		//for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
+		//	assert(	histories[a]->get_spline()->size() == 60);
+		//}
 
 		// Cycle through all ranks in the communicator in a ring-like fashion, sending
 		// to this_rank+i (periodic) and receiving from this_rank-i (periodic). This
@@ -476,7 +485,7 @@ namespace MatHistPredict {
 //			std::cout << "Rank " << this_rank << ": Targetting " << target_rank << " Expecting " << from_rank << "\n";
 			if(target_rank != this_rank) {
 				// Indicate the number of histories that will be sent to target_rank
-				MPI_Isend(&num_histories_on_this_rank, 1, MPI_UNSIGNED, target_rank, this_rank, comm, &request);
+				MPI_Send(&num_histories_on_this_rank, 1, MPI_UNSIGNED, target_rank, this_rank, comm);
 
 				// Send all histories and IDs
 				for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
@@ -493,7 +502,10 @@ namespace MatHistPredict {
 					receive_strain6D_mpi(&recv, from_rank, comm);
 
 					for(uint32_t h = 0; h < num_histories_on_this_rank; h++) {
-						double diff = compare_L2_norm(histories[h], &recv);
+//		std::cout << "COMP1 "<< this_rank << " " << histories.size();
+//		std::cout <<" \t"<< histories[h]->get_spline()->size() << "-" << recv.recv_count;
+//		std::cout << std::endl << std::flush;
+							double diff = compare_L2_norm(histories[h], &recv);
 						histories[h]->choose_most_similar_history(diff, recv.ID, threshold);
 //						std::cout << "Comparison between rank " << this_rank << ", cell " << histories[h]->get_ID() << " and rank " <<  from_rank << ", cell " << recv.ID << ": " << diff << "\n";
 					}
@@ -502,6 +514,9 @@ namespace MatHistPredict {
 			} else { // Considering cells on the same rank
 				for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
 					for(uint32_t b = a + 1; b < num_histories_on_this_rank; b++) {
+//		std::cout << "COMP3 "<< this_rank << " " << histories.size();
+//		std::cout <<" \t"<< histories[a]->get_spline()->size() << "-"<< histories[b]->get_spline()->size();
+//		std::cout << std::endl << std::flush;
 						double diff = compare_L2_norm(histories[a], histories[b]);
 						histories[a]->choose_most_similar_history(diff, histories[b]->get_ID(), threshold); // both Strain6D's need this info
 						histories[b]->choose_most_similar_history(diff, histories[a]->get_ID(), threshold); // both Strain6D's need this info

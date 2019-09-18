@@ -1,6 +1,6 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
-FIND_PACKAGE(deal.II 8.5 QUIET
+FIND_PACKAGE(deal.II 8.4.1 QUIET
   HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
   )
 IF(NOT ${deal.II_FOUND})
@@ -15,28 +15,31 @@ DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
 PROJECT(dealammps)
 
-ADD_EXECUTABLE(dealammps dealammps.cc)
+ADD_EXECUTABLE(dealammps ../dealammps.cc)
 DEAL_II_SETUP_TARGET(dealammps)
 
-ADD_EXECUTABLE(equilammps equilammps.cc)
+ADD_EXECUTABLE(equilammps ../equilammps.cc)
 DEAL_II_SETUP_TARGET(equilammps)
 
-ADD_EXECUTABLE(strain_md strain_md.cc)
+ADD_EXECUTABLE(strain_md ../strain_md.cc)
 DEAL_II_SETUP_TARGET(strain_md)
+
+ADD_EXECUTABLE(test18 ../test18.cc)
+DEAL_II_SETUP_TARGET(test18)
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
-  /work/e283/e283/vassaux/source/lammps-17Nov16/src/
+  /usr/local/packages/lammps/lammps-17Nov16/lammps-17Nov16/src/
   )
 
 ## Include BOOST sources repository
-FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
-INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+#FIND_PACKAGE( Boost 1.58 COMPONENTS filesystem mpi REQUIRED )
+#INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
 ## Include LAMMPS library shared .so (or static .a)
-TARGET_LINK_LIBRARIES(dealammps /work/e283/e283/vassaux/source/lammps-17Nov16/src/liblammps.so)
-TARGET_LINK_LIBRARIES(equilammps /work/e283/e283/vassaux/source/lammps-17Nov16/src/liblammps.so)
-TARGET_LINK_LIBRARIES(strain_md /work/e283/e283/vassaux/source/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(dealammps /usr/local/packages/lammps/lammps-17Nov16/lib/liblammps.so)
+TARGET_LINK_LIBRARIES(equilammps /usr/local/packages/lammps/lammps-17Nov16/lib/liblammps.so)
+TARGET_LINK_LIBRARIES(strain_md /usr/local/packages/lammps/lammps-17Nov16/lib/liblammps.so)
 
 TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
 TARGET_LINK_LIBRARIES(equilammps LINK_PUBLIC ${Boost_LIBRARIES})

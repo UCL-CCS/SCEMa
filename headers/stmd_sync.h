@@ -18,10 +18,13 @@
 //#include "boost/filesystem.hpp"
 
 // Specifically built header files
+#include "md_sim.h"
 #include "read_write.h"
 #include "tensor_calc.h"
 #include "stmd_problem.h"
 #include "eqmd_problem.h"
+#include "scale_bridging_data.h"
+
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -50,9 +53,7 @@ namespace HMM
 		SymmetricTensor<2,dim> init_stress;
 		SymmetricTensor<4,dim> init_stiff;
 	};
-
-
-
+		
 	template <int dim>
 	class STMDSync
 	{
@@ -63,8 +64,9 @@ namespace HMM
 				   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 				   std::string nlogloctmp,std::string nloglochom, std::string mslocout, std::string mdsdir,
 				   int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
-				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups);
-		void update (int tstp, double ptime, int nstp);
+				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
+					 boost::property_tree::ptree inconfig, bool approx_md_with_hookes_law); 
+		void update (int tstp, double ime, int nstp, ScaleBridgingData& scale_bridging_data);
 
 	private:
 		void restart ();
@@ -76,15 +78,17 @@ namespace HMM
 
 		void average_replica_data();
 
-		void prepare_md_simulations();
+		std::vector<MDSim<dim> > prepare_md_simulations(ScaleBridgingData scale_bridging_data);
 
-		void execute_inside_md_simulations();
+		void execute_inside_md_simulations(std::vector<MDSim<dim> >& requested_simulations);
+		void share_stresses(std::vector<MDSim<dim> >& md_simulations);
 
 		void write_exec_script_md_job();
 		void generate_job_list(bool& elmj, int& tta, char* filenamelist);
 		void execute_pjm_md_simulations();
 
-		void store_md_simulations();
+		void store_md_simulations(std::vector<MDSim<dim> > md_simulations, 
+															ScaleBridgingData& scale_bridging_data);
 
 		MPI_Comm 							mmd_communicator;
 		MPI_Comm 							md_batch_communicator;
@@ -149,7 +153,9 @@ namespace HMM
 
 		std::string							md_scripts_directory;
 		bool								use_pjm_scheduler;
+		boost::property_tree::ptree input_config;
 
+		bool 															 approx_md_with_hookes_law;
 	};
 
 
@@ -211,9 +217,13 @@ namespace HMM
 
 		//int nrounds = int(nmdruns/nbtch_max)+1;
 		//int nmdruns_round = nmdruns/nrounds;
-
-		int fair_npbtch = int(mmd_n_processes/(nmdruns));
-
+		int fair_npbtch;
+		if (nmdruns > 0){
+			fair_npbtch = int(mmd_n_processes/(nmdruns));
+		}
+		else {	
+			fair_npbtch = mmd_n_processes;
+		}
 		int npb = std::max(npbtch_min, fair_npbtch - fair_npbtch%npbtch_min);
 		//int nbtch = int(n_world_processes/npbtch);
 
@@ -404,22 +414,25 @@ namespace HMM
 							<< replica_data[imdrun].repl << std::endl;
 				}
 
-				// Copying replica input system
-				bool statesystem_exists = file_exists(systemoutputfile[imdrun].c_str());
-				if (statesystem_exists){
-					std::ifstream  nanoin(systemoutputfile[imdrun].c_str(), std::ios::binary);
-					char nanofilenameout[1024];
-					sprintf(nanofilenameout, "%s/init.%s_%d.bin", nanostatelocout.c_str(),
-							replica_data[imdrun].mat.c_str(), replica_data[imdrun].repl);
-					std::ofstream  nanoout(nanofilenameout,   std::ios::binary);
-					nanoout << nanoin.rdbuf();
-					nanoin.close();
-					nanoout.close();
-				}
-				else{
-					std::cerr << "Missing equilibrated initial system for material "
-							<< replica_data[imdrun].mat.c_str() << " replica #"
-							<< replica_data[imdrun].repl << std::endl;
+		    if (this_mmd_process==0)
+  		  {
+					// Copying replica input system
+					bool statesystem_exists = file_exists(systemoutputfile[imdrun].c_str());
+					if (statesystem_exists){
+						std::ifstream  nanoin(systemoutputfile[imdrun].c_str(), std::ios::binary);
+						char nanofilenameout[1024];
+						sprintf(nanofilenameout, "%s/init.%s_%d.bin", nanostatelocout.c_str(),
+								replica_data[imdrun].mat.c_str(), replica_data[imdrun].repl);
+						std::ofstream  nanoout(nanofilenameout,   std::ios::binary);
+						nanoout << nanoin.rdbuf();
+						nanoin.close();
+						nanoout.close();
+					}
+					else{
+						std::cerr << "Missing equilibrated initial system for material "
+								<< replica_data[imdrun].mat.c_str() << " replica #"
+								<< replica_data[imdrun].repl << std::endl;
+					}
 				}
 			}
 	}
@@ -470,156 +483,121 @@ namespace HMM
 
 
 	template <int dim>
-	void STMDSync<dim>::prepare_md_simulations()
+	std::vector< MDSim<dim> > STMDSync<dim>::prepare_md_simulations(ScaleBridgingData scale_bridging_data)
 	{
-		// Check list of files corresponding to current "time_id"
-		ncupd = 0;
-		char filenamelist[1024];
-		sprintf(filenamelist, "%s/last.qpupdates", macrostatelocout.c_str());
-		std::ifstream ifile;
-		std::string iline;
+		std::vector< MDSim<dim> > request_simulations;
+		std::vector< QP > update_list = scale_bridging_data.update_list;
 
-		// Count number of cells to update
-		ifile.open (filenamelist);
-		if (ifile.is_open())
+		int n_qp = update_list.size();
+
+		// Number of MD simulations at this iteration...
+		int nmdruns = n_qp * nrepl;
+
+		// Setting up batch of processes
+		set_md_procs(nmdruns);
+		mcout << "set md procs"<<std::endl;
+		for (unsigned int qp=0; qp<n_qp; ++qp)
 		{
-			while (getline(ifile, iline)) ncupd++;
-			ifile.close();
-		}
-		else mcout << "Unable to open" << filenamelist << " to read it" << std::endl;
-
-		if (ncupd>0){
-			// Create list of quadid
-			cell_id.resize(ncupd,"");
-			ifile.open (filenamelist);
-			unsigned int nline = 0;
-			while (nline<ncupd && std::getline(ifile, cell_id[nline])) nline++;
-			ifile.close();
-
-			// Load material type of cells to be updated
-			cell_mat.resize(ncupd,"");
-			sprintf(filenamelist, "%s/last.matqpupdates", macrostatelocout.c_str());
-			ifile.open (filenamelist);
-			nline = 0;
-			while (nline<ncupd && std::getline(ifile, cell_mat[nline])) nline++;
-			ifile.close();
-
-			// Number of MD simulations at this iteration...
-			int nmdruns = ncupd*nrepl;
-
-			// Location of each MD simulation temporary log files
-			qpreplogloc.resize(nmdruns,"");
-			straininputfile.resize(nmdruns,"");
-			stressoutputfile.resize(nmdruns,"");
-			md_args.resize(nmdruns);
-		    for( auto &it : md_args )
-		    {
-		        it.clear();
-		    }
-
-			// Setting up batch of processes
-			set_md_procs(nmdruns);
-
-			// Preparing strain input file for each replica
-			for (unsigned int c=0; c<ncupd; ++c)
+			for(unsigned int repl=0; repl<nrepl; repl++)
 			{
-				int imd = 0;
-				for(unsigned int i=0; i<mdtype.size(); i++)
-					if(cell_mat[c]==mdtype[i])
-						imd=i;
+				// Offset replica number because in filenames, replicas start at 1
+				//int numrepl = repl+1e
+				//int numrepl = repl;
 
-				for(unsigned int repl=0;repl<nrepl;repl++)
-				{
-					// Offset replica number because in filenames, replicas start at 1
-					int numrepl = repl+1;
+				// imdrun is assigned to a run and is a multiple of the batch number the run will be run on
+				int imdrun = qp*nrepl + (repl);
+				
+			  // Allocation of a MD run to a batch of processes
+				//if (md_batch_pcolor == (imdrun%n_md_batches)){
 
-					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
-					int imdrun=c*nrepl + (repl);
+					MDSim<dim> md_sim;
+					md_sim.qp_id = update_list[qp].id;
 
-                                        // Setting up location for temporary log outputs of md simulation, input strains and output stresses
-                                        straininputfile[imdrun] = macrostatelocout + "/last." + cell_id[c] + "." + std::to_string(numrepl) + ".upstrain";
-                                        stressoutputfile[imdrun] = macrostatelocout + "/last." + cell_id[c] + "." + std::to_string(numrepl) + ".stress";
-                                        qpreplogloc[imdrun] = nanologloctmp + "/" + time_id  + "." + cell_id[c] + "." + cell_mat[c] + "_" + std::to_string(numrepl);
+					md_sim.replica = repl + 1; // +1 to match input file lables... fix 
+					md_sim.material = update_list[qp].material;
+					md_sim.time_id = time_id;
+	
+					md_sim.force_field 			= md_force_field;
+			    md_sim.timestep_length  = md_timestep_length;
+    			md_sim.temperature      = md_temperature;
+			    md_sim.nsteps_sample    = md_nsteps_sample;
+			    md_sim.strain_rate      = md_strain_rate;
 
-					// Allocation of a MD run to a batch of processes
-					if (md_batch_pcolor == (imdrun%n_md_batches)){
+					md_sim.output_file					= nanostatelocout;
+					md_sim.restart_file					= nanostatelocres;
+					md_sim.output_homog					= false;
+        	// Setting up location for temporary log outputs of md simulation, input strains and output stresses
+	    		std::string macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
+					md_sim.define_file_names(nanologloctmp,macrostatelocout);
 
-						// Operations on disk, need only to be done by one of the processes of the batch
-						if(this_md_batch_process == 0){
+					int replica_data_index = md_sim.material*nrepl+repl; // imd*nrepl+nrepl;
+					// Argument of the MD simulation: strain to apply
+					SymmetricTensor<2,dim> cg_loc_rep_strain(scale_bridging_data.update_list[qp].update_strain);
 
-							SymmetricTensor<2,dim> loc_rep_strain, cg_loc_rep_strain;
-
-							char filename[1024];
-
-							// Argument of the MD simulation: strain to apply
-							sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id[c].c_str());
-							read_tensor<dim>(filename, cg_loc_rep_strain);
-
-							// Rotate strain tensor from common ground to replica orientation
-							loc_rep_strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[imd*nrepl+repl].rotam));
-
-							// Resize applied strain with initial length of the md sample, the resulting variable is not
-							// a strain but a length variation, which will be transformed back into a strain during the
-							// execution of the MD code where the current length of the nanosystem will be available
-							for (unsigned int i=0; i<dim; i++){
-								loc_rep_strain[i][i] *= replica_data[imd*nrepl+repl].init_length[i];
-								loc_rep_strain[i][(i+1)%dim] *= replica_data[imd*nrepl+repl].init_length[(i+2)%dim];
-							}
-
-							// Write tensor to replica specific file
-							//sprintf(filename, "%s/last.%s.%d.upstrain", macrostatelocout.c_str(), cell_id[c].c_str(), numrepl);
-							write_tensor<dim>(straininputfile[imdrun].c_str(), loc_rep_strain);
-
-							// Preparing directory to write MD simulation log files
-							mkdir(qpreplogloc[imdrun].c_str(), ACCESSPERMS);
+					// Rotate strain tensor from common ground to replica orientation
+				  md_sim.strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[replica_data_index].rotam));
+					// Resize applied strain with initial length of the md sample, the resulting variable is not
+					// a strain but a length variation, which will be transformed back into a strain during the
+					// execution of the MD code where the current length of the nanosystem will be available
+					if (approx_md_with_hookes_law == false){
+						for (unsigned int j=0; j<dim; j++){
+							md_sim.strain[j][j] *= replica_data[replica_data_index].init_length[j];
+							md_sim.strain[j][(j+1)%dim] *= replica_data[replica_data_index].init_length[(j+2)%dim];
 						}
-
-						// Setting argument list for strain_md executable
-						md_args[imdrun].push_back(cell_id[c]);
-						md_args[imdrun].push_back(time_id);
-						md_args[imdrun].push_back(cell_mat[c]);
-						md_args[imdrun].push_back(nanostatelocout);
-						md_args[imdrun].push_back(nanostatelocres);
-						md_args[imdrun].push_back(nanologlochom);
-						md_args[imdrun].push_back(qpreplogloc[imdrun]);
-						md_args[imdrun].push_back(md_scripts_directory);
-						md_args[imdrun].push_back(straininputfile[imdrun]);
-						md_args[imdrun].push_back(stressoutputfile[imdrun]);
-						md_args[imdrun].push_back(std::to_string(numrepl));
-						md_args[imdrun].push_back(std::to_string(md_timestep_length));
-						md_args[imdrun].push_back(std::to_string(md_temperature));
-						md_args[imdrun].push_back(std::to_string(md_nsteps_sample));
-						md_args[imdrun].push_back(std::to_string(md_strain_rate));
-						md_args[imdrun].push_back(md_force_field);
-						md_args[imdrun].push_back(std::to_string(output_homog));
-						md_args[imdrun].push_back(std::to_string(checkpoint_save));
 					}
-				}
+			/*std::cout << "Set MDSim strain resize ";
+			for (int i=0; i<6; i++){
+				std::cout << md_sim.strain.access_raw_entry(i) << " ";
+			}std::cout << std::endl;*/
+
+					md_sim.checkpoint = checkpoint_save;
+
+					request_simulations.push_back(md_sim);
+					// Setting argument list for strain_md executable
+					/*md_args[imdrun].push_back(cell_id[c]);
+					md_args[imdrun].push_back(time_id);
+					md_args[imdrun].push_back(cell_mat[c]);
+					md_args[imdrun].push_back(nanostatelocout);
+					md_args[imdrun].push_back(nanostatelocres);
+					md_args[imdrun].push_back(nanologlochom);
+					md_args[imdrun].push_back(qpreplogloc[imdrun]);
+					md_args[imdrun].push_back(md_scripts_directory);
+					md_args[imdrun].push_back(straininputfile[imdrun]);
+					md_args[imdrun].push_back(stressoutputfile[imdrun]);
+					md_args[imdrun].push_back(std::to_string(numrepl));
+					md_args[imdrun].push_back(std::to_string(md_timestep_length));
+					md_args[imdrun].push_back(std::to_string(md_temperature));
+					md_args[imdrun].push_back(std::to_string(md_nsteps_sample));
+					md_args[imdrun].push_back(std::to_string(md_strain_rate));
+					md_args[imdrun].push_back(md_force_field);
+					md_args[imdrun].push_back(std::to_string(output_homog));
+					md_args[imdrun].push_back(std::to_string(checkpoint_save));*/
+				//}
 			}
 		}
+		return request_simulations;
 	}
 
 
 
 	template <int dim>
-	void STMDSync<dim>::execute_inside_md_simulations()
+	void STMDSync<dim>::execute_inside_md_simulations(std::vector<MDSim<dim> >& md_simulations)
 	{
 		// Computing cell state update running one simulation per MD replica (basic job scheduling and executing)
 		mcout << "        " << "...dispatching the MD runs on batch of processes..." << std::endl;
 		mcout << "        " << "...cells and replicas completed: " << std::flush;
-		for (unsigned int c=0; c<ncupd; ++c)
+		int n_md_runs = md_simulations.size();
+
+		mcout << std::endl<< " All MD Sims: ";
+		for (int i=0; i<n_md_runs; i++){
+			mcout << md_simulations[i].qp_id << " ";
+		}
+		mcout << std::endl;
+
+		for (unsigned int i=0; i<n_md_runs; ++i)
 		{
-			for(unsigned int repl=0;repl<nrepl;repl++)
-			{
-				// Offset replica number because in filenames, replicas start at 1
-				int numrepl = repl+1;
-
-				// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
-				int imdrun=c*nrepl + (repl);
-
 				// Allocation of a MD run to a batch of processes
-				if (md_batch_pcolor == (imdrun%n_md_batches)){
-
+				if (md_batch_pcolor == (i%n_md_batches)){
 					// Executing from an external MPI_Communicator (avoids failure of the main communicator
 					// when the specific/external communicator fails)
 					// Does not work as OpenMPI cannot be started from an existing OpenMPI run...
@@ -642,17 +620,117 @@ namespace HMM
 					}*/
 
 					// Executing directly from the current MPI_Communicator (not fault tolerant)
+
+		//MPI_Barrier(mmd_communicator);
 					STMDProblem<3> stmd_problem (md_batch_communicator, md_batch_pcolor);
 
-					stmd_problem.strain(cell_id[c], time_id, cell_mat[c], nanostatelocout, nanostatelocres,
-								   nanologlochom, qpreplogloc[imdrun], md_scripts_directory, straininputfile[imdrun],
-								   stressoutputfile[imdrun], numrepl, md_timestep_length, md_temperature,
-								   md_nsteps_sample, md_strain_rate, md_force_field,
-								   output_homog, checkpoint_save);
+					stmd_problem.strain(md_simulations[i], approx_md_with_hookes_law);
+				}
+		}
+		mcout << std::endl;
+
+		MPI_Barrier(mmd_communicator);
+
+	}
+
+	template <int dim>
+	void STMDSync<dim>::share_stresses(std::vector<MDSim<dim> >& md_simulations)
+	{
+		// share all the stresses calculated in different batches to rank 0
+
+		MPI_Request  request;
+		MPI_Status 	 status;
+
+    int n_md_runs = md_simulations.size();
+		
+		std::vector<int> pcolors(mmd_n_processes);
+		for (unsigned int i=0; i<mmd_n_processes; i++){
+      pcolors[i] = int(i/md_batch_n_processes); // this is the commmand in set_md_procs 
+		}
+		
+		if (pcolors[0] != 0){
+			std::cout << "Error: root rank has pcolor != 0" << std::endl;
+			exit(1);
+		}
+
+		// for eah batch, send stresses it calculated to rank 0
+		for (uint32_t	pcolor=1; pcolor<n_md_batches; pcolor++){
+
+			// find lowest rank in this batch - this will be used to send the batch's information
+			int batch_root;
+			bool found = false;
+			for (uint32_t i=0; i<mmd_n_processes; i++){
+				if (pcolors[i] == pcolor){
+					batch_root = i;
+					found = true;
+					break;
+				}
+			}
+			assert(found==true);
+
+ 			// number of sims to share from this batch
+			int n_sends = 0;
+			if (this_mmd_process == batch_root){
+				for (uint32_t i=0; i<n_md_runs; i++){
+					if (md_simulations[i].stress_updated == true){
+						n_sends++ ;
+					}
+				}
+			}
+   		MPI_Bcast(&n_sends, 1, MPI_INT, batch_root, mmd_communicator);
+
+			// ids of sims to share from this batch
+			int md_send_indexes[n_sends];
+			int count = 0;
+			if (this_mmd_process == batch_root){
+				for (uint32_t i=0; i<n_md_runs; i++){
+					if (md_simulations[i].stress_updated == true){
+						md_send_indexes[count] = i;
+						count++;
+					}
+				}
+			}
+			MPI_Bcast(&md_send_indexes, n_sends, MPI_INT, batch_root, mmd_communicator);
+
+			// for each md run calculated on this batch
+			for (uint32_t i=0; i<n_sends; i++){
+				int md_run_index = md_send_indexes[i];
+					
+				// share stresses calculated to rank 0
+				if (this_mmd_process == batch_root){
+					//build array to send
+					double send_stress[6];
+					for (uint32_t j=0; j<6; j++){
+						send_stress[j] = md_simulations[md_run_index].stress.access_raw_entry(j);
+					}
+					//send to rank 0
+					MPI_Isend(&send_stress[0], 6, MPI_DOUBLE, 0, md_run_index, mmd_communicator, &request);
+
+				} else if (this_mmd_process == 0){
+					//recieve stress and convert to symmetric tensor
+					double recv_stress[6];
+					MPI_Recv(&recv_stress[0], 6, MPI_DOUBLE, batch_root, md_run_index, mmd_communicator, &status); 
+					SymmetricTensor<2,dim> stress(recv_stress);
+					
+					md_simulations[md_run_index].stress = stress; 
+					md_simulations[md_run_index].stress_updated = true;
 				}
 			}
 		}
-		mcout << std::endl;
+	 
+		// Check all stresses are set on rank 0
+		if (this_mmd_process == 0){
+			for (int i=0; i<md_simulations.size(); i++){
+				if (md_simulations[i].stress_updated != true){
+					for (int j=0; j<6; j++){
+						std::cout << md_simulations[i].stress.access_raw_entry(j) << " ";
+					} std::cout << std::endl;
+					std::cout << "Stress not set or not communicated to rank ("<<this_mmd_process<<") . " 
+										<< md_simulations[i].qp_id <<std::endl;
+					exit(1);
+				}
+			}
+		}
 	}
 
 
@@ -690,8 +768,6 @@ namespace HMM
 			}
 		}
 	}
-
-
 
 
 	template <int dim>
@@ -782,93 +858,93 @@ namespace HMM
 		}
 	}
 
-
-
 	template <int dim>
-	void STMDSync<dim>::store_md_simulations()
+	int get_sim_id(std::vector<MDSim<dim> > md_simulations, int qp_id, int rep)
 	{
-		// Averaging stiffness and stress per cell over replicas
-		for (unsigned int c=0; c<ncupd; ++c)
-		{
-			int imd = 0;
-			for(unsigned int i=0; i<mdtype.size(); i++)
-				if(cell_mat[c]==mdtype[i])
-					imd=i;
-
-			if (this_mmd_process == int(c%mmd_n_processes))
-			{
-				// Write the new stress and stiffness tensors into two files, respectively
-				// ./macrostate_storage/time.it-cellid.qid.stress and ./macrostate_storage/time.it-cellid.qid.stiff
-
-				//SymmetricTensor<4,dim> cg_loc_stiffness;
-				SymmetricTensor<2,dim> cg_loc_stress;
-				char filename[1024];
-
-				for(unsigned int repl=0;repl<nrepl;repl++)
-				{
-					// Offset replica number because in filenames, replicas start at 1
-					int numrepl = repl+1;
-
-					// The variable 'imdrun' assigned to a run is a multiple of the batch number the run will be run on
-					int imdrun=c*nrepl + (repl);
-
-					// Rotate stress and stiffness tensor from replica orientation to common ground
-
-					//SymmetricTensor<4,dim> cg_loc_stiffness, loc_rep_stiffness;
-					SymmetricTensor<2,dim> cg_loc_rep_stress, loc_rep_stress;
-					//sprintf(filename, "%s/last.%s.%d.stress", macrostatelocout.c_str(), cell_id[c].c_str(), numrepl);
-
-					if(read_tensor<dim>(stressoutputfile[imdrun].c_str(), loc_rep_stress)){
-						/* // Rotation of the stiffness tensor to common ground direction before averaging
-						sprintf(filename, "%s/last.%s.%d.stiff", macrostatelocout.c_str(), cell_id[c], repl);
-						read_tensor<dim>(filename, loc_rep_stiffness);
-
-						cg_loc_stiffness = rotate_tensor(loc_stiffness, replica_data[imd*nrepl+repl].rotam);
-
-						cg_loc_stiffness += cg_loc_rep_stiffness;*/
-
-						// Removing initial stress from the current stress
-						loc_rep_stress -= replica_data[imd*nrepl+repl].init_stress;
-
-						// Rotation of the stress tensor to common ground direction before averaging
-						cg_loc_rep_stress = rotate_tensor(loc_rep_stress, replica_data[imd*nrepl+repl].rotam);
-
-						cg_loc_stress += cg_loc_rep_stress;
-
-						// Removing file now it has been used
-						remove(stressoutputfile[imdrun].c_str());
-
-						// Removing replica strain passing file used to average cell stress
-						remove(straininputfile[imdrun].c_str());
-
-						if (use_pjm_scheduler){
-							std::string scriptfile = nanostatelocout + "/" + "bash_cell"+cell_id[c]
-																	 +"_repl"+std::to_string(numrepl)+".sh";
-							remove(scriptfile.c_str());
-						}
-
-						// Clean "nanoscale_logs" of the finished timestep
-						char command[1024];
-						sprintf(command, "rm -rf %s", qpreplogloc[imdrun].c_str());
-						int ret = system(command);
-						if (ret!=0){
-							std::cout << "Failed removing the log files of the MD simulation: " << qpreplogloc[imdrun] << std::endl;
-						}
-					}
-				}
-
-				//cg_loc_stiffness /= nrepl;
-				cg_loc_stress /= nrepl;
-
-				/*sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id[c].c_str());
-				write_tensor<dim>(filename, cg_loc_stiffness);*/
-
-				sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id[c].c_str());
-				write_tensor<dim>(filename, cg_loc_stress);
-
+		// find md_simulation for qp_id and rep
+		int n_md_sim = md_simulations.size();
+		int md_index;
+		bool found = false;
+		for (int i=0; i<n_md_sim; i++){
+			if (md_simulations[i].qp_id == qp_id && md_simulations[i].replica == rep){
+				md_index = i;
+				found = true;
+				break;
 			}
 		}
+		if (found != true){
+			std::cout<< "Error: MDSim not found for qp "<< qp_id <<" replica "<< rep <<std::endl;
+			exit(1);
+		}
+		return md_index; 
+	}
 
+	template <int dim>
+	void STMDSync<dim>::store_md_simulations(std::vector<MDSim<dim> > md_simulations, 
+                              						 ScaleBridgingData& scale_bridging_data)
+	{
+		MDSim<dim> md_simulation;
+    int n_qp = scale_bridging_data.update_list.size();	
+		// Averaging stiffness and stress per cell over replicas
+		for (int qp=0; qp<n_qp; qp++){
+			int qp_id = scale_bridging_data.update_list[qp].id;
+
+			//if (this_mmd_process == int(c%mmd_n_processes))// ????????????
+			//{
+				SymmetricTensor<2,dim> cg_loc_stress;
+
+				for (int rep=0; rep<nrepl; rep++){
+					int numrepl = rep + 1;
+					int md_sim_id = get_sim_id(md_simulations, qp_id, numrepl);
+
+					md_simulation = md_simulations[md_sim_id];
+
+					int imdrun = qp*nrepl + (rep);
+					int replica_data_index = md_simulation.material * nrepl + rep;
+
+					SymmetricTensor<2,dim> cg_loc_rep_stress, loc_rep_stress;
+					
+					// stress from most recent md simulation
+					loc_rep_stress = md_simulation.stress; 
+					
+					// subtract the intial stress in the starting structure
+					if (approx_md_with_hookes_law == false){
+						loc_rep_stress -= replica_data[replica_data_index].init_stress;
+					}
+				
+					// Rotation of the stress tensor to common ground direction before averaging
+					cg_loc_rep_stress = rotate_tensor(loc_rep_stress, replica_data[replica_data_index].rotam);
+
+					cg_loc_stress += cg_loc_rep_stress;
+
+					//if (use_pjm_scheduler){
+					//	std::string scriptfile = nanostatelocout + "/" + "bash_cell"+cell_id[c]
+					//											 +"_repl"+std::to_string(numrepl)+".sh";
+					//	remove(scriptfile.c_str());
+					//}
+
+					// Clean "nanoscale_logs" of the finished timestep
+					char command[1024];
+					sprintf(command, "rm -rf %s", md_simulation.log_file);
+					//std::cout<< "Logfile "<< md_simulation.log_file <<std::endl;
+					//int ret = system(command);
+					//if (ret!=0){
+					//	std::cout << "Failed removing the log files of the MD simulation: " << md_simulation.log_file << std::endl;
+					//}
+				//}
+		}
+		cg_loc_stress /= nrepl;
+		
+		/*std::cout<< "STORING rep averages"<<std::endl;
+	    for (int i=0; i<6; i++){
+        std::cout << " " << cg_loc_stress.access_raw_entry(i);
+      } std::cout << std::endl;		*/
+
+		// serialse qp stress into scale bridging data array
+		for (int i=0; i<6; i++){
+    	scale_bridging_data.update_list[qp].update_stress[i] = cg_loc_stress.access_raw_entry(i);
+    }
+		}
 	}
 
 
@@ -877,8 +953,12 @@ namespace HMM
 			   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 			   std::string nlogloctmp,std::string nloglochom, std::string mslocout,
 			   std::string mdsdir, int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
-			   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups){
+			   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
+				 boost::property_tree::ptree inconfig, bool hookeslaw){
 
+		approx_md_with_hookes_law = hookeslaw;
+
+		input_config = inconfig;
 		start_timestep = sstp;
 
 		md_timestep_length = mdtlength;
@@ -908,15 +988,17 @@ namespace HMM
 		nrepl = nr;
 
 		use_pjm_scheduler = ups;
-
 		restart ();
 		load_replica_generation_data();
 		load_replica_equilibration_data();
-		average_replica_data();
+		if (this_mmd_process==0)
+		{	
+			average_replica_data();
+		}
 	}
 
 	template <int dim>
-	void STMDSync<dim>::update (int tstp, double ptime, int nstp){
+	void STMDSync<dim>::update (int tstp, double ptime, int nstp, ScaleBridgingData& scale_bridging_data){
 		present_time = ptime;
 		timestep = tstp;
 		newtonstep = nstp;
@@ -934,19 +1016,41 @@ namespace HMM
 		if (timestep%freq_checkpoint==0) checkpoint_save = true;
 		else checkpoint_save = false;
 
-		prepare_md_simulations();
+		std::vector< MDSim<dim> > md_simulations;
+		md_simulations = prepare_md_simulations(scale_bridging_data);
 
 		MPI_Barrier(mmd_communicator);
-		if (ncupd>0){
+		int n_md = md_simulations.size();
+		mcout << "TEST1: there are "<< n_md <<" quadrature points to be updated" << std::endl;
+		/*for (int i=0; i<n_md; i++){
+			mcout << i << " ";
+      for (int j=0; j<6; j++){
+        mcout << " " << md_simulations[i].strain.access_raw_entry(j);
+      } mcout << std::endl;  
+		}*/
+		if (n_md>0){
 			if(use_pjm_scheduler){
 				execute_pjm_md_simulations();
 			}
 			else{
-				execute_inside_md_simulations();
+				execute_inside_md_simulations(md_simulations);
+				MPI_Barrier(mmd_communicator);
+				share_stresses(md_simulations);
+				MPI_Barrier(mmd_communicator);
+			}
+			/*for (int i=0; i<n_md; i++){
+			mcout << i << " ";
+      for (int j=0; j<6; j++){
+        mcout << " " << md_simulations[i].stress.access_raw_entry(j);
+      } mcout << std::endl;  
+			MPI_Barrier(mmd_communicator);*/
+		//}
+	
+			//average stresses over md replicas, and store them in scale_bridging_data
+			if (this_mmd_process == 0){
+				store_md_simulations(md_simulations, scale_bridging_data);
 			}
 
-			MPI_Barrier(mmd_communicator);
-			store_md_simulations();
 		}
 	}
 }

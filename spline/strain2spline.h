@@ -147,7 +147,10 @@ namespace MatHistPredict {
 					spline.push_back(splXZ(t));
 					spline.push_back(splYZ(t));
 				}
-
+				if (spline.size() != 60){
+					fprintf(stderr, "SHIIT %d %d \n", num_spline_points_per_component, spline.size() );
+					exit(1);
+				}
 				up_to_date = true;
 			}
 
@@ -182,7 +185,11 @@ namespace MatHistPredict {
 
 			std::vector<double> * get_spline()
 			{
-				return &spline;
+				if(!up_to_date) {
+					std::cout << "Spline is not up to date.\n";
+					exit(1);
+					}
+          return &spline;
 			}
 
 			uint32_t get_ID()
@@ -444,6 +451,7 @@ namespace MatHistPredict {
 
 	void compare_histories_with_all_ranks(std::vector<Strain6D*>& histories, double threshold, MPI_Comm comm)
 	{
+	
 		MPI_Request request;
 		MPI_Status status;
 
@@ -502,6 +510,9 @@ namespace MatHistPredict {
 			} else { // Considering cells on the same rank
 				for(uint32_t a = 0; a < num_histories_on_this_rank; a++) {
 					for(uint32_t b = a + 1; b < num_histories_on_this_rank; b++) {
+		std::cout << "COMP3 "<< this_rank << " " << histories.size();
+		std::cout <<" "<< histories[a]->get_spline()->size() << "-" << histories[b]->get_spline()->size();
+		std::cout << std::endl << std::flush;
 						double diff = compare_L2_norm(histories[a], histories[b]);
 						histories[a]->choose_most_similar_history(diff, histories[b]->get_ID(), threshold); // both Strain6D's need this info
 						histories[b]->choose_most_similar_history(diff, histories[a]->get_ID(), threshold); // both Strain6D's need this info

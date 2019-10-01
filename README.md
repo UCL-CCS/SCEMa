@@ -25,7 +25,7 @@ The recommended versions of a few libraries are given below
 * Boost libraries 1.60.0
 * Petsc & slepc 3.6.4 with 64-bit int support
 
-LAMMPS versions [17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz) through [7Aug19](https://lammps.sandia.gov/tars/lammps-7Aug19.tar.gz) have been tested.
+LAMMPS version [17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz) has been tested.
 
 LAMMPS need to be compiled as a shared library with MPI support, along with the RIGID and USER-REAXC packages:
 

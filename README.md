@@ -31,16 +31,29 @@ make mode=shlib mpi
 ```
 
 ## Compile and run:
-After installing separately LAMMPS and Deal.II, and building your MD input lammps data file.
+After installing separately LAMMPS and Deal.II, and building your MD input lammps data file. Prepare the building directory:
 ```sh
 cd /path/to/DeaLAMMPS
 cp CMakeLists/example_machine.CMakeLists.txt CMakeLists.txt
 mkdir build
-
-cmake ../
-./dealammps inputs_hmm.json
 ```
-Additionally, a FE mesh can be imported from a GMSH file, and most of the parameters of the simulation can be found in dealammps.cc
+
+The file `CMakeLists.txt` needs to be edited to point toward the right installation path for Deal.II and LAMMPS. Then DeaLAMMPS executable can be compiled:
+```cmake ../
+make dealammps
+```
+
+The data files for each replica of the tested molecular structure need to be prepared using the `init_materials` executable, and positioned in `./nanoscale_input` (this path can be modified in the configuration file `inputs_testname.json`). 
+
+To restart from a previous simulation, checkpoint files stored in `./nanoscale_restart` and `./macroscale_restart` must be placed, respectively, in `./nanoscale_input/restart` and `./macroscale_input/restart`.
+
+More complex finite element meshes for the continuum scale (than simple rectangular parallelepiped) can be simulated. Simply, a GMSH mesh file needs to be placed in `./macroscale_input`.
+
+Most, if not all, of the simulation parameters are found in the configuration file `inputs_testname.json`.
+
+Finally, a simulation can be run:
+```mpiexec ./dealammps inputs_testname.json
+```
 
 ## Publications:
 Vassaux, M., Richardson, R. A., & Coveney, P. V. (2019). The heterogeneous multiscale method applied to inelastic polymer mechanics. Philosophical Transactions of the Royal Society A, 377(2142), 20180150.

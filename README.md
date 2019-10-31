@@ -7,9 +7,12 @@ Heterogeneous Multiscale Method implementation featuring Deal.II (FE) and LAMMPS
 More details about this algorithm can be found in the following publication:
 > Maxime Vassaux, Robin Richardson and Peter Coveney. [*The heterogeneous multiscale method applied to inelastic polymer mechanics.*](https://www.researchgate.net/publication/328930018_The_heterogeneous_multiscale_method_applied_to_inelastic_polymer_mechanics) Philosophical Transactions A, 377(2142), doi:10.1098/rsta.2018.0150.
 
+Continuum mechanics equilibrium equations are solved on the basis of a linear elastic material. Non-linear stress/strain beahvior is captured running MD simulations of a sample of material subject to the continuum strain when needed. 
+
+The number of MD simulations can be drastically reduced through a graph reduction method with thresholding of "similarity" of one microstate's material history (strain vs time) with another - currently using L2 norm.
 
 ## Dependencies:
-At the moment, there are __strict dependencies__ on the versions of various packages required by this softare stack.
+At the moment, there are __strong dependencies__ on the versions of various packages required by this softare stack.
 The bootstrap/platform infrastructure below has been tested on a number of clusters/supercomputers (running linux) and is therefore recommended.
 
 >
@@ -17,29 +20,15 @@ The bootstrap/platform infrastructure below has been tested on a number of clust
 * cmake 3.5.2
 * gnu make 4.1 or greater, preferably 4.2.1
 
-[v8.4.1 of Deal.II](https://dealii.org) is the only supported one. Deal.II need to be compiled with the dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), that is the following dependencies: Intel MPI, PETSc, METIS, MUMPS, BOOST, HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, HDF5, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html).
-An important aspect is that the MPI support for DealII and its dependencies must be built with __MPICH__ (will not work with OpenMPI!)
+The [Deal.II v8.4.1](https://dealii.org) is the only supported version. Deal.II need to be compiled with the dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), namely the following dependencies: MPI (MPICH or Intel MPI), PETSc (>3.6, 64bits), METIS (>4.0), MUMPS (>5.0), BOOST (>1.58), HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, HDF5, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html). The MPI support for DealII and its dependencies must be built with __MPICH__ (will not work with OpenMPI!).
 
-The recommended versions of a few libraries are given below
->
-* Boost libraries 1.60.0
-* Petsc & slepc 3.6.4 with 64-bit int support
-
-LAMMPS version [17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz) has been tested.
-
-LAMMPS need to be compiled as a shared library with MPI support, along with the RIGID and USER-REAXC packages:
-
-Here is an example `make` invocation for the 16Nov16 version
+LAMMPS version [17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz) has been tested and works correctly, more recent version can probably work as well with the LAMMPS scripts embedded in DeaLAMMPS. LAMMPS need to be compiled as a shared library with MPI support, along with the RIGID and USER-REAXC packages. Here is an example `make` invocation for the 17Nov16 version
 ```sh
 cd /path/to/lammps-17Nov16/src
 make yes-RIGID
 make yes-USER-REAXC
 make mode=shlib mpi
 ```
-
-Continuum mechanics equilibrium equations are solved on the basis of a linear elastic material. Non-linear stress/strain beahvior is captured running MD simulations of a sample of material subject to the continuum strain when needed. 
-
-The number of MD simulations can be drastically reduced through a graph reduction method with thresholding of "similarity" of one microstate's material history (strain vs time) with another - currently using L2 norm.
 
 ## Compile and run:
 After installing separately LAMMPS and Deal.II, and building your MD input lammps data file.

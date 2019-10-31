@@ -96,7 +96,7 @@ namespace HMM
 				md_sim.qp_id, mdstate);
 
 		char straindata_time[1024];
-		sprintf(straindata_time, "%s/%d.%d.%s.dump", md_sim.restart_folder.c_str(),
+		sprintf(straindata_time, "%s/%s.%d.%s.dump", md_sim.restart_folder.c_str(),
 				md_sim.time_id, md_sim.qp_id, mdstate);
 
 		char straindata_lcts[1024];
@@ -104,7 +104,7 @@ namespace HMM
 				md_sim.qp_id, mdstate);
 
 		char homogdata_time[1024];
-		sprintf(homogdata_time, "%s/%d.%d.%s.lammpstrj", md_sim.log_file.c_str(),
+		sprintf(homogdata_time, "%s/%s.%d.%s.lammpstrj", md_sim.log_file.c_str(),
 				md_sim.time_id, md_sim.qp_id, mdstate);
 
 		char cline[1024];

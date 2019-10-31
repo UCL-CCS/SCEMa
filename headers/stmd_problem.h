@@ -95,10 +95,6 @@ namespace HMM
 		sprintf(straindata_last, "%s/last.%d.%s.dump", md_sim.output_folder.c_str(),
 				md_sim.qp_id, mdstate);
 
-		char straindata_time[1024];
-		sprintf(straindata_time, "%s/%s.%d.%s.dump", md_sim.restart_folder.c_str(),
-				md_sim.time_id, md_sim.qp_id, mdstate);
-
 		char straindata_lcts[1024];
 		sprintf(straindata_lcts, "%s/lcts.%d.%s.dump", md_sim.restart_folder.c_str(),
 				md_sim.qp_id, mdstate);
@@ -237,11 +233,9 @@ namespace HMM
 		if(md_sim.checkpoint){
 			if (md_sim.force_field == "opls") {
 				sprintf(cline, "write_restart %s", straindata_lcts); lammps_command(lmp,cline); /*opls*/
-				sprintf(cline, "write_restart %s", straindata_time); lammps_command(lmp,cline); /*opls*/
 			}
 			else if (md_sim.force_field == "reax") {
 				sprintf(cline, "write_dump all custom %s id type xs ys zs vx vy vz ix iy iz", straindata_lcts); lammps_command(lmp,cline); /*reaxff*/
-				sprintf(cline, "write_dump all custom %s id type xs ys zs vx vy vz ix iy iz", straindata_time); lammps_command(lmp,cline); /*reaxff*/
 			}
 		}
 		// close down LAMMPS

@@ -21,6 +21,12 @@ The bootstrap/platform infrastructure below has been tested on a number of clust
 * gnu make 4.1 or greater, preferably 4.2.1
 
 The [Deal.II v8.4.1](https://dealii.org) is the only supported version. Deal.II need to be compiled with the dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), namely the following dependencies: MPI (MPICH or Intel MPI), PETSc (>3.6, 64bits), METIS (>4.0), MUMPS (>5.0), BOOST (>1.58), HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, HDF5, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html). The MPI support for DealII and its dependencies must be built with __MPICH__ (will not work with OpenMPI!).
+```sh
+cd /path/to/dealii-8.4.1/build/
+cmake -DCMAKE_INSTALL_PREFIX=/path/to/install/dealii-8.4.1/ -DDEAL_II_WITH_MPI=ON -DDEAL_II_WITH_PETSC=ON ..
+make install
+make test
+```
 
 LAMMPS version [17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz) has been tested and works correctly, more recent version can probably work as well with the LAMMPS scripts embedded in DeaLAMMPS. LAMMPS need to be compiled as a shared library with MPI support, along with the RIGID and USER-REAXC packages. Here is an example `make` invocation for the 17Nov16 version
 ```sh

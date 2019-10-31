@@ -2082,7 +2082,7 @@ namespace HMM
 	// Creation of a checkpoint with the bare minimum data to restart the simulation (i.e nodes information,
 	// and quadrature point information)
 	template <int dim>
-	void FEProblem<dim>::checkpoint (char* timeid) const
+	void FEProblem<dim>::checkpoint () const
 	{
 		char filename[1024];
 
@@ -2091,12 +2091,12 @@ namespace HMM
 		if (this_FE_process==0)
 		{
 			// Write solution vector to binary for simulation restart
-			const std::string solution_filename = (macrostatelocres + "/" + timeid + ".solution.bin");
+			const std::string solution_filename = (macrostatelocres + "/lcts.solution.bin");
 			std::ofstream ofile(solution_filename);
 			displacement.block_write(ofile);
 			ofile.close();
 
-			const std::string solution_filename_veloc = (macrostatelocres + "/" + timeid + ".velocity.bin");
+			const std::string solution_filename_veloc = (macrostatelocres + "/lcts.velocity.bin");
 			std::ofstream ofile_veloc(solution_filename_veloc);
 			velocity.block_write(ofile_veloc);
 			ofile_veloc.close();
@@ -2104,7 +2104,7 @@ namespace HMM
 		MPI_Barrier(FE_communicator);
 
 		// Output of the last converged timestep quadrature local history per processor
-		sprintf(filename, "%s/%s.pr_%d.lhistory.bin", macrostatelocres.c_str(), timeid, this_FE_process);
+		sprintf(filename, "%s/lcts.pr_%d.lhistory.bin", macrostatelocres.c_str(), this_FE_process);
 		std::ofstream  lhprocoutbin(filename, std::ios_base::binary);
 
 		// Output of complete local history in a single file per processor
@@ -2300,6 +2300,7 @@ namespace HMM
 		if(timestep%freq_checkpoint==0){
 			//write files here
 			//char timeid[1024];
+			checkpoint();
        }
 
         dcout << std::endl;

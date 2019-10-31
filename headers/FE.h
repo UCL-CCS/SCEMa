@@ -283,7 +283,7 @@ namespace HMM
 							void output_visualisation_solution ();
 							void output_visualisation_history ();
 							void output_results ();
-							void checkpoint (char* timeid) const;
+							void checkpoint () const;
 
 							Vector<double> 		     			newton_update_displacement;
 							Vector<double> 		     			incremental_displacement;

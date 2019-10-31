@@ -2275,6 +2275,7 @@ namespace HMM
 				<< previous_res
 				<< std::endl;
 
+                // continue_newton is set to false to render the integration explicit, the check of convergence on the residual is disabled
 		bool continue_newton = false;
 		//if (previous_res>1e-02 and newtonstep < 5) continue_newton = true;
 

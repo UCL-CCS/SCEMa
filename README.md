@@ -39,7 +39,8 @@ mkdir build
 ```
 
 The file `CMakeLists.txt` needs to be edited to point toward the right installation path for Deal.II and LAMMPS. Then DeaLAMMPS executable can be compiled:
-```cmake ../
+```sh
+cmake ../
 make dealammps
 ```
 
@@ -52,7 +53,8 @@ More complex finite element meshes for the continuum scale (than simple rectangu
 Most, if not all, of the simulation parameters are found in the configuration file `inputs_testname.json`.
 
 Finally, a simulation can be run:
-```mpiexec ./dealammps inputs_testname.json
+```sh
+mpiexec ./dealammps inputs_testname.json
 ```
 
 ## Publications:

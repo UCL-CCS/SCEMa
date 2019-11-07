@@ -14,7 +14,7 @@
 
 #include <mpi.h>
 
-#include "strain2spline.h"
+#include "../headers/strain2spline.h"
 
 bool starts_with(std::string mainStr, std::string toMatch)
 {

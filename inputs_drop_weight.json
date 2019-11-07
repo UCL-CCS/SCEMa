@@ -35,7 +35,8 @@
     "spline":{
       "points": 10,
       "min steps": 500,
-      "diff threshold": 0.000001
+      "diff threshold": 0.000001,
+      "scripts directory": "./spline"
     }
   },
   "molecular dynamics material":{

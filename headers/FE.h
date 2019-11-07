@@ -26,7 +26,7 @@
 #include "scale_bridging_data.h"
 
 // Reduction model based on spline comparison
-#include "../spline/strain2spline.h"
+#include "strain2spline.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -347,6 +347,7 @@ namespace HMM
 							int 								num_spline_points;
 							int 								min_num_steps_before_spline;
 							double								acceptable_diff_threshold;
+							std::string							splinescriptsloc;
 
 							std::string                         macrostatelocin;
 							std::string                         macrostatelocout;

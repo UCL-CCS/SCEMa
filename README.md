@@ -37,7 +37,7 @@ make yes-USER-REAXC
 make mode=shlib mpi
 ```
 
-## Compile and run:
+## Compilation:
 After installing separately LAMMPS and Deal.II, and building your MD input lammps data file. Prepare the building directory:
 ```sh
 cd /path/to/DeaLAMMPS
@@ -51,18 +51,125 @@ cmake ../
 make dealammps
 ```
 
-The data files for each replica of the tested molecular structure need to be prepared using the `init_materials` executable, and positioned in `./nanoscale_input` (this path can be modified in the configuration file `inputs_testname.json`). 
+## Execution:
+The directory where the simulation is executed should contain at least the following data:
+```sh
+ll /path/to/simulation
+... inputs_testname.json
+... lammps_scripts_ffname -> /path/to/DeaLAMMPS/lammps_scripts_opls
+... macroscale_input
+... nanoscale_input
+... spline -> /path/to/DeaLAMMPS/spline
+```
 
-To restart from a previous simulation, checkpoint files stored in `./nanoscale_restart` and `./macroscale_restart` must be placed, respectively, in `./nanoscale_input/restart` and `./macroscale_input/restart`.
+Most, if not all, of the simulation parameters are found in the configuration file `inputs_testname.json`:
+```sh
+cat /path/to/simulation/inputs_testname.json
+{
+	"problem type":{
+		"class": "testname",
+		"strain rate": 0.002
+ 	},
+  "scale-bridging":{
+    "activate md update": 1,
+    "approximate md with hookes law": 0,
+    "use pjm scheduler": 0
+  },
+  "continuum time":{
+    "timestep length": 5.0e-7,
+    "start timestep": 1,
+    "end timestep": 10
+  },
+  "continuum mesh":{
+    "fe degree": 1,
+    "quadrature formula": 2,
+    "input": {
+      "style" : "cuboid",
+      "x length" : 0.03,
+      "y length" : 0.03,
+      "z length" : 0.08,
+      "x cells" : 3,
+      "y cells" : 3,
+      "z cells" : 8
+     }
+  },
+  "model precision":{
+    "md":{
+      "min quadrature strain norm": 1.0e-10
+    },
+    "spline":{
+      "points": 10,
+      "min steps": 5,
+      "diff threshold": 0.000001,
+      "scripts directory": "./spline"
+    }
+  },
+  "molecular dynamics material":{
+    "number of replicas": 1,
+    "list of materials": ["matname"],
+    "distribution": {
+      "style": "uniform",
+      "proportions": [1.0]
+	  },
+    "rotation common ground vector":[1.0, 0.0, 0.0]
+  },
+  "molecular dynamics parameters":{
+    "temperature": 300.0,
+    "timestep length": 2.0,
+    "strain rate": 1.0e-4,
+    "number of sampling steps": 100,
+    "scripts directory": "./lammps_scripts_ffname",
+    "force field": "ffname"
+  },
+  "computational resources":{
+    "machine cores per node": 24,
+    "number of nodes for FEM simulation": 1,
+    "minimum nodes per MD simulation": 1
+  },
+  "output data":{
+    "checkpoint frequency": 1,
+    "visualisation output frequency": 1,
+    "analytics output frequency": 1,
+    "homogenization output frequency": 1000
+  },
+  "directory structure":{
+    "macroscale input": "./macroscale_input",
+    "nanoscale input": "./nanoscale_input",
+    "macroscale output": "./macroscale_output",
+    "nanoscale output": "./nanoscale_output",
+    "macroscale restart": "./macroscale_restart",
+    "nanoscale restart": "./nanoscale_restart",
+    "macroscale log": "./macroscale_log",
+    "nanoscale log": "./nanoscale_log"
+  }
+}
+```
+
+The data files for each replica of the tested molecular structure need to be prepared using the `init_materials` executable, and positioned in `./nanoscale_input` (this path can be modified in the configuration file `inputs_testname.json`). If two replicas of the material `matname` are used, it should contain the following data:
+```sh
+ll /path/to/simulation/nanoscale_input
+... matname_1.data
+... matname_1.json
+... matname_2.data
+... matname_2.json
+... init.matname_1.bin
+... init.matname_1.length
+... init.matname_1.stiff
+... init.matname_1.stress
+... init.matname_2.bin
+... init.matname_2.length
+... init.matname_2.stiff
+... init.matname_2.stress
+```
 
 More complex finite element meshes for the continuum scale (than simple rectangular parallelepiped) can be simulated. Simply, a GMSH mesh file needs to be placed in `./macroscale_input`.
 
-Most, if not all, of the simulation parameters are found in the configuration file `inputs_testname.json`.
-
-Finally, a simulation can be run:
+Finally, the simulation can be run:
 ```sh
-mpiexec ./dealammps inputs_testname.json
+mpiexec /path/to/DeaLAMMPS/dealammps inputs_testname.json
 ```
+
+To restart from a previous simulation, checkpoint files stored in `./nanoscale_restart` and `./macroscale_restart` must be placed, respectively, in `./nanoscale_input/restart` and `./macroscale_input/restart`.
 
 ## Publications:
 Vassaux, M., Richardson, R. A., & Coveney, P. V. (2019). The heterogeneous multiscale method applied to inelastic polymer mechanics. Philosophical Transactions of the Royal Society A, 377(2142), 20180150.

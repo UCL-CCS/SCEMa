@@ -102,4 +102,4 @@ if __name__ == "__main__":
     out_mapping_fname = sys.argv[2]
     num_gps = int(sys.argv[3])
 
-
+    coarsegrain_dependency_network(input_folder, out_mapping_fname, num_gps)

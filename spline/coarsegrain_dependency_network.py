@@ -57,7 +57,7 @@ def coarsegrain_dependency_network(input_folder, out_mapping_fname, num_gps):
                 G.add_edge(cell1, cell2, weight=1.0/dist)
 
     num_nodes_remaining = len(G)
-    mapping = [i for i in range(num_gp)]
+    mapping = [i for i in range(num_gps)]
     iterations = 0
     neighbour_removed = 0
 

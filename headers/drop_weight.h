@@ -116,7 +116,8 @@ namespace HMM {
 				return boundary_values;
 			}
 
-
+    bool is_vertex_loaded(int index){
+    }
 
 		private:
 			boost::property_tree::ptree input_config;

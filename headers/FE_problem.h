@@ -1251,9 +1251,6 @@ namespace HMM
 
 			sprintf(outhistfname, "%s/last.%d.all_similar_hist", macrostatelocout.c_str(), histories[i]->get_ID());
 			histories[i]->all_similar_histories_to_file(outhistfname);
-
-			/*sprintf(outhistfname, "%s/%d.%d.all_similar_hist", macrostatelocout.c_str(), timestep_no, histories[i]->get_ID());
-			histories[i]->all_similar_histories_to_file(outhistfname);*/
 		}
 
 		dcout << "           " << "...computing quadrature points reduced dependencies..." << std::endl;
@@ -1791,6 +1788,51 @@ namespace HMM
 	}
 
 
+        template <int dim>
+        void FEProblem<dim>::output_resultforce ()
+        {
+                // Compute applied force vector
+                Vector<double> local_residual (dof_handler.n_dofs());
+                local_residual = compute_internal_forces();
+
+                // Compute force under the loading boundary condition
+                double aforce = 0.;
+                //dcout << "hello Y force ------ " << std::endl;
+                for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+                        if (problem_type.is_vertex_loaded[i] == true)
+                        {
+                                // For Debug...
+                                //dcout << "   force on loaded nodes: " << local_residual[i] << std::endl;
+                                aforce += local_residual[i];
+                        }
+
+                // Write specific outputs to file
+                if (this_FE_process==0)
+                {
+                        std::ofstream ofile;
+                        char fname[1024]; sprintf(fname, "%s/resultforce.csv", macrologloc);
+
+                        // writing the header of the file
+                        if (timestep == start_timestep){
+                                ofile.open (fname);
+                                if (ofile.is_open()){
+                                        ofile << "timestep,time,resulting_force" << std::endl;
+                                        ofile.close();
+                                }
+                                else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
+                        }
+
+                        ofile.open (fname, std::ios::app);
+                        if (ofile.is_open())
+                        {
+                                ofile << timestep << ", " << present_time << ", " << aforce << std::endl;
+                                ofile.close();
+                        }
+                        else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
+                }
+        }
+
+
 
 	template <int dim>
 	void FEProblem<dim>::output_lhistory ()
@@ -2070,6 +2112,9 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::output_results ()
 	{
+		// Output resulting force at boundary
+		output_resultforce();
+
 		// Output local history by processor
 		if(timestep%freq_output_lhist==0) output_lhistory ();
 

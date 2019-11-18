@@ -279,6 +279,7 @@ namespace HMM
 							Vector<double>  compute_internal_forces () const;
 							std::vector< std::vector< Vector<double> > >
 									compute_history_projection_from_qp_to_nodes (FE_DGQ<dim> &history_fe, DoFHandler<dim> &history_dof_handler, std::string stensor) const;
+							void output_resultforce ();
 							void output_lhistory ();
 							void output_visualisation_solution ();
 							void output_visualisation_history ();

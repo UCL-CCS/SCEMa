@@ -9,7 +9,7 @@ namespace HMM {
         input_config = input;
 				strain_rate = input_config.get<double>("problem type.strain rate");
       }
-
+			std::vector<bool>                 is_vertex_loaded;
 			void make_grid(parallel::shared::Triangulation<dim> &triangulation)
       {	
 				mesh = this->read_mesh_dimensions(input_config);
@@ -25,7 +25,7 @@ namespace HMM {
 			void define_boundary_conditions(DoFHandler<dim> &dof_handler)
 			{
 				typename DoFHandler<dim>::active_cell_iterator cell;
-
+				is_vertex_loaded.reserve(dof_handler.n_dofs());
 				for (cell = dof_handler.begin_active(); cell != dof_handler.end(); ++cell) {
         	double eps = cell->minimum_vertex_distance();
 					double delta = eps / 10.0;
@@ -48,6 +48,7 @@ namespace HMM {
 								fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 0) );
 								fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 1) );
 								loaded_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 2) );
+								is_vertex_loaded[cell->face(face)->vertex_dof_index(vert, 2)] = true;
 								//std::cout << "LOAD " << cell->face(face)->vertex_dof_index(vert, 2) << std::endl;
 							}
 						}
@@ -119,7 +120,6 @@ namespace HMM {
 
 				return boundary_values;
 			}
-
 
 
 		private:

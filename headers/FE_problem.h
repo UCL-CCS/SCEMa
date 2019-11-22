@@ -1799,7 +1799,7 @@ namespace HMM
                 double aforce = 0.;
                 //dcout << "hello Y force ------ " << std::endl;
                 for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-                        if (problem_type.is_vertex_loaded[i] == true)
+                        if (problem_type->is_vertex_loaded(i) == true)
                         {
                                 // For Debug...
                                 //dcout << "   force on loaded nodes: " << local_residual[i] << std::endl;
@@ -1810,7 +1810,7 @@ namespace HMM
                 if (this_FE_process==0)
                 {
                         std::ofstream ofile;
-                        char fname[1024]; sprintf(fname, "%s/resultforce.csv", macrologloc);
+                        char fname[1024]; sprintf(fname, "%s/resultforce.csv", macrologloc.c_str());
 
                         // writing the header of the file
                         if (timestep == start_timestep){

@@ -124,6 +124,7 @@ namespace HMM {
                                 return vertex_loaded_state[index];
                         }
 
+
 		private:
 			boost::property_tree::ptree input_config;
 			MeshDimensions							mesh;

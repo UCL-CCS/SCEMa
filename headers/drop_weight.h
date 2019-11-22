@@ -120,7 +120,6 @@ namespace HMM {
                         }
 
 
-
 		private:
 			boost::property_tree::ptree input_config;
 			MeshDimensions							mesh;

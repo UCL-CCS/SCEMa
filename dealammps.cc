@@ -26,6 +26,8 @@
 #include <sys/stat.h>
 #include <math.h>
 
+#include <chrono>         // std::chrono::seconds, header file for wall-time measurement
+
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
 #include "boost/property_tree/ptree.hpp"
@@ -417,6 +419,9 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::do_timestep ()
 	{
+                // Begin walltime measuring point
+                auto wcts = std::chrono::system_clock::now(); // current time
+
 		// Updating time variable
 		present_time += fe_timestep_length;
 		++timestep;
@@ -464,6 +469,10 @@ namespace HMM
 		if(fe_pcolor==0) fe_problem->endstep();
 		
 		MPI_Barrier(world_communicator);
+
+                std::chrono::duration<double> wctduration = (std::chrono::system_clock::now() - wcts);
+                hcout << "Time for timestep: " << timestep << " is " << wctduration.count() << " seconds\n\n";
+		// End time measuring point
 	}
 
 
@@ -553,18 +562,30 @@ int main (int argc, char **argv)
 		}
 
 		HMMProblem<3> hmm_problem;
+
+                // Begin Global wall-timer
+                auto wcts = std::chrono::system_clock::now(); // current wall time
+
 		hmm_problem.run(inputfile);
+
+                std::chrono::duration<double> wctduration = (std::chrono::system_clock::now() - wcts);
+                int this_rank;
+                MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);  
+                if (this_rank==0) {
+                    std::cout << "Overall wall time is " << wctduration.count() << " seconds\n\n";
+                }
+                // End of global wall-timer 
 	}
 	catch (std::exception &exc)
 	{
-		std::cerr << std::endl << std::endl
-				<< "----------------------------------------------------"
-				<< std::endl;
-		std::cerr << "Exception on processing: " << std::endl
-				<< exc.what() << std::endl
-				<< "Aborting!" << std::endl
-				<< "----------------------------------------------------"
-				<< std::endl;
+	    std::cerr << std::endl << std::endl
+		<< "----------------------------------------------------"
+		<< std::endl;
+	    std::cerr << "Exception on processing: " << std::endl
+		<< exc.what() << std::endl
+		<< "Aborting!" << std::endl
+		<< "----------------------------------------------------"
+		<< std::endl;
 
 		return 1;
 	}

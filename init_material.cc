@@ -183,7 +183,7 @@ namespace HMM
 
 		// Computational resources
 		machine_ppn = input_config.get<int>("computational resources.machine cores per node");
-		batch_nnodes_min = input_config.get<int>("computational resource.minimum nodes per MD simulation");
+		batch_nnodes_min = input_config.get<int>("computational resources.minimum nodes per MD simulation");
 
 		// Print a recap of all the parameters...
 		hcout << "Parameters listing:" << std::endl;

@@ -26,6 +26,7 @@ namespace HMM {
 			std::string time_id; 
 
 			SymmetricTensor<2,dim> strain; //input
+			SymmetricTensor<4,dim> stiffness; //input
 			SymmetricTensor<2,dim> stress; //output
 
 			bool			stress_updated = false; 

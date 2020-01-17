@@ -540,6 +540,9 @@ namespace HMM
 						}
 					}
 
+					// Setting up md system stiffness tensor
+					md_sim.stiffness = replica_data[replica_data_index].init_stiff;
+
 					request_simulations.push_back(md_sim);
 			//}
 			}

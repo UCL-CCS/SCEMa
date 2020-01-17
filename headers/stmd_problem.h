@@ -45,7 +45,7 @@ namespace HMM
 	private:
 
 		SymmetricTensor<2,dim> lammps_straining(MDSim<dim> md_sim);
-  	SymmetricTensor<2,dim> stress_from_hookes_law (SymmetricTensor<2,dim> strain);
+  		SymmetricTensor<2,dim> stress_from_hookes_law (SymmetricTensor<2,dim> strain, SymmetricTensor<4,dim> stiffness);
 
 		MPI_Comm 							md_batch_communicator;
 		const int 							md_batch_n_processes;
@@ -322,13 +322,9 @@ namespace HMM
 
 
 	template <int dim>
-  SymmetricTensor<2,dim> STMDProblem<dim>::stress_from_hookes_law (SymmetricTensor<2,dim> strain)
+  SymmetricTensor<2,dim> STMDProblem<dim>::stress_from_hookes_law (SymmetricTensor<2,dim> strain, SymmetricTensor<4,dim> stiffness)
 	{
 		SymmetricTensor<2,dim> stress;
-
-		SymmetricTensor<4,dim> stiffness;
-    read_tensor<dim>("nanoscale_input/init.g0_1.stiff", stiffness);
-
 		stress = stiffness * strain;
 		return stress;
 	}
@@ -357,7 +353,7 @@ namespace HMM
 
 		if (approx_md_with_hookes_law == true){
 			// this option is meant for testing
-			md_sim.stress = stress_from_hookes_law(md_sim.strain);
+			md_sim.stress = stress_from_hookes_law(md_sim.strain, md_sim.stiffness);
 			md_sim.stress_updated = true;
 		}
 		else {

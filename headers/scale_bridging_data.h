@@ -11,8 +11,8 @@ namespace HMM {
 	
 	struct QP // quadradture point
 	{
-		int 		id;
-		int 		material;
+		int 	id;
+		int 	material;
 		double 	update_strain[6];
 		double	update_stress[6];
 	};

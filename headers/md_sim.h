@@ -28,7 +28,7 @@ namespace HMM {
 			SymmetricTensor<2,dim> strain; //input
 			SymmetricTensor<2,dim> stress; //output
 
-			bool				stress_updated = false; 
+			bool			stress_updated = false; 
 		
 			std::string output_folder;
 			std::string restart_folder;
@@ -37,7 +37,7 @@ namespace HMM {
 		
 			double 			timestep_length;
 			double			temperature;
-			int 				nsteps_sample;
+			int 			nsteps_sample;
 			double 			strain_rate;
 			std::string force_field;
 		

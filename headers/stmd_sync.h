@@ -507,6 +507,9 @@ namespace HMM
 
 					md_sim.replica = repl + 1; // +1 to match input file lables... fix 
 					md_sim.material = update_list[qp].material;
+
+					int replica_data_index = md_sim.material*nrepl+repl; // imd*nrepl+nrepl;
+					md_sim.matid = replica_data[replica_data_index].mat;
 					md_sim.time_id = time_id;
 	
 					md_sim.force_field 			= md_force_field;
@@ -524,7 +527,6 @@ namespace HMM
 	    				std::string macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
 					md_sim.define_file_names(nanologloctmp);
 
-					int replica_data_index = md_sim.material*nrepl+repl; // imd*nrepl+nrepl;
 					// Argument of the MD simulation: strain to apply
 					SymmetricTensor<2,dim> cg_loc_rep_strain(scale_bridging_data.update_list[qp].update_strain);
 

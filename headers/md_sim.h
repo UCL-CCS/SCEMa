@@ -22,6 +22,7 @@ namespace HMM {
 			int qp_id;
 			int replica;
 			int material;
+			std::string matid;
 		
 			std::string time_id; 
 
@@ -47,7 +48,7 @@ namespace HMM {
 
 			void define_file_names(std::string nanologloctmp)
 			{
-    	  log_file = nanologloctmp + "/" + time_id  + "." + std::to_string(qp_id) + "." + std::to_string(material) + "_" + std::to_string(replica);
+    	  			log_file = nanologloctmp + "/" + time_id  + "." + std::to_string(qp_id) + "." + matid + "_" + std::to_string(replica);
 				// Preparing directory to write MD simulation log files
 				mkdir(log_file.c_str(), ACCESSPERMS);
 			}		

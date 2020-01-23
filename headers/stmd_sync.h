@@ -507,29 +507,31 @@ namespace HMM
 
 					md_sim.replica = repl + 1; // +1 to match input file lables... fix 
 					md_sim.material = update_list[qp].material;
+
+					int replica_data_index = md_sim.material*nrepl+repl; // imd*nrepl+nrepl;
+					md_sim.matid = replica_data[replica_data_index].mat;
 					md_sim.time_id = time_id;
 	
 					md_sim.force_field 			= md_force_field;
-			    md_sim.timestep_length  = md_timestep_length;
-    			md_sim.temperature      = md_temperature;
-			    md_sim.nsteps_sample    = md_nsteps_sample;
-			    md_sim.strain_rate      = md_strain_rate;
+			    		md_sim.timestep_length  = md_timestep_length;
+    					md_sim.temperature      = md_temperature;
+			    		md_sim.nsteps_sample    = md_nsteps_sample;
+			    		md_sim.strain_rate      = md_strain_rate;
 
 					md_sim.output_folder		= nanostatelocout;
 					md_sim.restart_folder		= nanostatelocres;
 					md_sim.scripts_folder   = md_scripts_directory;
 					md_sim.output_homog			= false;
 					md_sim.checkpoint 			= checkpoint_save;
-        	// Setting up location for temporary log outputs of md simulation, input strains and output stresses
-	    		std::string macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
+        				// Setting up location for temporary log outputs of md simulation, input strains and output stresses
+	    				std::string macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
 					md_sim.define_file_names(nanologloctmp);
 
-					int replica_data_index = md_sim.material*nrepl+repl; // imd*nrepl+nrepl;
 					// Argument of the MD simulation: strain to apply
 					SymmetricTensor<2,dim> cg_loc_rep_strain(scale_bridging_data.update_list[qp].update_strain);
 
 					// Rotate strain tensor from common ground to replica orientation
-				  md_sim.strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[replica_data_index].rotam));
+				  	md_sim.strain = rotate_tensor(cg_loc_rep_strain, transpose(replica_data[replica_data_index].rotam));
 					// Resize applied strain with initial length of the md sample, the resulting variable is not
 					// a strain but a length variation, which will be transformed back into a strain during the
 					// execution of the MD code where the current length of the nanosystem will be available
@@ -539,6 +541,9 @@ namespace HMM
 							md_sim.strain[j][(j+1)%dim] *= replica_data[replica_data_index].init_length[(j+2)%dim];
 						}
 					}
+
+					// Setting up md system stiffness tensor
+					md_sim.stiffness = replica_data[replica_data_index].init_stiff;
 
 					request_simulations.push_back(md_sim);
 			//}

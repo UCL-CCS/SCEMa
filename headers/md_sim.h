@@ -22,13 +22,15 @@ namespace HMM {
 			int qp_id;
 			int replica;
 			int material;
+			std::string matid;
 		
 			std::string time_id; 
 
 			SymmetricTensor<2,dim> strain; //input
+			SymmetricTensor<4,dim> stiffness; //input
 			SymmetricTensor<2,dim> stress; //output
 
-			bool				stress_updated = false; 
+			bool			stress_updated = false; 
 		
 			std::string output_folder;
 			std::string restart_folder;
@@ -37,7 +39,7 @@ namespace HMM {
 		
 			double 			timestep_length;
 			double			temperature;
-			int 				nsteps_sample;
+			int 			nsteps_sample;
 			double 			strain_rate;
 			std::string force_field;
 		
@@ -46,7 +48,7 @@ namespace HMM {
 
 			void define_file_names(std::string nanologloctmp)
 			{
-    	  log_file = nanologloctmp + "/" + time_id  + "." + std::to_string(qp_id) + "." + std::to_string(material) + "_" + std::to_string(replica);
+    	  			log_file = nanologloctmp + "/" + time_id  + "." + std::to_string(qp_id) + "." + matid + "_" + std::to_string(replica);
 				// Preparing directory to write MD simulation log files
 				mkdir(log_file.c_str(), ACCESSPERMS);
 			}		

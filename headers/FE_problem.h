@@ -1421,17 +1421,41 @@ namespace HMM
 		   disps[i] = (i > 0) ? (disps[i-1] + elements_per_proc[i-1]) : 0;
 		}
 		
-		typename mpi_type; 
-		if      (typeid(T) == typeid(int))    mpi_type = MPI_INT;
-		else if (typeid(T) == typeid(double)) mpi_type = MPI_DOUBLE;
-		else if (typeid(T) == typeid(QP))			mpi_type = MPI_QP;
+    std::vector<T> gathered_vector(total_elements);
+		if      (typeid(T) == typeid(int)){
+      MPI_Gatherv(&local_vector.front(), 
+                local_vector.size(),       
+                MPI_INT,
+                &gathered_vector.front(),  
+                &elements_per_proc.front(),
+                disps, MPI_INT, 0, FE_communicator);
+    }
+
+		else if (typeid(T) == typeid(double)){
+      MPI_Gatherv(&local_vector.front(), 
+                local_vector.size(),       
+                MPI_DOUBLE,
+                &gathered_vector.front(),  
+                &elements_per_proc.front(),
+                disps, MPI_DOUBLE, 0, FE_communicator);
+    }
+
+		else if (typeid(T) == typeid(QP)){
+      MPI_Gatherv(&local_vector.front(), 
+                local_vector.size(),       
+                MPI_QP,
+                &gathered_vector.front(),  
+                &elements_per_proc.front(),
+                disps, MPI_QP, 0, FE_communicator);
+    }
 		else {
 			dcout<<"Type not implemented in gather_vector"<<std::endl;
 			exit(1);
 		}
 
 		// Populate a list with all elements requested
-		std::vector<T> gathered_vector(total_elements); // vector with all elements from all ranks
+		// TODO This is the general function, some day we will make this work with generic type
+		/*std::vector<T> gathered_vector(total_elements); // vector with all elements from all ranks
 		MPI_Gatherv(&local_vector.front(),     // *sendbuf,
             local_vector.size(),       	// sendcount,
             mpi_type,										// sendtype,
@@ -1440,7 +1464,9 @@ namespace HMM
 						disps,											// displs[],
             mpi_type, 										//recvtype,
 						0,
-						FE_communicator);
+						FE_communicator);*/
+
+
 		/*		
 		if (this_FE_process == 0){
 			dcout << "GATHER VECTOR OUTPUT " << total_elements << " ";

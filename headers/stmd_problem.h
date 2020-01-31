@@ -123,10 +123,7 @@ namespace HMM
 		// Passing location for output as variable
 		sprintf(cline, "variable mdt string %s", md_sim.matid.c_str()); lammps_command(lmp,cline);
 		sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);
-		if (md_sim.force_field == "reax"){
-			sprintf(cline, "variable locf string %s", locff); /*reaxff*/
-			lammps_command(lmp,cline); /*reaxff*/
-		}
+		sprintf(cline, "variable locs string %s", md_sim.scripts_folder.c_str()); lammps_command(lmp,cline);
 		
 		// Setting testing temperature
 		sprintf(cline, "variable tempt equal %f", md_sim.temperature); lammps_command(lmp,cline);
@@ -249,12 +246,9 @@ namespace HMM
 		sprintf(lmparg[4], "%s/log.homogenization", md_sim.log_file.c_str());
 		lmp = new LAMMPS(nargs,lmparg,md_batch_communicator);
 
-		if (md_sim.force_field == "reax"){
-			sprintf(cline, "variable locf string %s", locff); /*reaxff*/
-			lammps_command(lmp,cline); /*reaxff*/
-		}
-        sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);
-
+        	sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);
+		sprintf(cline, "variable locs string %s", md_sim.scripts_folder.c_str()); lammps_command(lmp,cline);
+		
 		// Setting testing temperature
 		sprintf(cline, "variable tempt equal %f", md_sim.temperature); lammps_command(lmp,cline);
 

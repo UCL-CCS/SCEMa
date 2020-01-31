@@ -1,4 +1,4 @@
-# SCHEMa (Simulation Coupling Environment for Materials)
+# SCEMa (Simulation Coupling Environment for Materials)
 
 <img src="https://mvassaux.github.io/static/hmm_bicomposite_lo.jpg" align="right" width="50%" /> 
 
@@ -29,7 +29,7 @@ make install
 make test
 ```
 
-LAMMPS version [17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz) has been tested and works correctly, more recent version can probably work as well with the LAMMPS scripts embedded in WHRYME. LAMMPS need to be compiled as a shared library with MPI support, along with the RIGID and USER-REAXC packages. Here is an example `make` invocation for the 17Nov16 version
+LAMMPS version [17Nov16](https://lammps.sandia.gov/tars/lammps-17Nov16.tar.gz) has been tested and works correctly, more recent version can probably work as well with the LAMMPS scripts embedded in SCEMa. LAMMPS need to be compiled as a shared library with MPI support, along with the RIGID and USER-REAXC packages. Here is an example `make` invocation for the 17Nov16 version
 ```sh
 cd /path/to/lammps-17Nov16/src
 make yes-RIGID
@@ -40,12 +40,12 @@ make mode=shlib mpi
 ## Compilation:
 After installing separately LAMMPS and Deal.II, and building your MD input lammps data file. Prepare the building directory:
 ```sh
-cd /path/to/WHRYME
+cd /path/to/SCEMa
 cp CMakeLists/example_machine.CMakeLists.txt CMakeLists.txt
 mkdir build
 ```
 
-The file `CMakeLists.txt` needs to be edited to point toward the right installation path for Deal.II and LAMMPS. Then WHRYME executable can be compiled:
+The file `CMakeLists.txt` needs to be edited to point toward the right installation path for Deal.II and LAMMPS. Then SCEMa executable can be compiled:
 ```sh
 cmake ../
 make dealammps
@@ -56,10 +56,10 @@ The directory where the simulation is executed should contain at least the follo
 ```sh
 ll /path/to/simulation
 ... inputs_testname.json
-... lammps_scripts_ffname -> /path/to/WHRYME/lammps_scripts_opls
+... lammps_scripts_ffname -> /path/to/SCEMa/lammps_scripts_opls
 ... macroscale_input
 ... nanoscale_input
-... spline -> /path/to/WHRYME/spline
+... spline -> /path/to/SCEMa/spline
 ```
 
 Most, if not all, of the simulation parameters are found in the configuration file `inputs_testname.json`:
@@ -166,7 +166,7 @@ More complex finite element meshes for the continuum scale (than simple rectangu
 
 Finally, the simulation can be run:
 ```sh
-mpiexec /path/to/WHRYME/dealammps inputs_testname.json
+mpiexec /path/to/SCEMa/dealammps inputs_testname.json
 ```
 
 To restart from a previous simulation, checkpoint files stored in `./nanoscale_restart` and `./macroscale_restart` must be placed, respectively, in `./nanoscale_input/restart` and `./macroscale_input/restart`.

@@ -86,7 +86,7 @@ namespace HMM
 		}
 		// Name of nanostate binary files
 		char mdstate[1024];
-		sprintf(mdstate, "%s_%d", md_sim.matid, md_sim.replica);
+		sprintf(mdstate, "%s_%d", md_sim.matid.c_str(), md_sim.replica);
 
 		char initdata[1024];
 		sprintf(initdata, "%s/init.%s.bin", md_sim.output_folder.c_str(), mdstate);
@@ -121,7 +121,7 @@ namespace HMM
 		lmp = new LAMMPS(nargs,lmparg,md_batch_communicator);
 
 		// Passing location for output as variable
-		sprintf(cline, "variable mdt string %s", md_sim.matid); lammps_command(lmp,cline);
+		sprintf(cline, "variable mdt string %s", md_sim.matid.c_str()); lammps_command(lmp,cline);
 		sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);
 		if (md_sim.force_field == "reax"){
 			sprintf(cline, "variable locf string %s", locff); /*reaxff*/

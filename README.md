@@ -1,4 +1,4 @@
-# SCHEMa (Simulation Coupling Environment for Materials)
+# SCEMa (Simulation Coupling Environment for Materials)
 
 <img src="https://mvassaux.github.io/static/hmm_bicomposite_lo.jpg" align="right" width="50%" /> 
 

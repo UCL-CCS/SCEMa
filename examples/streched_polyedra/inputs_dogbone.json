@@ -1,0 +1,78 @@
+{
+	"problem type":{
+		"class": "dogbone",
+		"strain rate": 0.002
+ 	},
+  "scale-bridging":{
+    "activate md update": 1,
+    "approximate md with hookes law": 0,
+    "use pjm scheduler": 0
+  },
+  "continuum time":{
+    "timestep length": 5.0e-7,
+    "start timestep": 1,
+    "end timestep": 1
+  },
+  "continuum mesh":{
+    "fe degree": 1,
+    "quadrature formula": 2,
+    "input": {
+      "style" : "cuboid",
+      "x length" : 0.03,
+      "y length" : 0.03,
+      "z length" : 0.08,
+      "x cells" : 1,
+      "y cells" : 1,
+      "z cells" : 2
+     }
+  },
+  "model precision":{
+    "md":{
+      "min quadrature strain norm": 1.0e-10
+    },
+    "spline":{
+      "points": 10,
+      "min steps": 5000,
+      "diff threshold": 0.000001,
+      "scripts directory": "./spline"
+    }
+  },
+  "molecular dynamics material":{
+    "number of replicas": 1,
+    "list of materials": ["sic"],
+    "distribution": {
+      "style": "uniform",
+      "proportions": [1.0]
+	  },
+    "rotation common ground vector":[1.0, 0.0, 0.0]
+  },
+  "molecular dynamics parameters":{
+    "temperature": 0.01,
+    "timestep length": 0.002,
+    "strain rate": 1.0e-4,
+    "number of sampling steps": 100,
+    "scripts directory": "./lammps_scripts_sisw",
+    "force field": "opls"
+  },
+  "computational resources":{
+    "machine cores per node": 24,
+    "number of nodes for FEM simulation": 1,
+    "minimum nodes per MD simulation": 1
+  },
+  "output data":{
+    "checkpoint frequency": 1,
+    "visualisation output frequency": 1,
+    "analytics output frequency": 1,
+    "homogenization output frequency": 1000
+  },
+  "directory structure":{
+    "macroscale input": "./macroscale_input",
+    "nanoscale input": "./nanoscale_input",
+    "macroscale output": "./macroscale_output",
+    "nanoscale output": "./nanoscale_output",
+    "macroscale restart": "./macroscale_restart",
+    "nanoscale restart": "./nanoscale_restart",
+    "macroscale log": "./macroscale_log",
+    "nanoscale log": "./nanoscale_log"
+  }
+}

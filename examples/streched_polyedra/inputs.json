@@ -11,7 +11,7 @@
   "continuum time":{
     "timestep length": 5.0e-7,
     "start timestep": 1,
-    "end timestep": 1
+    "end timestep": 2
   },
   "continuum mesh":{
     "fe degree": 1,

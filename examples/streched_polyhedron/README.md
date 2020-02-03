@@ -3,13 +3,13 @@
 * Continue the description of outputs, logs, and maybe also the restart system
 * Take time to redirect the macro logs to outputs, because it doesn't make sense to store the ouput data in logs
 -->
-# Streching a macroscopic polyedra with a Silicon crystal nanostructure
+# Streching a macroscopic polyhedron with a Silicon crystal nanostructure
 
 Once you have managed to compile SCEMa, and its dependencies (Deal.II, LAMMPS), you can have a go at this examples which aims at pulling on a few cubic centimeters of silicon.
 
 ## Description
 
-A macroscopic polyedra of 3x3x8cm<sup>3</sup> of material is subject to uniaxial stretching (z-axis) during one microsecond. 
+A macroscopic polyhedron of 3x3x8cm<sup>3</sup> of material is subject to uniaxial stretching (z-axis) during one microsecond. 
 
 Most of the description of the testing setup and configuration is provided in the file `./inputs.json`, the rest is unfortunately hardcoded (at the moment).
   
@@ -66,12 +66,12 @@ Finally, the path to the spline-based algorithm used to filter redundant molecul
 
 ## Execution
 
-Except for the workflow's executable that you have previously build (for example at `/path/to/SCEMa/build/`), all necessary files for the execution of the example are provided in `/path/to/SCEMa/examples/stretched_polyedra/`. This directory can be placed anywhere on the system, once you have chosen its location simply move to it:
+Except for the workflow's executable that you have previously build (for example at `/path/to/SCEMa/build/`), all necessary files for the execution of the example are provided in `/path/to/SCEMa/examples/stretched_polyhedron/`. This directory can be placed anywhere on the system, once you have chosen its location simply move to it:
 ```
-cd /chosen/path/stretched_polyedra/
+cd /chosen/path/stretched_polyhedron/
 ```
 
-Verify one last time that the paths sepcified in `inputs.json` are all set correctly. Let's assume that you have decided not to modify the location of the example directory, you are now at `/path/to/SCEMa/examples/streched_polyedra/`
+Verify one last time that the paths sepcified in `inputs.json` are all set correctly. Let's assume that you have decided not to modify the location of the example directory, you are now at `/path/to/SCEMa/examples/streched_polyhedron/`
 
 Regarding the input/ouput/restart/log directories, only the input directories need to exist when the simulation is started. Currently, `./nanoscale_input` exists (data regarding molecular structures is stored in it), but `./mcroscale_input` doesn't. Simply create the directory:
 ```
@@ -97,5 +97,5 @@ Files are named as followed `{history,solution}-{timestep}.{process#}.vtu`, henc
 
 Here is typically, the displacement field at the end of the simulation (timestep #2), the maximum local displacement is 0.32mm.
 
-<img src="/examples/streched_polyedra/displacement_field.jpeg" class="full-width">
+<img src="/examples/streched_polyhedron/displacement_field.jpeg" class="full-width">
 

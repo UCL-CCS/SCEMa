@@ -1,3 +1,8 @@
+<!--
+* Continue description of the inputs.json file in Description
+* Continue the description of outputs, logs, and maybe also the restart system
+* Take time to redirect the macro logs to outputs, because it doesn't make sense to store the ouput data in logs
+-->
 # Streching a macroscopic polyedra with a Silicon crystal nanostructure
 
 Once you have managed to compile SCEMa, and its dependencies (Deal.II, LAMMPS), you can have a go at this examples which aims at pulling on a few cubic centimeters of silicon.

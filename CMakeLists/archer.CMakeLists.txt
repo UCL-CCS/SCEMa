@@ -24,9 +24,6 @@ DEAL_II_SETUP_TARGET(equilammps)
 ADD_EXECUTABLE(strain_md ../strain_md.cc)
 DEAL_II_SETUP_TARGET(strain_md)
 
-ADD_EXECUTABLE(test18 ../test18.cc)
-DEAL_II_SETUP_TARGET(test18)
-
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
   /usr/local/packages/lammps/lammps-17Nov16/lammps-17Nov16/src/

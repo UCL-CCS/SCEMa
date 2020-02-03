@@ -92,5 +92,5 @@ Files are named as followed `{history,solution}-{timestep}.{process#}.vtu`, henc
 
 Here is typically, the displacement field at the end of the simulation (timestep #2), the maximum local displacement is 0.32mm.
 
-<img src="/examples/streched_polyedra/displacement_field.jpg" class="full-width">
+<img src="/examples/streched_polyedra/displacement_field.jpeg" class="full-width">
 

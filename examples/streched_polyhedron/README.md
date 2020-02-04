@@ -13,7 +13,7 @@ A macroscopic polyhedron of 3x3x8cm<sup>3</sup> of material is subject to uniaxi
 
 Most of the description of the testing setup and configuration is provided in the file `./inputs.json`, the rest is unfortunately hardcoded (at the moment).
   
-The mesh of the macroscopic finite element model is set as:
+The `continuum mesh` block contains the finite element mesh information. The finite element degree and quadrature formula refer directly to parameters of deal.ii which set the spatial interpolation (linear interpolation and two quadrature points per dimension). The mesh is set to contain only one element in the x and y dimension, and two in the longest z dimension.
 ```
   "continuum mesh":{
     "fe degree": 1,
@@ -30,7 +30,14 @@ The mesh of the macroscopic finite element model is set as:
   }
   ```
   
-  
+The whole test is set to last two timesteps, each lasting 0.5 microsecond.
+```
+  "continuum time":{
+    "timestep length": 5.0e-7,
+    "start timestep": 1,
+    "end timestep": 2
+  }
+```
   
 Finally, for the execution to run smoothly a few paths have to be set in `./inputs.json`.
 
@@ -71,12 +78,18 @@ Except for the workflow's executable that you have previously build (for example
 cd /chosen/path/stretched_polyhedron/
 ```
 
-Verify one last time that the paths sepcified in `inputs.json` are all set correctly. Let's assume that you have decided not to modify the location of the example directory, you are now at `/path/to/SCEMa/examples/streched_polyhedron/`
+Verify one last time that the paths sepcified in `inputs.json` are all set correctly. Let's assume that you have decided not to modify the location of the example directory, you are now at `/path/to/SCEMa/examples/streched_polyhedron/`.
 
 Regarding the input/ouput/restart/log directories, only the input directories need to exist when the simulation is started. Currently, `./nanoscale_input` exists (data regarding molecular structures is stored in it), but `./mcroscale_input` doesn't. Simply create the directory:
 ```
 mkdir ./macroscale_input
 ```
+In the `./nanoscale_input` directory is found:
+```
+ls nanoscale_input/
+> init.sic_1.bin		init.sic_1.length	init.sic_1.stiff	init.sic_1.stress	sic_1.json
+```
+The files are named as follows `init.{material-name}_{replica-number}.{bin,length, stiff,stress,json}`. They respectively contain for the molecular system `sic_1`: a binary dump of the initial position of atoms, the initial dimensions, the initial homogenised stiffness tensor, the initial stress tensor, and the initial density.
 
 The example can now be executed (for example using 2 processes) using:
 ```

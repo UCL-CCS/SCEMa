@@ -101,7 +101,7 @@ namespace HMM
 
 		char homogdata_time[1024];
 		sprintf(homogdata_time, "%s/%s.%d.%s.lammpstrj", md_sim.log_file.c_str(),
-				md_sim.time_id, md_sim.qp_id, mdstate);
+				md_sim.time_id.c_str(), md_sim.qp_id, mdstate);
 
 		char cline[1024];
 		char cfile[1024];

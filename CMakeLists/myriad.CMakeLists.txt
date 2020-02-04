@@ -24,9 +24,6 @@ DEAL_II_SETUP_TARGET(init_material)
 ADD_EXECUTABLE(strain_md ../strain_md.cc)
 DEAL_II_SETUP_TARGET(strain_md)
 
-ADD_EXECUTABLE(test18 ../test18.cc)
-DEAL_II_SETUP_TARGET(test18)
-
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
   /shared/ucl/apps/lammps/16Mar18/USERINTEL/intel-2018/lammps-16Mar18/src/

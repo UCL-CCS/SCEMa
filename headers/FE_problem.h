@@ -1215,7 +1215,6 @@ namespace HMM
 
 		// Building vector of (updateable) histories of cells on rank
 		std::vector<MatHistPredict::Strain6D*> histories;
-		int flag1 = 0;
 		for (typename DoFHandler<dim>::active_cell_iterator
 				cell = dof_handler.begin_active();
 				cell != dof_handler.end(); ++cell)
@@ -1229,7 +1228,6 @@ namespace HMM
 				Assert (local_quadrature_points_history <
 						&quadrature_point_history.back(),
 						ExcInternalError());
-				flag1++; 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					if(local_quadrature_points_history[q].to_be_updated)

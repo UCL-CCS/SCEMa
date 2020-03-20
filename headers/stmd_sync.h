@@ -220,7 +220,7 @@ namespace HMM
 		else {	
 			fair_npbtch = mmd_n_processes;
 		}
-    int npb = std::max(fair_npbtch, npbtch_min)
+    int npb = std::max(fair_npbtch, npbtch_min);
 		//int nbtch = int(n_world_processes/npbtch);
 
 		// Arbitrary setting of NB and NT

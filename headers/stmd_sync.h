@@ -201,17 +201,14 @@ namespace HMM
 
 
 
-	// There are several number of processes encountered: (i) n_lammps_processes the highest provided
-	// as an argument to aprun, (ii) ND the number of processes provided to deal.ii
-	// [arbitrary], (iii) NI the number of processes provided to the lammps initiation
-	// [as close as possible to n_world_processes], and (iv) n_lammps_processes_per_batch the number of processes provided to one lammps
-	// testing [NT divided by n_lammps_batch the number of concurrent testing boxes].
 	template <int dim>
 	void STMDSync<dim>::set_md_procs (int nmdruns)
 	{
 		// Dispatch of the available processes on to different groups for parallel
 		// update of quadrature points
-		int npbtch_min = batch_nnodes_min*machine_ppn;
+
+    // Setting the minimum number of cores per MD sim to 1
+    int npbtch_min = 1;
 		//int nbtch_max = int(n_world_processes/npbtch_min);
 
 		//int nrounds = int(nmdruns/nbtch_max)+1;
@@ -223,7 +220,7 @@ namespace HMM
 		else {	
 			fair_npbtch = mmd_n_processes;
 		}
-		int npb = std::max(npbtch_min, fair_npbtch - fair_npbtch%npbtch_min);
+    int npb = std::max(fair_npbtch, npbtch_min)
 		//int nbtch = int(n_world_processes/npbtch);
 
 		// Arbitrary setting of NB and NT

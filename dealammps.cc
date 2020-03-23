@@ -290,6 +290,7 @@ namespace HMM
 		// Print a recap of all the parameters...
 		hcout << "Parameters listing:" << std::endl;
 		hcout << " - Activate MD updates (1 is true, 0 is false): "<< activate_md_update << std::endl;
+		hcout << " - Approximate MD sims with hookes law (1 is true, 0 is false): "<< approx_md_with_hookes_law << std::endl;
 		hcout << " - Use Pilot Job Manager to schedule MD jobs: "<< use_pjm_scheduler << std::endl;
 		hcout << " - FE timestep duration: "<< fe_timestep_length << std::endl;
 		hcout << " - Start timestep: "<< start_timestep << std::endl;

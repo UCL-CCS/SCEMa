@@ -58,8 +58,7 @@
   },
   "computational resources":{
     "machine cores per node": 24,
-    "number of nodes for FEM simulation": 1,
-    "minimum nodes per MD simulation": 1
+    "number of cores for FEM simulation": 10
   },
   "output data":{
     "checkpoint frequency": 100,

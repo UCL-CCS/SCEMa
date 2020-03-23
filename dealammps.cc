@@ -136,7 +136,6 @@ namespace HMM
 
 		unsigned int			machine_ppn;
 		int				fenodes;
-		unsigned int			batch_nnodes_min;
 
 		ConditionalOStream 		hcout;
 
@@ -282,7 +281,6 @@ namespace HMM
 		// Computational resources
 		machine_ppn = input_config.get<unsigned int>("computational resources.machine cores per node");
 		fenodes = input_config.get<int>("computational resources.number of nodes for FEM simulation");
-		batch_nnodes_min = input_config.get<unsigned int>("computational resources.minimum nodes per MD simulation");
 
 		// Output and checkpointing frequencies
 		freq_checkpoint   = input_config.get<int>("output data.checkpoint frequency");
@@ -322,7 +320,6 @@ namespace HMM
 		hcout << " - MD scripts directory (contains in.set, in.strain, ELASTIC/, ffield parameters): "<< md_scripts_directory << std::endl;
 		hcout << " - Number of cores per node on the machine: "<< machine_ppn << std::endl;
 		hcout << " - Number of nodes for FEM simulation: "<< fenodes << std::endl;
-		hcout << " - Minimum number of nodes per MD simulation: "<< batch_nnodes_min << std::endl;
 		hcout << " - Frequency of checkpointing: "<< freq_checkpoint << std::endl;
 		hcout << " - Frequency of writing FE data files: "<< freq_output_lhist << std::endl;
 		hcout << " - Frequency of writing FE visualisation files: "<< freq_output_visu << std::endl;
@@ -502,7 +499,7 @@ namespace HMM
 											   nanostatelocout, nanostatelocres, nanologloc,
 											   nanologloctmp, nanologlochom, macrostatelocout,
 											   md_scripts_directory, freq_checkpoint, freq_output_homog,
-											   batch_nnodes_min, machine_ppn, mdtype, cg_dir, nrepl,
+											   machine_ppn, mdtype, cg_dir, nrepl,
 											   use_pjm_scheduler, input_config, approx_md_with_hookes_law);
 
 		// Initialization of MMD must be done before initialization of FE, because FE needs initial

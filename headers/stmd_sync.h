@@ -62,7 +62,7 @@ namespace HMM
 		void init (int sstp, double mdtlength, double mdtemp, int nss, double strr, std::string ffi,
 				   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 				   std::string nlogloctmp,std::string nloglochom, std::string mslocout, std::string mdsdir,
-				   int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
+				   int fchpt, int fohom, unsigned int mppn,
 				   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
 					 boost::property_tree::ptree inconfig, bool approx_md_with_hookes_law); 
 		void update (int tstp, double ime, int nstp, ScaleBridgingData& scale_bridging_data);
@@ -102,7 +102,6 @@ namespace HMM
 		uint32_t						ncupd;
 
 		uint32_t						machine_ppn;
-		uint32_t						batch_nnodes_min;
 
 		ConditionalOStream 					mcout;
 
@@ -917,7 +916,7 @@ namespace HMM
 	void STMDSync<dim>::init (int sstp, double mdtlength, double mdtemp, int nss, double strr, std::string ffi,
 			   std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
 			   std::string nlogloctmp,std::string nloglochom, std::string mslocout,
-			   std::string mdsdir, int fchpt, int fohom, unsigned int bnmin, unsigned int mppn,
+			   std::string mdsdir, int fchpt, int fohom, unsigned int mppn,
 			   std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
 				 boost::property_tree::ptree inconfig, bool hookeslaw){
 
@@ -945,7 +944,6 @@ namespace HMM
 		freq_checkpoint = fchpt;
 		freq_output_homog = fohom;
 
-		batch_nnodes_min = bnmin;
 		machine_ppn = mppn;
 
 		mdtype = mdt;

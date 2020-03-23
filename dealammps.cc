@@ -124,7 +124,6 @@ namespace HMM
 
 		MPI_Comm 			fe_communicator;
 		int				root_fe_process;
-		int 				n_fe_processes;
 		int 				this_fe_process;
 		int 				fe_pcolor;
 
@@ -135,7 +134,7 @@ namespace HMM
 		int 				mmd_pcolor;
 
 		unsigned int			machine_ppn;
-		int				fenodes;
+		int				fecores;
 
 		ConditionalOStream 		hcout;
 
@@ -280,7 +279,7 @@ namespace HMM
 
 		// Computational resources
 		machine_ppn = input_config.get<unsigned int>("computational resources.machine cores per node");
-		fenodes = input_config.get<int>("computational resources.number of nodes for FEM simulation");
+		fecores = input_config.get<int>("computational resources.number of cores for FEM simulation");
 
 		// Output and checkpointing frequencies
 		freq_checkpoint   = input_config.get<int>("output data.checkpoint frequency");
@@ -319,7 +318,7 @@ namespace HMM
 		hcout << " - MD force field type: "<< md_force_field << std::endl;
 		hcout << " - MD scripts directory (contains in.set, in.strain, ELASTIC/, ffield parameters): "<< md_scripts_directory << std::endl;
 		hcout << " - Number of cores per node on the machine: "<< machine_ppn << std::endl;
-		hcout << " - Number of nodes for FEM simulation: "<< fenodes << std::endl;
+		hcout << " - Number of cores for FEM simulation: "<< fecores << std::endl;
 		hcout << " - Frequency of checkpointing: "<< freq_checkpoint << std::endl;
 		hcout << " - Frequency of writing FE data files: "<< freq_output_lhist << std::endl;
 		hcout << " - Frequency of writing FE visualisation files: "<< freq_output_visu << std::endl;
@@ -342,11 +341,10 @@ namespace HMM
 	{
 		//Setting up DEALII communicator and related variables
 		root_fe_process = 0;
-		n_fe_processes = fenodes*machine_ppn;
 		// Color set above 0 for processors that are going to be used
 		fe_pcolor = MPI_UNDEFINED;
 		if (this_world_process >= root_fe_process &&
-				this_world_process < root_fe_process + n_fe_processes) fe_pcolor = 0;
+				this_world_process < root_fe_process + fecores) fe_pcolor = 0;
 		else fe_pcolor = 1;
 
 		MPI_Comm_split(world_communicator, fe_pcolor, this_world_process, &fe_communicator);

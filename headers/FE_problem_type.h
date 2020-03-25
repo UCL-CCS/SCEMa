@@ -71,8 +71,32 @@ namespace HMM {
 
 							GridGenerator::extrude_triangulation (triangulation2D, extrude_points, extrude_length, triangulation);
 				}
+        else {
+          fprintf(stderr, "Cannot find mesh file \n");
+          exit(1);
+        }
         return triangulation;
      }  
+
+      parallel::shared::Triangulation<dim> import_3Dmesh((boost::property_tree::ptree input_config)
+      {
+        std::string filename = input_config.get<std::string>("continuum mesh.input.filename");
+
+				if (iss.is_open()){
+              fprintf(stdout, "    Reading in 3D mesh\n");
+							Triangulation<3> triangulation;
+							GridIn<3> gridin;
+							gridin.attach_triangulation(triangulation);
+							gridin.read_msh(iss);
+        }
+        else {
+          fprintf(stderr, "Cannot find mesh file \n");
+          exit(1);
+        }
+        return triangulation;
+     }  
+
+
 	};
 
 }

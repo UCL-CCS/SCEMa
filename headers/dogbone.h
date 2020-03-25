@@ -25,12 +25,64 @@ namespace HMM {
   				std::vector<uint32_t> reps {mesh.x_cells, mesh.y_cells, mesh.z_cells}; 
 				  GridGenerator::subdivided_hyper_rectangle(triangulation, reps, corner1, corner2);
         }
-        if (mesh_input_style == "file2D"){
+        // does input styple contain "file"
+        else if (mesh_input_style.find("file") != std::string::npos){
+          if (mesh_input_style == "file2D"){
             triangulation = this-> import_2Dmesh(input_config);
+          }
+          else if (mesh_input_style == "file3D"){
+            triangulation = this-> import_3Dmesh(input_config);
+          }
 
-            move mesh so that corner is on 0,0,0
-            define mesh.z / compute x y z
-            mesh = this->read_mesh_dimenstions_from_triangulation(triangulation);
+          std::vector<double> min_max_on_axis(parallel::shared::Triangulation<dim> &triangulation, uint32_t axis){
+              // find minimum and maximum values along a given axis
+              double min_z = 1e16;
+              double max_z = -1e16;
+              uint32_t i;
+              for (const auto &cell : triangulation.active_cell_iterators())
+              {
+                for (unsigned int i = 0; i < GeometryInfo<dim>::vertices_per_cell; ++i)
+                {
+                  Point<dim> &v = cell->vertex(i);
+                  if (v(axis) < min_z){
+                    min_z = v(axis);
+                  }
+                  if (v(axis) > max_z){
+                    max_z = v(axis);
+                  }
+                }
+              }   
+              std::vector<double> result{min_z, max_z};
+              return result;
+          }
+
+          // finding longest dimension of the mesh
+          std::vector<double> limits_x, limits_y, limits_z;
+          limits_x = min_max_on_axis(triangulation, 0);
+          limits_y = min_max_on_axis(triangulation, 1);
+          limits_z = min_max_on_axis(triangulation, 2);
+
+          uint32_t len_x, len_y, len_z;
+          len_x = limits_x[1] - limits_x[0];
+          len_y = limits_y[1] - limits_y[0];
+          len_z = limits_z[1] - limits_z[0];
+
+          // rotating so that the longest axis is along the z axis
+          if (len_x > len_y && len_x > len_z){
+            GridTools::rotate(math.pi/2, 1, triangulation);
+          }
+          else if (len_y > len_x && len_y > len_z){
+            GridTools::rotate(math.pi/2, 0, triangulation);
+          }
+          else if (len_z >= len_y && len_z >= len_x){
+            // no rotation needed
+          }
+
+          // Shifting mesh so that the bottom points are in the x,y plane
+          limits_z = min_max_on_axis(triangulation, 2);
+          GridTools::shift(Point<3>(0, 0, -limits_z[0]), triangulation);
+          // Storing the z dimension 
+          mesh.z = limits_z[1];
         }
 
       }

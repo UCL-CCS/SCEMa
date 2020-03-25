@@ -54,6 +54,25 @@ namespace HMM {
 				}
 				return mesh;
 			}
+
+      parallel::shared::Triangulation<dim> import_2Dmesh((boost::property_tree::ptree input_config)
+      {
+        std::string filename = input_config.get<std::string>("continuum mesh.input.filename");
+        uint32_t extrude_cells = input_config.get<std::string>("continuum mesh.input.extrude_cells");
+        double extrude_length = input_config.get<std::string>("continuum mesh.input.extrude_length");
+
+
+				if (iss.is_open()){
+              fprintf(stdout, "    Reading in 2D mesh\n");
+							Triangulation<2> triangulation2D;
+							GridIn<2> gridin;
+							gridin.attach_triangulation(triangulation2D);
+							gridin.read_msh(iss);
+
+							GridGenerator::extrude_triangulation (triangulation2D, extrude_points, extrude_length, triangulation);
+				}
+        return triangulation;
+     }  
 	};
 
 }

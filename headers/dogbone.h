@@ -12,14 +12,27 @@ namespace HMM {
 
 			void make_grid(parallel::shared::Triangulation<dim> &triangulation)
       {	
-				mesh = this->read_mesh_dimensions(input_config);
-	
-				// Generate block with bottom in plane 0,0. Strain applied in z axis	
-				Point<dim> corner1 (0,0,0);
-				Point<dim> corner2 (mesh.x, mesh.y, mesh.z);
+        std::string mesh_input_style;
+        mesh_input_style = input_config.get<std::string>("continuum mesh.input.style");
 
-				std::vector<uint32_t> reps {mesh.x_cells, mesh.y_cells, mesh.z_cells}; 
-				GridGenerator::subdivided_hyper_rectangle(triangulation, reps, corner1, corner2);
+        if (mesh_input_style == "cuboid"){
+  				mesh = this->read_mesh_dimensions(input_config);
+	
+	  			// Generate block with bottom in plane 0,0. Strain applied in z axis	
+		  		Point<dim> corner1 (0,0,0);
+			  	Point<dim> corner2 (mesh.x, mesh.y, mesh.z);
+
+  				std::vector<uint32_t> reps {mesh.x_cells, mesh.y_cells, mesh.z_cells}; 
+				  GridGenerator::subdivided_hyper_rectangle(triangulation, reps, corner1, corner2);
+        }
+        if (mesh_input_style == "file2D"){
+            triangulation = this-> import_2Dmesh(input_config);
+
+            move mesh so that corner is on 0,0,0
+            define mesh.z / compute x y z
+            mesh = this->read_mesh_dimenstions_from_triangulation(triangulation);
+        }
+
       }
 
 			void define_boundary_conditions(DoFHandler<dim> &dof_handler)

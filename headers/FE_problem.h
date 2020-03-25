@@ -129,35 +129,8 @@ namespace HMM
 							std::cout << "Problem type not implemented" << std::endl;
 							exit(1);
 					}
+
 					problem_type->make_grid(triangulation);
-					/*else if (mesh_input_style == "file")
-					{
-						std::string         twod_mesh_file;
-		                double              extrude_length;
-        		        int                 extrude_points;
-
-						twod_mesh_file    = input_config.get<std::string>("continuum mesh.input.2D mesh file");
-        				extrude_length    = input_config.get<double>( "continuum mesh.input.extrude length");
-        				extrude_points    = input_config.get<int>("continuum mesh.input.extrude points");
-
-						char filename[1024];
-						sprintf(filename, "%s/%s", macrostatelocin.c_str(), twod_mesh_file.c_str());
-						std::ifstream iss(filename);
-						if (iss.is_open()){
-
-							dcout << "    Reading in 2D mesh" << std::endl;
-							Triangulation<2> triangulation2D;
-							GridIn<2> gridin;
-							gridin.attach_triangulation(triangulation2D);
-							sprintf(filename, "%s/%s", macrostatelocin.c_str(), twod_mesh_file.c_str());
-							std::ifstream f(filename);
-							gridin.read_msh(f);
-
-							dcout << "    extruding by " << extrude_length;
-							dcout << " with "<< extrude_points << " points" << std::endl; 
-							GridGenerator::extrude_triangulation (triangulation2D, extrude_points, extrude_length, triangulation);
-						}
-					}*/
 
 					// Check that the FEM is not passed less ranks than cells
 					if ( triangulation.n_active_cells() < n_FE_processes &&

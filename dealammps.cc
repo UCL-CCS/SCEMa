@@ -35,7 +35,7 @@
 
 // Specifically built header files
 #include "headers/read_write.h"
-#include "headers/tensor_calc.h"
+#include "headers/math_calc.h"
 #include "headers/scale_bridging_data.h"
 //#include "headers/stmd_problem.h"
 #include "headers/md_sim.h"
@@ -521,7 +521,7 @@ namespace HMM
 		while (present_time < end_time){
 			do_timestep();
 		}
-
+		
 		if(mmd_pcolor==0) delete mmd_problem;
 		if(fe_pcolor==0) delete fe_problem;
 	}

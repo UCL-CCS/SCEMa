@@ -20,7 +20,7 @@
 // Specifically built header files
 #include "md_sim.h"
 #include "read_write.h"
-#include "tensor_calc.h"
+#include "math_calc.h"
 #include "stmd_problem.h"
 #include "scale_bridging_data.h"
 

@@ -19,7 +19,7 @@
 
 // Specifically built header files
 #include "read_write.h"
-#include "tensor_calc.h"
+#include "math_calc.h"
 #include "init_material_problem.h"
 
 // To avoid conflicts...

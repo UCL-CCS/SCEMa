@@ -17,10 +17,8 @@
     "fe degree": 1,
     "quadrature formula": 2,
     "input": {
-      "style" : "file2D",
-      "filename" : "mesh.msh",
-      "extrude_length" : "10",
-      "extrude_cells" : "10"
+      "style" : "file3D",
+      "filename" : "dogbone.msh"
      }
   },
   "model precision":{

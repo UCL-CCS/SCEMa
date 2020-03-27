@@ -37,6 +37,7 @@ public:
 		}
 		else if (len_y > len_x && len_y > len_z){
 			std::cout << "Rotating mesh axis Y to Z" << std::endl;
+			// This function requires a version deal.ii higher than 8.5.0
 			GridTools::rotate(pipi/2, 0, triangulation);
 		}
 		else if (len_z >= len_y && len_z >= len_x){

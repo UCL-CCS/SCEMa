@@ -741,7 +741,7 @@ void STMDSync<dim>::generate_job_list(bool& elmj, int& tta, char* filenamelist)
 	char command[1024];
 	int ret, rval;
 
-	sprintf(command, "python ../optimization_hmm.py %s %d %d %s %s %s %s",
+	sprintf(command, "python ../optimization_pjm/optimization_hmm.py %s %d %d %s %s %s %s",
 			macrostatelocout.c_str(), 1, nrepl, time_id.c_str(),
 			nanostatelocout.c_str(), nanologloctmp.c_str(), filenamelist);
 

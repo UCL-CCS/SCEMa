@@ -207,7 +207,7 @@ void STMDSync<dim>::set_md_procs (int nmdruns)
 	// update of quadrature points
 
 	// Setting the minimum number of cores per MD sim to 1
-	int npbtch_min = input_config.get<int>("computational resources.number of cores for MD simulation");
+	int npbtch_min = input_config.get<int>("computational resources.minimum number of cores for MD simulation");
 	//int nbtch_max = int(n_world_processes/npbtch_min);
 
 	//int nrounds = int(nmdruns/nbtch_max)+1;

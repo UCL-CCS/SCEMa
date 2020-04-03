@@ -22,7 +22,7 @@
 
 // Specifically built header files
 #include "read_write.h"
-#include "math_calc.h"
+#include "tensor_calc.h"
 #include "scale_bridging_data.h"
 
 // Reduction model based on spline comparison
@@ -80,6 +80,7 @@
 #include "FE_problem_type.h"
 #include "drop_weight.h"
 #include "dogbone.h"
+#include "compact_tension.h"
 #include "FE.h"
 
 namespace HMM
@@ -125,6 +126,10 @@ namespace HMM
 					else if (problem_class == "dogbone"){
 							problem_type = (ProblemType<dim>*) new Dogbone<dim>(input_config);
 					}
+					else if (problem_class == "compact tension"){
+							problem_type = (ProblemType<dim>*) new CompactTension<dim>(input_config);
+					}
+
 					else {
 							std::cout << "Problem type not implemented" << std::endl;
 							exit(1);

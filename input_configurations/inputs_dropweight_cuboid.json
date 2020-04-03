@@ -1,7 +1,9 @@
 {
 	"problem type":{
-		"class": "dogbone",
-		"strain rate": 0.002
+		"class": "drop weight",
+		"diameter": 0.03,
+		"acceleration": 30000000,
+		"steps to accelerate": 5
  	},
   "scale-bridging":{
     "activate md update": 1,
@@ -11,16 +13,19 @@
   "continuum time":{
     "timestep length": 5.0e-7,
     "start timestep": 1,
-    "end timestep": 500
+    "end timestep": 100
   },
   "continuum mesh":{
     "fe degree": 1,
     "quadrature formula": 2,
     "input": {
-      "style" : "file2D",
-      "filename" : "mesh.msh",
-      "extrude_length" : "10",
-      "extrude_cells" : "10"
+      "style" : "cuboid",
+      "x length" : 0.1,
+      "y length" : 0.1,
+      "z length" : 0.017,
+      "x cells" : 6,
+      "y cells" : 6,
+      "z cells" : 1
      }
   },
   "model precision":{
@@ -53,7 +58,8 @@
   },
   "computational resources":{
     "machine cores per node": 24,
-    "number of cores for FEM simulation": 10
+    "maximum number of cores for FEM simulation": 10,
+    "minimum number of cores for MD simulation": 1
   },
   "output data":{
     "checkpoint frequency": 100,

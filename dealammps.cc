@@ -35,7 +35,7 @@
 
 // Specifically built header files
 #include "headers/read_write.h"
-#include "headers/tensor_calc.h"
+#include "headers/math_calc.h"
 #include "headers/scale_bridging_data.h"
 //#include "headers/stmd_problem.h"
 #include "headers/md_sim.h"
@@ -135,6 +135,7 @@ namespace HMM
 
 		unsigned int			machine_ppn;
 		int				fecores;
+		int				mdcores;
 
 		ConditionalOStream 		hcout;
 
@@ -279,7 +280,8 @@ namespace HMM
 
 		// Computational resources
 		machine_ppn = input_config.get<unsigned int>("computational resources.machine cores per node");
-		fecores = input_config.get<int>("computational resources.number of cores for FEM simulation");
+		fecores = input_config.get<int>("computational resources.maximum number of cores for FEM simulation");
+		mdcores = input_config.get<int>("computational resources.minimum number of cores for MD simulation");
 
 		// Output and checkpointing frequencies
 		freq_checkpoint   = input_config.get<int>("output data.checkpoint frequency");
@@ -319,7 +321,8 @@ namespace HMM
 		hcout << " - MD force field type: "<< md_force_field << std::endl;
 		hcout << " - MD scripts directory (contains in.set, in.strain, ELASTIC/, ffield parameters): "<< md_scripts_directory << std::endl;
 		hcout << " - Number of cores per node on the machine: "<< machine_ppn << std::endl;
-		hcout << " - Number of cores for FEM simulation: "<< fecores << std::endl;
+		hcout << " - Maximum number of cores for FEM simulation: "<< fecores << std::endl;
+		hcout << " - Minimum number of cores for MD simulation: "<< mdcores << std::endl;
 		hcout << " - Frequency of checkpointing: "<< freq_checkpoint << std::endl;
 		hcout << " - Frequency of writing FE data files: "<< freq_output_lhist << std::endl;
 		hcout << " - Frequency of writing FE visualisation files: "<< freq_output_visu << std::endl;
@@ -521,7 +524,7 @@ namespace HMM
 		while (present_time < end_time){
 			do_timestep();
 		}
-
+		
 		if(mmd_pcolor==0) delete mmd_problem;
 		if(fe_pcolor==0) delete fe_problem;
 	}

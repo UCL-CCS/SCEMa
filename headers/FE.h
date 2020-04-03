@@ -22,7 +22,7 @@
 
 // Specifically built header files
 #include "read_write.h"
-#include "tensor_calc.h"
+#include "math_calc.h"
 #include "scale_bridging_data.h"
 
 // Reduction model based on spline comparison

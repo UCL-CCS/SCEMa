@@ -1,5 +1,5 @@
-#ifndef TENSOR_CALC_H
-#define TENSOR_CALC_H
+#ifndef MATH_CALC_H
+#define MATH_CALC_H
 
 #include <deal.II/fe/fe_tools.h>
 #include <deal.II/fe/fe_dgq.h>
@@ -9,6 +9,8 @@
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_q.h>
 #include <deal.II/base/symmetric_tensor.h>
+#include <deal.II/distributed/shared_tria.h>
+#include <deal.II/grid/grid_generator.h>
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -52,7 +54,7 @@ inline
 SymmetricTensor<2,dim>
 rotate_tensor (const SymmetricTensor<2,dim> &tensor,
 		const Tensor<2,dim> &rotam)
-{
+		{
 	SymmetricTensor<2,dim> stmp;
 
 	Tensor<2,dim> tmp;
@@ -66,14 +68,14 @@ rotate_tensor (const SymmetricTensor<2,dim> &tensor,
 			stmp[k][l] = 0.5*(tmp[k][l] + tmp[l][k]);
 
 	return stmp;
-}
+		}
 
 template <int dim>
 inline
 SymmetricTensor<4,dim>
 rotate_tensor (const SymmetricTensor<4,dim> &tensor,
 		const Tensor<2,dim> &rotam)
-{
+		{
 	SymmetricTensor<4,dim> tmp;
 	tmp = 0;
 
@@ -89,12 +91,12 @@ rotate_tensor (const SymmetricTensor<4,dim> &tensor,
 								for(unsigned int r=0;r<dim;r++)
 									tmp[k][l][s][t] +=
 											tensor[m][n][p][r]
-											* rotam[k][m] * rotam[l][n]
-											* rotam[s][p] * rotam[t][r];
+															* rotam[k][m] * rotam[l][n]
+																					 * rotam[s][p] * rotam[t][r];
 				}
 
 	return tmp;
-}
+		}
 
 template <int dim>
 inline
@@ -191,6 +193,38 @@ get_rotation_matrix (const std::vector<Tensor<1,3> > &grad_u)
 									 }
 	};
 	return Tensor<2,3>(rotation);
+}
+
+template <int dim>
+std::vector<double> min_max_on_axis(parallel::shared::Triangulation<dim> &triangulation, uint32_t axis){
+	// find minimum and maximum values along a given axis
+	double xmin = 1e16;
+	double xmax = -1e16;
+	uint32_t i;
+	typename parallel::shared::Triangulation<dim>::active_cell_iterator
+	cell = triangulation.begin_active(),
+	endc = triangulation.end();
+	for (; cell!=endc; ++cell)
+	{
+		for (unsigned int i = 0; i < GeometryInfo<dim>::vertices_per_cell; ++i)
+		{
+			Point<dim> &v = cell->vertex(i);
+			if (v(axis) < xmin){
+				xmin = v(axis);
+			}
+			if (v(axis) > xmax){
+				xmax = v(axis);
+			}
+		}
+	}
+
+	// Write a test that verifies that min and max are finite double
+	// and that xmin <= xmax
+	Assert(xmin < xmax,
+			ExcMessage("Error: the mesh "+std::to_string(axis)+"-dimension is null or negative."));
+
+	std::vector<double> result{xmin, xmax};
+	return result;
 }
 
 #endif

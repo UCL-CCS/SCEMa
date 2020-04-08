@@ -18,8 +18,8 @@ PROJECT(dealammps)
 ADD_EXECUTABLE(dealammps ../dealammps.cc)
 DEAL_II_SETUP_TARGET(dealammps)
 
-ADD_EXECUTABLE(equilammps ../equilammps.cc)
-DEAL_II_SETUP_TARGET(equilammps)
+ADD_EXECUTABLE(init_material ../init_material.cc)
+DEAL_II_SETUP_TARGET(init_material)
 
 ADD_EXECUTABLE(strain_md ../strain_md.cc)
 DEAL_II_SETUP_TARGET(strain_md)
@@ -35,11 +35,11 @@ INCLUDE_DIRECTORIES(
 
 ## Include LAMMPS library shared .so (or static .a)
 TARGET_LINK_LIBRARIES(dealammps /usr/local/packages/lammps/lammps-17Nov16/lib/liblammps.so)
-TARGET_LINK_LIBRARIES(equilammps /usr/local/packages/lammps/lammps-17Nov16/lib/liblammps.so)
+TARGET_LINK_LIBRARIES(init_material /usr/local/packages/lammps/lammps-17Nov16/lib/liblammps.so)
 TARGET_LINK_LIBRARIES(strain_md /usr/local/packages/lammps/lammps-17Nov16/lib/liblammps.so)
 
 TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
-TARGET_LINK_LIBRARIES(equilammps LINK_PUBLIC ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(init_material LINK_PUBLIC ${Boost_LIBRARIES})
 
 ## Create additional targets to the standard DEAL.II targets
 ## Use "aprun" as follow: e.g "make aprun NTHR=24"
@@ -52,7 +52,7 @@ ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
 ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
                              DEPENDS outclean
                              COMMAND rm
-                             ARGS -rf dealammps equilammps strain_md
+                             ARGS -rf dealammps init_material strain_md
   )
 
 ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"

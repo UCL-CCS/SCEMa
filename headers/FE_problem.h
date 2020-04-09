@@ -1910,8 +1910,8 @@ namespace HMM
 					Utilities::int_to_string(timestep,4) +
 					".visit");
 			std::ofstream visit_master (visit_master_filename.c_str());
-			data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
-			//DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
+			//data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
+			DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
 
 			const std::string
 			pvtu_master_filename = (macrologloc + "/" + "history-" +
@@ -1927,8 +1927,8 @@ namespace HMM
 								".pvtu");
 			times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename_loc));
 			std::ofstream pvd_output (macrologloc + "/" + "history.pvd");
-			data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
-			//DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
+			//data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
+			DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
 		}
 		MPI_Barrier(FE_communicator);
 	}
@@ -2044,8 +2044,8 @@ namespace HMM
 					Utilities::int_to_string(timestep,4) +
 					".visit");
 			std::ofstream visit_master (visit_master_filename.c_str());
-			data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
-			//DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
+			//data_out.write_visit_record (visit_master, filenames_loc); // 8.4.1
+			DataOutBase::write_visit_record (visit_master, filenames_loc); // 8.5.0
 
 			const std::string
 			pvtu_master_filename = (macrologloc + "/" + "solution-" +
@@ -2061,8 +2061,8 @@ namespace HMM
 								".pvtu");
 			times_and_names.push_back (std::pair<double,std::string> (present_time, pvtu_master_filename_loc));
 			std::ofstream pvd_output (macrologloc + "/" + "solution.pvd");
-			data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
-			//DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
+			//data_out.write_pvd_record (pvd_output, times_and_names); // 8.4.1
+			DataOutBase::write_pvd_record (pvd_output, times_and_names); // 8.5.0
 		}
 		MPI_Barrier(FE_communicator);
 	}

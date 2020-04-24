@@ -285,8 +285,8 @@ namespace HMM
 
 		// Output and checkpointing frequencies
 		freq_checkpoint   = input_config.get<int>("output data.checkpoint frequency");
-		freq_output_lhist = input_config.get<int>("output data.visualisation output frequency");
-		freq_output_visu  = input_config.get<int>("output data.analytics output frequency");
+		freq_output_lhist = input_config.get<int>("output data.analytics output frequency");
+		freq_output_visu  = input_config.get<int>("output data.visualisation output frequency");
 		freq_output_homog = input_config.get<int>("output data.homogenization output frequency");
 		
 		// Print a recap of all the parameters...

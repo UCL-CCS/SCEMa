@@ -62,11 +62,11 @@ The path to the execution scripts as well as force field parameters of LAMMPS, u
   }
 ```
 
-Finally, the path to the spline-based algorithm used to filter redundant molecular dynamics simulations (not used in this example):
+Finally, the path to the clustering algorithm used to filter redundant molecular dynamics simulations (not used in this example):
 ```  
 "model precision":{
-    "spline":{
-      "scripts directory": "/path/to/SCEMa/spline"
+    "clustering":{
+      "scripts directory": "/path/to/SCEMa/clustering"
     }
   }
 ```

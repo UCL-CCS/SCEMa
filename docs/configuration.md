@@ -38,11 +38,11 @@ The JSON configuration file must be shaped as follows:
     "md":{
       "min quadrature strain norm": 1.0e-10
     },
-    "spline":{
+    "clustering":{
       "points": 10,
       "min steps": 5,
       "diff threshold": 0.000001,
-      "scripts directory": "./spline"
+      "scripts directory": "./clustering"
     }
   },
   "molecular dynamics material":{

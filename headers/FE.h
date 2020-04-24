@@ -348,7 +348,7 @@ namespace HMM
 							int 								num_spline_points;
 							int 								min_num_steps_before_spline;
 							double								acceptable_diff_threshold;
-							std::string							splinescriptsloc;
+							std::string							clusteringscriptsloc;
 
 							std::string                         macrostatelocin;
 							std::string                         macrostatelocout;

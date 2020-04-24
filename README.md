@@ -19,7 +19,7 @@ The bootstrap/platform infrastructure below has been tested on a number of clust
 * gcc 6.3.0
 * cmake 3.5.2
 * gnu make 4.1 or greater, preferably 4.2.1
-* python 3.0 or greater (if using spline-based model reduction of MD simulations)
+* python 3.0 or greater (if using graph-based clustering of MD simulations)
 
 [Deal.II](https://dealii.org) needs to be compiled with the dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), namely the following dependencies: MPI (MPICH or Intel MPI), PETSc (>3.6, 64bits), METIS (>4.0), MUMPS (>5.0), BOOST (>1.58), HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, HDF5, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html). The MPI support for DealII and its dependencies must be built with __MPICH__ (will not work with OpenMPI!).
 ```sh
@@ -59,7 +59,7 @@ ll /path/to/simulation
 ... lammps_scripts_ffname -> /path/to/SCEMa/lammps_scripts_opls
 ... macroscale_input
 ... nanoscale_input
-... spline -> /path/to/SCEMa/spline
+... clustering -> /path/to/SCEMa/clustering
 ```
 
 Most, if not all, of the simulation parameters are found in the configuration file `inputs_testname.json`:
@@ -97,11 +97,11 @@ cat /path/to/simulation/inputs_testname.json
     "md":{
       "min quadrature strain norm": 1.0e-10
     },
-    "spline":{
+    "clustering":{
       "points": 10,
       "min steps": 5,
       "diff threshold": 0.000001,
-      "scripts directory": "./spline"
+      "scripts directory": "./clustering"
     }
   },
   "molecular dynamics material":{

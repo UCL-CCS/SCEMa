@@ -1243,7 +1243,7 @@ namespace HMM
 			char command[1024];
 			sprintf(command,
 					"python3 %s/coarsegrain_dependency_network.py %s %s/mapping.csv %d",
-					splinescriptsloc.c_str(),
+					clusteringscriptsloc.c_str(),
                                         macrostatelocout.c_str(),
 					macrostatelocout.c_str(),
 					triangulation.n_active_cells()*quadrature_formula.size()
@@ -1272,10 +1272,10 @@ namespace HMM
 		dcout << "        " << "...comparing strain history of quadrature points to be updated..." << std::endl;
 	
                 // might be interesting to set them global and not reload them at every iteration?		
-		num_spline_points = input_config.get<int>("model precision.spline.points");
-    min_num_steps_before_spline = input_config.get<int>("model precision.spline.min steps");
-		acceptable_diff_threshold = input_config.get<double>("model precision.spline.diff threshold");
-		splinescriptsloc = input_config.get<std::string>("model precision.spline.scripts directory");
+		num_spline_points = input_config.get<int>("model precision.clustering.points");
+    min_num_steps_before_spline = input_config.get<int>("model precision.clustering.min steps");
+		acceptable_diff_threshold = input_config.get<double>("model precision.clustering.diff threshold");
+		clusteringscriptsloc = input_config.get<std::string>("model precision.clustering.scripts directory");
 
 		// Fit spline to all histories, and determine similarity graph (over all ranks)
 		if(timestep > min_num_steps_before_spline) {

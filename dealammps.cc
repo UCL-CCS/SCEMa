@@ -25,6 +25,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <math.h>
+#include <chrono>         // std::chrono::seconds, header file for wall-time measurement
 
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
@@ -416,6 +417,9 @@ namespace HMM
 	template <int dim>
 	void HMMProblem<dim>::do_timestep ()
 	{
+		// Begin walltime measuring point
+		auto wcts = std::chrono::system_clock::now(); // current time
+
 		// Updating time variable
 		present_time += fe_timestep_length;
 		++timestep;
@@ -463,6 +467,10 @@ namespace HMM
 		if(fe_pcolor==0) fe_problem->endstep();
 		
 		MPI_Barrier(world_communicator);
+
+		// End time measuring point
+		std::chrono::duration<double> wctduration = (std::chrono::system_clock::now() - wcts);
+		hcout << "Time for timestep: " << timestep << " is " << wctduration.count() << " seconds\n\n";
 	}
 
 
@@ -551,8 +559,19 @@ int main (int argc, char **argv)
 			exit(1);
 		}
 
+		// Begin Global wall-timer
+		auto wcts = std::chrono::system_clock::now(); // current wall time
+
 		HMMProblem<3> hmm_problem;
 		hmm_problem.run(inputfile);
+
+		// End of global wall-timer
+		std::chrono::duration<double> wctduration = (std::chrono::system_clock::now() - wcts);
+		int this_rank;
+		MPI_Comm_rank(MPI_COMM_WORLD, &this_rank);
+		if (this_rank==0) {
+		    std::cout << "Overall wall time is " << wctduration.count() << " seconds\n\n";
+		}
 	}
 	catch (std::exception &exc)
 	{

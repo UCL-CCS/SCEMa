@@ -1793,22 +1793,19 @@ namespace HMM
         {
                 // Compute applied force vector
                 Vector<double> local_residual (dof_handler.n_dofs());
-                local_residual = compute_internal_forces();
-
-                // Compute force under the loading boundary condition
-                double aforce = 0.;
-                //dcout << "hello Y force ------ " << std::endl;
-                for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
-                        if (problem_type->is_vertex_loaded(i) == true)
-                        {
-                                // For Debug...
-                                //dcout << "   force on loaded nodes: " << local_residual[i] << std::endl;
-                                aforce += local_residual[i];
-                        }
+                local_residual = compute_internal_forces(); // Note that local_residual contains the local force at all nodes of the mesh on all ranks
 
                 // Write specific outputs to file
                 if (this_FE_process==0)
                 {
+               	 	// Compute force under the loading boundary condition
+               	 	double aforce = 0.;
+               	 	for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+               	 	        if (problem_type->is_vertex_loaded(i) == true)
+               	 	        {
+               	 	                aforce += local_residual[i];
+               	 	        }
+
                         std::ofstream ofile;
                         char fname[1024]; sprintf(fname, "%s/resultforce.csv", macrologloc.c_str());
 

@@ -24,7 +24,43 @@ namespace HMM {
 			void define_boundary_conditions(DoFHandler<dim> &dof_handler)
 			{
 				typename DoFHandler<dim>::active_cell_iterator cell;
-				vertex_loaded_state.reserve(dof_handler.n_dofs());
+				vertex_loaded_state.clear();
+				vertex_loaded_state.resize(dof_handler.n_dofs(), 0);
+				
+               			/*for(int k=0; k<n_FE_processes; ++k){
+               			        if (this_FE_process==k){
+               			                std::cout << "rank:" << this_FE_process << " > ";
+               			                for (unsigned int i=0; i<dof_handler.n_dofs(); ++i){
+               			                         if (problem_type->is_vertex_loaded(i) == true)
+               			                        {
+               			                                std::cout << i << ' ';
+               			                        }
+               			                }
+               			                std::cout << std::endl;
+
+               			                std::cout << "rank:" << this_FE_process << " - meshz: " << mesh.z << " > ";
+               			                for (cell = dof_handler.begin_active(); cell != dof_handler.end(); ++cell) {
+               			                double eps = cell->minimum_vertex_distance();
+               			                        double delta = eps / 10.0;
+				       		 std::cout << "- delta" << delta << " - ";
+               			                        for (uint32_t face = 0; face < GeometryInfo<3>::faces_per_cell; ++face){
+               			                                for (uint32_t vert = 0; vert < GeometryInfo<3>::vertices_per_face; ++vert) {
+               			                                        // Point coords
+				       				 // So far I have checked that all ranks have the same vertex coordinates
+				       				 // down to a 10^-2 precision.
+				       				 // They have the same value of mesh.z (0.08), delta is constant for all cells
+				       				 // (0.001), and the result of ((abs(vertex_z-mesh.z)<delta) on each vertex is 
+				       				 // identical far all ranks 
+               			                                        double vertex_z = cell->face(face)->vertex(vert)(2);
+               			                                        std::cout << vertex_loaded_state[cell->face(face)->vertex_dof_index(vert, 2)] << ' ';
+               			                                }
+               			                        }
+               			                }
+               			                std::cout << std::endl;
+               			        }
+               			        MPI_Barrier(FE_communicator);
+               			}*/
+
 				for (cell = dof_handler.begin_active(); cell != dof_handler.end(); ++cell) {
         	                double eps = cell->minimum_vertex_distance();
 					double delta = eps / 10.0;

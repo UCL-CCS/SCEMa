@@ -91,17 +91,26 @@ namespace HMM
 		char initdata[1024];
 		sprintf(initdata, "%s/init.%s.bin", md_sim.output_folder.c_str(), mdstate);
 
-		char straindata_last[1024];
-		sprintf(straindata_last, "%s/last.%d.%s.dump", md_sim.output_folder.c_str(),
-				md_sim.qp_id, mdstate);
+		char homogdata_time[1024];
+		sprintf(homogdata_time, "%s/%s.%d.%s.lammpstrj", md_sim.log_file.c_str(),
+				md_sim.time_id.c_str(), md_sim.qp_id, mdstate);
 
 		char straindata_lcts[1024];
 		sprintf(straindata_lcts, "%s/lcts.%d.%s.dump", md_sim.restart_folder.c_str(),
 				md_sim.qp_id, mdstate);
 
-		char homogdata_time[1024];
-		sprintf(homogdata_time, "%s/%s.%d.%s.lammpstrj", md_sim.log_file.c_str(),
-				md_sim.time_id.c_str(), md_sim.qp_id, mdstate);
+    // Find relevant dump file,
+    // Check if this qp made a dump file of or it is branching from a previous qp
+		char straindata_last[1024];
+    if (md_sim.qp_id != md_sim.most_recent_qp_id){
+	  	sprintf(straindata_last, "%s/last.%d.%s.dump", md_sim.output_folder.c_str(),
+		  		md_sim.most_recent_qp_id, mdstate);
+    }
+    else {
+		  sprintf(straindata_last, "%s/last.%d.%s.dump", md_sim.output_folder.c_str(),
+			  	md_sim.qp_id, mdstate);
+    }
+
 
 		char cline[1024];
 		char cfile[1024];

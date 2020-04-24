@@ -500,6 +500,7 @@ std::vector< MDSim<dim> > STMDSync<dim>::prepare_md_simulations(ScaleBridgingDat
 
 			MDSim<dim> md_sim;
 			md_sim.qp_id = update_list[qp].id;
+      md_sim.most_recent_qp_id = update_list[qp].most_recent_id;
 
 			md_sim.replica = repl + 1; // +1 to match input file lables... fix
 			md_sim.material = update_list[qp].material;

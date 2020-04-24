@@ -20,6 +20,7 @@ namespace HMM {
 			}
 	
 			int qp_id;
+      int most_recent_qp_id;
 			int replica;
 			int material;
 			std::string matid;

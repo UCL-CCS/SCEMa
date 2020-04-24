@@ -61,6 +61,7 @@ namespace MatHistPredict {
                 most_similar_histories.clear();
 
                 ID_to_get_results_from = std::numeric_limits<uint32_t>::max();
+                most_recent_ID_to_get_results_from = std::numeric_limits<uint32_t>::max();
             }
 
             /* Set the ID of this Strain6D. This should be a unique identifier of the gauss point this strain history is associated with. */
@@ -374,6 +375,12 @@ namespace MatHistPredict {
                 this->ID_to_get_results_from = ID;
             }
 
+            void set_most_recent_ID_to_get_results_from(uint32_t ID)
+            {
+                this->most_recent_ID_to_get_results_from = ID;
+            }
+
+
             /* Returns the ID of the gauss point whose MD simulation(s) results should be used
              * also by this gauss point.
              */
@@ -381,6 +388,12 @@ namespace MatHistPredict {
             {
                 return ID_to_get_results_from;
             }
+
+            uint32_t get_most_recent_ID_to_update_from()
+            {
+                return most_recent_ID_to_get_results_from;
+            }
+
 
         private:
 
@@ -421,6 +434,9 @@ namespace MatHistPredict {
             // After the graph reduction python script has run, this should be the ID of the gauss point whose
             // MD simulation results (stress) should be used for updating this cell.
             uint32_t ID_to_get_results_from;
+
+            // Most recent cell used to to get results from
+            uint32_t most_recent_ID_to_get_results_from;
     };
 
     /**

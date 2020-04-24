@@ -1093,6 +1093,9 @@ namespace HMM
 									local_quadrature_points_history[q].new_strain[0][1],
 									local_quadrature_points_history[q].new_strain[0][2],
 									local_quadrature_points_history[q].new_strain[1][2]);
+            // remember the last ID used to get results from
+						local_quadrature_points_history[q].hist_strain.set_most_recent_ID_to_get_results_from(local_quadrature_points_history[q].hist_strain.get_ID_to_update_from());
+            // Default to get results from self
 						local_quadrature_points_history[q].hist_strain.set_ID_to_get_results_from(local_quadrature_points_history[q].qpid);
 					}
 				}
@@ -1336,6 +1339,7 @@ namespace HMM
 								qp.update_strain[i] = rot_avg_upd_strain_tensor.access_raw_entry(i); 
 							}
 							qp.id = local_quadrature_points_history[q].qpid;
+              qp.most_recent_id = local_quadrature_points_history[q].hist_strain.get_most_recent_ID_to_update_from();
 							qp.material = celldata.get_composition(cell->active_cell_index());
 							scale_bridging_data.update_list.push_back(qp);
 							//sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id);

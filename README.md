@@ -98,7 +98,7 @@ cat /path/to/simulation/inputs_testname.json
       "min quadrature strain norm": 1.0e-10
     },
     "clustering":{
-      "points": 10,
+      "spline points": 10,
       "min steps": 5,
       "diff threshold": 0.000001,
       "scripts directory": "./clustering"

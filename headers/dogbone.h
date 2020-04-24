@@ -111,7 +111,6 @@ public:
 						fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 0) );
 						fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 1) );
 						loaded_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 2) );
-						//std::cout << "LOAD " << cell->face(face)->vertex_dof_index(vert, 2) << std::endl;
 					}
 				}
 			}

@@ -1964,11 +1964,10 @@ namespace HMM
 				DataOut<dim>::type_dof_data,
 				data_component_interpretation);
 
-
 		// Output of internal forces as a vector
 		Vector<double> fint = compute_internal_forces ();
 		std::vector<std::string>  fint_names (dim, "fint");
-		data_out.add_data_vector (velocity,
+		data_out.add_data_vector (fint,
 				fint_names,
 				DataOut<dim>::type_dof_data,
 				data_component_interpretation);

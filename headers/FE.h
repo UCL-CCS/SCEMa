@@ -232,7 +232,7 @@ namespace HMM
 							~FEProblem ();
 
 							void init (int sstp, double tlength, std::string mslocin, std::string mslocout,
-											std::string mslocres, std::string mlogloc, int fchpt, int fovis, int folhis,
+											std::string mslocres, std::string mlogloc, int fchpt, int fovis, int folhis, int folbcf,
 											bool actmdup, std::vector<std::string> mdt, Tensor<1,dim> cgd, 
 											std::string twodmfile, double extrudel, int extrudep, 
 											boost::property_tree::ptree inconfig, bool hookeslaw);
@@ -279,6 +279,7 @@ namespace HMM
 							Vector<double>  compute_internal_forces () const;
 							std::vector< std::vector< Vector<double> > >
 									compute_history_projection_from_qp_to_nodes (FE_DGQ<dim> &history_fe, DoFHandler<dim> &history_dof_handler, std::string stensor) const;
+							void output_lbc_force ();
 							void output_lhistory ();
 							void output_visualisation_solution ();
 							void output_visualisation_history ();
@@ -357,6 +358,7 @@ namespace HMM
 							int									freq_checkpoint;
 							int									freq_output_visu;
 							int									freq_output_lhist;
+							int									freq_output_lbcforce;
 
 							bool 								activate_md_update;
 

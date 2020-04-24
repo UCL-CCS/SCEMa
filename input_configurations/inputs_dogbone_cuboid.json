@@ -63,6 +63,7 @@
     "checkpoint frequency": 100,
     "visualisation output frequency": 1,
     "analytics output frequency": 1,
+		"loaded boundary force output frequency": 1,
     "homogenization output frequency": 1000
   },
   "directory structure":{

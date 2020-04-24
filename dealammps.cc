@@ -172,6 +172,7 @@ namespace HMM
 		int				freq_checkpoint;
 		int				freq_output_visu;
 		int				freq_output_lhist;
+		int				freq_output_lbcforce;
 		int				freq_output_homog;
 		
 		std::string                 	macrostatelocin;
@@ -287,6 +288,7 @@ namespace HMM
 		// Output and checkpointing frequencies
 		freq_checkpoint   = input_config.get<int>("output data.checkpoint frequency");
 		freq_output_lhist = input_config.get<int>("output data.analytics output frequency");
+		freq_output_lbcforce = input_config.get<int>("output data.loaded boundary force output frequency");
 		freq_output_visu  = input_config.get<int>("output data.visualisation output frequency");
 		freq_output_homog = input_config.get<int>("output data.homogenization output frequency");
 		
@@ -520,7 +522,7 @@ namespace HMM
 		if(fe_pcolor==0) fe_problem->init(start_timestep, fe_timestep_length,
 										macrostatelocin, macrostatelocout,
 										macrostatelocres, macrologloc,
-										freq_checkpoint, freq_output_visu, freq_output_lhist,
+										freq_checkpoint, freq_output_visu, freq_output_lhist, freq_output_lbcforce,
 										activate_md_update, mdtype, cg_dir,
 										twod_mesh_file, extrude_length, extrude_points, 
 										input_config, approx_md_with_hookes_law);

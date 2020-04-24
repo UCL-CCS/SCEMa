@@ -182,6 +182,15 @@ public:
 		return boundary_values;
 									}
 
+	bool is_vertex_loaded(int index)
+	{
+		bool vertex_loaded = false;
+		if (std::find(loaded_vertices.begin(), loaded_vertices.end(), index) != loaded_vertices.end())
+			vertex_loaded = true;
+
+        return vertex_loaded;
+	}
+
 
 
 private:

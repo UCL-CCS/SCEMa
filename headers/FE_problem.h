@@ -1798,6 +1798,49 @@ namespace HMM
 
 
 
+    template <int dim>
+    void FEProblem<dim>::output_lbc_force ()
+    {
+            // Compute applied force vector
+            Vector<double> local_residual (dof_handler.n_dofs());
+            local_residual = compute_internal_forces(); // Note that local_residual contains the local force at all nodes of the mesh on all ranks
+
+            // Write specific outputs to file
+            if (this_FE_process==0)
+            {
+           	 	// Compute force under the loading boundary condition
+           	 	double aforce = 0.;
+           	 	for (unsigned int i=0; i<dof_handler.n_dofs(); ++i)
+           	 	        if (problem_type->is_vertex_loaded(i) == true)
+           	 	        {
+           	 	                aforce += local_residual[i];
+           	 	        }
+
+                    std::ofstream ofile;
+                    char fname[1024]; sprintf(fname, "%s/resultforce.csv", macrologloc.c_str());
+
+                    // writing the header of the file
+                    if (timestep == start_timestep){
+                            ofile.open (fname);
+                            if (ofile.is_open()){
+                                    ofile << "timestep,time,resulting_force" << std::endl;
+                                    ofile.close();
+                            }
+                            else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
+                    }
+
+                    ofile.open (fname, std::ios::app);
+                    if (ofile.is_open())
+                    {
+                            ofile << timestep << ", " << present_time << ", " << aforce << std::endl;
+                            ofile.close();
+                    }
+                    else std::cout << "Unable to open" << fname << " to write in it" << std::endl;
+            }
+    }
+
+
+
 	template <int dim>
 	void FEProblem<dim>::output_lhistory ()
 	{
@@ -2075,6 +2118,9 @@ namespace HMM
 	template <int dim>
 	void FEProblem<dim>::output_results ()
 	{
+		// Output resulting force at boundary
+		if(timestep%freq_output_lbcforce==0) output_lbc_force();
+
 		// Output local history by processor
 		if(timestep%freq_output_lhist==0) output_lhistory ();
 
@@ -2154,7 +2200,7 @@ namespace HMM
 	void FEProblem<dim>::init (int sstp, double tlength,
 							   std::string mslocin, std::string mslocout,
 							   std::string mslocres, std::string mlogloc,
-							   int fchpt, int fovis, int folhis, bool actmdup,
+							   int fchpt, int fovis, int folhis, int folbcf, bool actmdup,
 							   std::vector<std::string> mdt, Tensor<1,dim> cgd,
 							   std::string twodmfile, double extrudel, int extrudep,
 						     boost::property_tree::ptree inconfig, 
@@ -2167,6 +2213,7 @@ namespace HMM
 		freq_checkpoint = fchpt;
 		freq_output_visu = fovis;
 		freq_output_lhist = folhis;
+		freq_output_lbcforce = folbcf;
 
 		// Setting up usage of MD to update constitutive behaviour
 		activate_md_update = actmdup;

@@ -89,9 +89,9 @@ def coarsegrain_dependency_network(input_folder, out_mapping_fname, num_gps):
         for i, mapp in enumerate(mapping):
             outfile_map.write(str(i) + " " + str(mapp) + "\n");
 
-    print("Converged in", iterations, "iterations")
-    print("Number of gauss points to be udpated: ", num_gp_tbu)
-    print("Number of simulations required: ", num_gp_tbu-neighbour_removed)
+    print("              Converged in", iterations, "iterations")
+    print("              Number of gauss points to be udpated: ", num_gp_tbu)
+    print("              Number of simulations required: ", num_gp_tbu-neighbour_removed)
 
 
 if __name__ == "__main__":

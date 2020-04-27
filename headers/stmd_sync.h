@@ -9,6 +9,7 @@
 #include <string>
 #include <sys/stat.h>
 #include <math.h>
+#include <assert.h>
 
 #include "boost/archive/text_oarchive.hpp"
 #include "boost/archive/text_iarchive.hpp"
@@ -490,7 +491,7 @@ std::vector< MDSim<dim> > STMDSync<dim>::prepare_md_simulations(ScaleBridgingDat
 
 	// Setting up batch of processes
 	set_md_procs(nmdruns);
-	mcout << "set md procs"<<std::endl;
+
 	for (uint32_t qp=0; qp<n_qp; ++qp)
 	{
 		for(uint32_t repl=0; repl<nrepl; repl++)
@@ -500,7 +501,7 @@ std::vector< MDSim<dim> > STMDSync<dim>::prepare_md_simulations(ScaleBridgingDat
 
 			MDSim<dim> md_sim;
 			md_sim.qp_id = update_list[qp].id;
-      md_sim.most_recent_qp_id = update_list[qp].most_recent_id;
+			md_sim.most_recent_qp_id = update_list[qp].most_recent_id;
 
 			md_sim.replica = repl + 1; // +1 to match input file lables... fix
 			md_sim.material = update_list[qp].material;
@@ -509,7 +510,7 @@ std::vector< MDSim<dim> > STMDSync<dim>::prepare_md_simulations(ScaleBridgingDat
 			md_sim.matid = replica_data[replica_data_index].mat;
 			md_sim.time_id = time_id;
 
-			md_sim.force_field 			= md_force_field;
+			md_sim.force_field 		= md_force_field;
 			md_sim.timestep_length  = md_timestep_length;
 			md_sim.temperature      = md_temperature;
 			md_sim.nsteps_sample    = md_nsteps_sample;
@@ -543,9 +544,9 @@ std::vector< MDSim<dim> > STMDSync<dim>::prepare_md_simulations(ScaleBridgingDat
 			md_sim.stiffness = replica_data[replica_data_index].init_stiff;
 
 			request_simulations.push_back(md_sim);
-			//}
 		}
 	}
+
 	return request_simulations;
 }
 

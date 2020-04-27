@@ -1093,9 +1093,9 @@ namespace HMM
 									local_quadrature_points_history[q].new_strain[0][1],
 									local_quadrature_points_history[q].new_strain[0][2],
 									local_quadrature_points_history[q].new_strain[1][2]);
-            // remember the last ID used to get results from
-						local_quadrature_points_history[q].hist_strain.set_most_recent_ID_to_get_results_from(local_quadrature_points_history[q].hist_strain.get_ID_to_update_from());
-            // Default to get results from self
+						// remember the last ID used to get results from (WARNING: what about first timestep?)
+						local_quadrature_points_history[q].hist_strain.set_most_recent_ID_to_get_results_from(local_quadrature_points_history[q].hist_strain.get_ID_to_get_results_from());
+						// Default to get results from self
 						local_quadrature_points_history[q].hist_strain.set_ID_to_get_results_from(local_quadrature_points_history[q].qpid);
 					}
 				}
@@ -1273,7 +1273,7 @@ namespace HMM
 	
                 // might be interesting to set them global and not reload them at every iteration?		
 		num_spline_points = input_config.get<int>("model precision.clustering.spline points");
-    min_num_steps_before_spline = input_config.get<int>("model precision.clustering.min steps");
+		min_num_steps_before_spline = input_config.get<int>("model precision.clustering.min steps");
 		acceptable_diff_threshold = input_config.get<double>("model precision.clustering.diff threshold");
 		clusteringscriptsloc = input_config.get<std::string>("model precision.clustering.scripts directory");
 
@@ -1339,7 +1339,7 @@ namespace HMM
 								qp.update_strain[i] = rot_avg_upd_strain_tensor.access_raw_entry(i); 
 							}
 							qp.id = local_quadrature_points_history[q].qpid;
-              qp.most_recent_id = local_quadrature_points_history[q].hist_strain.get_most_recent_ID_to_update_from();
+							qp.most_recent_id = local_quadrature_points_history[q].hist_strain.get_most_recent_ID_to_get_results_from();
 							qp.material = celldata.get_composition(cell->active_cell_index());
 							scale_bridging_data.update_list.push_back(qp);
 							//sprintf(filename, "%s/last.%s.upstrain", macrostatelocout.c_str(), cell_id);
@@ -1516,8 +1516,7 @@ namespace HMM
 
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
-					char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].hist_strain.get_ID_to_update_from());
-					int qp_id = local_quadrature_points_history[q].hist_strain.get_ID_to_update_from();
+					int qp_id = local_quadrature_points_history[q].hist_strain.get_ID_to_get_results_from();
 				
 					if (newtonstep == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
@@ -1817,7 +1816,7 @@ namespace HMM
            	 	        }
 
                     std::ofstream ofile;
-                    char fname[1024]; sprintf(fname, "%s/resultforce.csv", macrologloc.c_str());
+                    char fname[1024]; sprintf(fname, "%s/loadedbc_force.csv", macrologloc.c_str());
 
                     // writing the header of the file
                     if (timestep == start_timestep){

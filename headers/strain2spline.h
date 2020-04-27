@@ -384,12 +384,12 @@ namespace MatHistPredict {
             /* Returns the ID of the gauss point whose MD simulation(s) results should be used
              * also by this gauss point.
              */
-            uint32_t get_ID_to_update_from()
+            uint32_t get_ID_to_get_results_from()
             {
                 return ID_to_get_results_from;
             }
 
-            uint32_t get_most_recent_ID_to_update_from()
+            uint32_t get_most_recent_ID_to_get_results_from()
             {
                 return most_recent_ID_to_get_results_from;
             }

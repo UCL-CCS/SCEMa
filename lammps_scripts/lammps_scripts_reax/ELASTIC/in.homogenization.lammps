@@ -58,6 +58,9 @@ if "${nss} > 10000" then "variable nav equal ${nss}/1000" else "variable nav equ
 print ${nav}
 fix stress  all ave/time 1 ${nav} ${nav} c_thermo_press[*] ave running
 
+fix stress_series all vector 1 c_thermo_press[1] c_thermo_press[2] c_thermo_press[3] c_thermo_press[4] c_thermo_press[5] c_thermo_pr
+ess[6]
+
 #fix   shak all shake 0.001 20 1000 m 1.0
 fix   wholevol all nvt temp ${tempt} ${tempt} 100.0
 include ${locbe}/sample.mod.lammps

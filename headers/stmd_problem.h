@@ -328,6 +328,66 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 			md_sim.stress[k][l] = *((double *) lammps_extract_variable(lmp,vcoef,NULL))*(-1.0)*1.01325e+05;
 		}
 
+	// (stress distribution) Retrieve a vector of stress tensors (vectorised stress tensor)
+	std::vector <SymmetricTensor<2,dim>> stress_dist;
+	for(unsigned int k=0;k<md_sim.nsteps_sample;k++){
+		SymmetricTensor<2,dim>  stress_sample;
+		for(unsigned int l=0;l<2*dim;l++)
+		{
+			double *dptr = (double *) lammps_extract_fix(lmp, "stress_series", 0, 2, k+1, l+1);
+			if (l<dim){
+				stress_sample[l][l] = *dptr;
+			}
+			else if (l==dim) stress_sample[0][1] = *dptr;
+			else if (l==dim+1) stress_sample[0][dim-1] = *dptr;
+			else if (dim>2 && l==2*dim-1) stress_sample[1][dim-1] = *dptr;
+			lammps_free(dptr);
+		}
+		stress_dist.push_back(stress_sample);
+	}
+
+	// (stress distribution) Append molecular model data file
+	if(this_md_batch_process == 0){
+
+		// Initialization of the molecular data file
+		char filename[1024]; sprintf(filename, "%s/mddata_qpid%d_repl%d.csv", md_sim.output_folder.c_str(), md_sim.qp_id, md_sim.replica);
+		std::ofstream  ofile(filename, std::ios_base::app);
+		long cursor_position = ofile.tellp();
+
+		// writing the header of the file (if file is empty)
+		if (cursor_position == 0){
+			ofile << "qp_id,material_id,time_id,temperature,strain_rate,force_field,replica_id,";
+			for(unsigned int k=0;k<dim;k++)
+				for(unsigned int l=k;l<dim;l++)
+					ofile << "," << "strain_" << k << l;
+			for(unsigned int k=0;k<dim;k++)
+				for(unsigned int l=k;l<dim;l++)
+					ofile << "," << "stess-sample_" << k << l;
+			ofile << std::endl;
+		}
+
+		// writing current time data
+		for(unsigned int t=0;t<md_sim.nsteps_sample;t++){
+		   ofile << md_sim.qp_id
+				 << "," << md_sim.matid
+				 << "," << md_sim.time_id
+				 << "," << md_sim.temperature
+				 << "," << md_sim.strain_rate
+				 << "," << md_sim.force_field
+				 << "," << md_sim.replica;
+		   for(unsigned int k=0;k<dim;k++)
+			  for(unsigned int l=k;l<dim;l++){
+				  ofile << "," << std::setprecision(16) << md_sim.strain[k][l];
+			  }
+		   for(unsigned int k=0;k<dim;k++)
+			  for(unsigned int l=k;l<dim;l++){
+				  ofile << "," << std::setprecision(16) << stress_dist[t][k][l];
+			  }
+		   ofile << std::endl;
+		}
+
+	}
+
 	if(md_sim.output_homog){
 		// Unetting dumping of atom positions
 		sprintf(cline, "undump atom_dump"); lammps_command(lmp,cline);

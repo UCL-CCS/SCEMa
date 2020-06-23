@@ -99,14 +99,14 @@ public:
 					double vertex_z = cell->face(face)->vertex(vert)(2);
 
 					// is vertex at base
-					if ( abs(vertex_z-0.0) < delta ){
+					if ( fabs(vertex_z-0.0) < delta ){
 						for (uint32_t i=0; i<dim; i++){
 							fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, i) );
 						}
 					}
 
 					// is vertex on top
-					if ( abs(vertex_z-mesh.z) < delta){
+					if ( fabs(vertex_z-mesh.z) < delta){
 						// fix in x,y; load along z axis
 						fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 0) );
 						fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 1) );

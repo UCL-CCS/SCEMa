@@ -54,10 +54,10 @@ public:
 
 					// is point on the edge, if so it will be kept stationary
 					double delta = eps / 10.0; // in a grid, this will be small enough that only edges are used
-					if (   ( abs(vertex_x - mesh.x/2) < delta )
-							|| ( abs(vertex_x + mesh.x/2) < delta )
-							|| ( abs(vertex_y - mesh.y/2) < delta )
-							|| ( abs(vertex_y + mesh.y/2) < delta ))
+					if (   ( fabs(vertex_x - mesh.x/2) < delta )
+							|| ( fabs(vertex_x + mesh.x/2) < delta )
+							|| ( fabs(vertex_y - mesh.y/2) < delta )
+							|| ( fabs(vertex_y + mesh.y/2) < delta ))
 
 						//if (   vertex_x > ( mesh.x/2 - delta)
 						//    || vertex_x < (-mesh.x/2 + delta)

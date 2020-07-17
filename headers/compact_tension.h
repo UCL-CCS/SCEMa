@@ -1,4 +1,4 @@
-namespace HMM {
+namespace CONT {
 
 template <int dim>
 class CompactTension: public ProblemType<dim>
@@ -45,13 +45,13 @@ public:
 					double vertex_z = cell->face(face)->vertex(vert)(2);
 
 					// is vertex at base
-					if ( abs(vertex_y-0.0) < delta ){
+					if ( fabs(vertex_y-0.0) < delta ){
 						// allow to move in x and z, fix y
 						fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 1) );
 					}
 
 					// is vertex on middle plane
-					if ( abs(vertex_z-0.0) < delta){
+					if ( fabs(vertex_z-0.0) < delta){
 						// allow to move in x and y, fix z
 						fixed_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 2) );
 					}
@@ -75,7 +75,7 @@ public:
 							(vertex_x - circle_centre_x) +
 							(vertex_y - circle_centre_y)*
 							(vertex_y - circle_centre_y));
-					if (abs(dist_circle_centre - dd/2.) < delta &&
+					if (fabs(dist_circle_centre - dd/2.) < delta &&
 							vertex_y > circle_centre_y ) {
 						loaded_vertices.push_back( cell->face(face)->vertex_dof_index(vert, 1) );
 					}

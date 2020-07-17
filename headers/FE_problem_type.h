@@ -17,7 +17,7 @@
 #include <deal.II/dofs/dof_handler.h>
 #include <deal.II/lac/vector.h>
 
-namespace HMM {
+namespace CONT {
 
 struct MeshDimensions
 {

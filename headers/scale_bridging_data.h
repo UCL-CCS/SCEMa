@@ -7,12 +7,11 @@
 #include <stdint.h>
 #include <fstream>
 #include <math.h>
-namespace HMM { 
+namespace CONT {
 	
 	struct QP // quadradture point
 	{
 		int 	id;
-		int   	most_recent_id;
 		int 	material;
 		double 	update_strain[6];
 		double	update_stress[6];

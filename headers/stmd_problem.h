@@ -362,7 +362,7 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 					ofile << "," << "strain_" << k << l;
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
-					ofile << "," << "stess-sample_" << k << l;
+					ofile << "," << "stress_" << k << l;
 			ofile << std::endl;
 		}
 

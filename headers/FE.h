@@ -26,7 +26,7 @@
 #include "scale_bridging_data.h"
 
 // Reduction model based on spline comparison
-#include "strain2spline.h"
+//#include "strain2spline.h"
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -77,7 +77,7 @@
 #include <deal.II/grid/filtered_iterator.h>
 #include <deal.II/base/mpi.h>
 
-namespace HMM
+namespace CONT
 {
 	using namespace dealii;
 
@@ -95,14 +95,11 @@ namespace HMM
 		SymmetricTensor<2,dim> inc_strain;
 		SymmetricTensor<2,dim> upd_strain;
 		SymmetricTensor<2,dim> newton_strain;
-		MatHistPredict::Strain6D hist_strain;
-		bool to_be_updated;
 
 		// Characteristics
 		unsigned int qpid;
 		double rho;
 		std::string mat;
-		Tensor<2,dim> rotam;
 	};
 
 
@@ -227,29 +224,31 @@ namespace HMM
 	template <int dim>
 			class FEProblem
 			{
-					public:
+			public:
 							FEProblem (MPI_Comm dcomm, int pcolor, int fe_deg, int quad_for, const int n_world_processes);
 							~FEProblem ();
 
-							void init (int sstp, double tlength, std::string mslocin, std::string mslocout,
-											std::string mslocres, std::string mlogloc, int fchpt, int fovis, int folhis, int folbcf,
-											bool actmdup, std::vector<std::string> mdt, Tensor<1,dim> cgd, 
-											std::string twodmfile, double extrudel, int extrudep, 
-											boost::property_tree::ptree inconfig, bool hookeslaw);
+							void init (int sstp, double tlength,
+										std::string mslocin, std::string mslocout,
+										std::string mslocres, std::string mlogloc,
+										int fchpt, int fovis, int folhis, int folbcf,
+										std::vector<std::string> mdt,
+										std::string twodmfile, double extrudel, int extrudep,
+										boost::property_tree::ptree inconfig);
 							void beginstep (int tstp, double ptime);
 							void solve (int nstp, ScaleBridgingData &scale_bridging_data);
 							bool check (ScaleBridgingData scale_bridging_data);
 							void endstep ();
 
-					private:
+								private:
 							void make_grid ();
-						  void visualise_mesh(parallel::shared::Triangulation<dim> &triangulation);
+							void visualise_mesh(parallel::shared::Triangulation<dim> &triangulation);
 							void setup_system ();
 							CellData<dim> get_microstructure ();
 							std::vector<Vector<double> > generate_microstructure_uniform();
 							void assign_microstructure (typename DoFHandler<dim>::active_cell_iterator cell, 
-											CellData<dim> celldata,
-											std::string &mat, Tensor<2,dim> &rotam);
+									CellData<dim> celldata,
+									std::string &mat);
 							void setup_quadrature_point_history ();
 							void restart ();
 
@@ -262,23 +261,19 @@ namespace HMM
 							void solve_linear_problem_direct ();
 							void update_incremental_variables ();
 							void update_strain_quadrature_point_history
-									(const Vector<double>& displacement_update);
-							void check_strain_quadrature_point_history();
-							void spline_building();
-							void spline_comparison();
-							void history_analysis();
-							void write_md_updates_list(ScaleBridgingData &scale_bridging_data);
+							(const Vector<double>& displacement_update);
+
+							void write_qp_update_list(ScaleBridgingData &scale_bridging_data);
 
 							void gather_qp_update_list(ScaleBridgingData &scale_bridging_data);
 							template <typename T>
 							std::vector<T> gather_vector(std::vector<T> local_vector);
 							void update_stress_quadrature_point_history
-									(const Vector<double>& displacement_update, ScaleBridgingData scale_bridging_data);
-							void clean_transfer();
+							(ScaleBridgingData scale_bridging_data);
 
 							Vector<double>  compute_internal_forces () const;
 							std::vector< std::vector< Vector<double> > >
-									compute_history_projection_from_qp_to_nodes (FE_DGQ<dim> &history_fe, DoFHandler<dim> &history_dof_handler, std::string stensor) const;
+							compute_history_projection_from_qp_to_nodes (FE_DGQ<dim> &history_fe, DoFHandler<dim> &history_dof_handler, std::string stensor) const;
 							void output_lbc_force ();
 							void output_lhistory ();
 							void output_visualisation_solution ();
@@ -343,12 +338,6 @@ namespace HMM
 							double								diam_weight;
 
 							std::vector<std::string> 			mdtype;
-							Tensor<1,dim> 						cg_dir;
-
-							int 								num_spline_points;
-							int 								min_num_steps_before_spline;
-							double								acceptable_diff_threshold;
-							std::string							clusteringscriptsloc;
 
 							std::string                         macrostatelocin;
 							std::string                         macrostatelocout;
@@ -360,15 +349,12 @@ namespace HMM
 							int									freq_output_lhist;
 							int									freq_output_lbcforce;
 
-							bool 								activate_md_update;
-
 							std::string		twod_mesh_file;
 							double                  extrude_length;
 							int                     extrude_points;
 
 							boost::property_tree::ptree     input_config;
-							bool														approx_md_with_hookes_law;
-							
+
 							CellData<dim> celldata;
 
 							ProblemType<dim>* problem_type = NULL;

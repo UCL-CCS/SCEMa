@@ -17,6 +17,14 @@
  * Author: Wolfgang Bangerth, University of Heidelberg, 2000
  */
 
+// TODO: Functionalities to transfer to the load balancer:
+// 0. average initial data from molecular system (e.g. stiffness)
+// 1. choice between MD or constitutive law derived strain
+// 1.1 strain threshold (1.e-10) below which constitutive law is enforced
+// 2. management and comparison of strain histories and subsequent clustering
+// 3. surrogate modelling
+// 4. load balancing of MD simulations
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -32,15 +40,7 @@
 #include "boost/property_tree/ptree.hpp"
 #include "boost/property_tree/json_parser.hpp"
 #include "boost/foreach.hpp"
-//#include "boost/filesystem.hpp"
-
-// Specifically built header files
-#include "headers/read_write.h"
-#include "headers/math_calc.h"
-#include "headers/scale_bridging_data.h"
-//#include "headers/stmd_problem.h"
-#include "headers/md_sim.h"
-#include "headers/stmd_sync.h"
+//#include "boost/filesystem.hpp
 
 // To avoid conflicts...
 // pointers.h in input.h defines MIN and MAX
@@ -90,32 +90,32 @@
 #include <deal.II/grid/filtered_iterator.h>
 #include <deal.II/base/mpi.h>
 
+// Specifically built header files
+#include "headers/read_write.h"
+#include "headers/math_calc.h"
+#include "headers/scale_bridging_data.h"
+
 // Include of the FE model to solve in the simulation
-//#include "headers/fe-spline_problem_hopk.h"
 #include "headers/FE_problem.h"
 
-namespace HMM
+namespace CONT
 {
 	using namespace dealii;
 
 	template <int dim>
-	class HMMProblem
+	class CONTProblem
 	{
 	public:
-		HMMProblem ();
-		~HMMProblem ();
+		CONTProblem ();
+		~CONTProblem ();
 		void run (std::string inputfile);
 
 	private:
 		void read_inputs(std::string inputfile);
-
-		void set_global_communicators ();
 		void set_repositories ();
+		void do_timestep ();
 		void share_scale_bridging_data (ScaleBridgingData &scale_bridging_data);
 
-		void do_timestep ();
-
-		STMDSync<dim> 			*mmd_problem = NULL;
 		FEProblem<dim> 			*fe_problem = NULL;
 		
 		MPI_Comm 			world_communicator;
@@ -123,20 +123,7 @@ namespace HMM
 		const int 			this_world_process;
 		int 				world_pcolor;
 
-		MPI_Comm 			fe_communicator;
-		int				root_fe_process;
-		int 				this_fe_process;
-		int 				fe_pcolor;
-
-		MPI_Comm 			mmd_communicator;
-		int 				n_mmd_processes;
-		int				root_mmd_process;
-		int 				this_mmd_process;
-		int 				mmd_pcolor;
-
 		unsigned int			machine_ppn;
-		int				fecores;
-		int				mdcores;
 
 		ConditionalOStream 		hcout;
 
@@ -156,45 +143,24 @@ namespace HMM
 
 		std::vector<std::string>	mdtype;
 		unsigned int			nrepl;
-		Tensor<1,dim> 			cg_dir;
 		boost::property_tree::ptree	input_config;
-
-		bool				activate_md_update;
-		bool				approx_md_with_hookes_law;
-		bool				use_pjm_scheduler;
-
-		double				md_timestep_length;
-		double				md_temperature;
-		int				md_nsteps_sample;
-		double				md_strain_rate;
-		std::string			md_force_field;
 
 		int				freq_checkpoint;
 		int				freq_output_visu;
 		int				freq_output_lhist;
 		int				freq_output_lbcforce;
-		int				freq_output_homog;
 		
 		std::string                 	macrostatelocin;
 		std::string                	macrostatelocout;
 		std::string			macrostatelocres;
 		std::string			macrologloc;
-
-		std::string                 	nanostatelocin;
-		std::string			nanostatelocout;
-		std::string			nanostatelocres;
-		std::string			nanologloc;
-		std::string			nanologloctmp;
-		std::string			nanologlochom;
-
-		std::string			md_scripts_directory;
 		
 	};
 
 
 
 	template <int dim>
-	HMMProblem<dim>::HMMProblem ()
+	CONTProblem<dim>::CONTProblem ()
 	:
 		world_communicator (MPI_COMM_WORLD),
 		n_world_processes (Utilities::MPI::n_mpi_processes(world_communicator)),
@@ -206,14 +172,14 @@ namespace HMM
 
 
 	template <int dim>
-	HMMProblem<dim>::~HMMProblem ()
+	CONTProblem<dim>::~CONTProblem ()
 	{}
 
 
 
 
 	template <int dim>
-	void HMMProblem<dim>::read_inputs (std::string inputfile)
+	void CONTProblem<dim>::read_inputs (std::string inputfile)
 	{
 	    std::ifstream jsonFile(inputfile);
 	    try{
@@ -221,7 +187,7 @@ namespace HMM
 	    }
 	    catch (const boost::property_tree::json_parser::json_parser_error& e)
 	    {
-	        hcout << "Invalid JSON HMM input file (" << inputfile << ")" << std::endl;  // Never gets here
+	        hcout << "Invalid JSON FE input file (" << inputfile << ")" << std::endl;  // Never gets here
 	    }
             	    
 	    boost::property_tree::read_json(inputfile, input_config);
@@ -235,152 +201,60 @@ namespace HMM
 	    fe_degree 		= input_config.get<int>("continuum mesh.fe degree");
 	    quadrature_formula 	= input_config.get<int>("continuum mesh.quadrature formula");
 
-	    // Scale-bridging parameters
-	    activate_md_update 	= input_config.get<bool>("scale-bridging.activate md update");
-	    approx_md_with_hookes_law	=input_config.get<bool>("scale-bridging.approximate md with hookes law");
-	    use_pjm_scheduler 	= input_config.get<bool>("scale-bridging.use pjm scheduler");
-
 	    // Continuum input, output, restart and log location
 		macrostatelocin	 = input_config.get<std::string>("directory structure.macroscale input");
 		macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
 		macrostatelocres = input_config.get<std::string>("directory structure.macroscale restart");
 		macrologloc 	 = input_config.get<std::string>("directory structure.macroscale log");
 
-		// Atomic input, output, restart and log location
-		nanostatelocin	 = input_config.get<std::string>("directory structure.nanoscale input");
-		nanostatelocout	 = input_config.get<std::string>("directory structure.nanoscale output");
-		nanostatelocres	 = input_config.get<std::string>("directory structure.nanoscale restart");
-		nanologloc	 = input_config.get<std::string>("directory structure.nanoscale log");
 
 		// Molecular dynamics material data
-		nrepl = input_config.get<unsigned int>("molecular dynamics material.number of replicas");
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(input_config, "molecular dynamics material").get_child("list of materials.")) {
+				get_subbptree(input_config, "materials info").get_child("list of materials.")) {
 			mdtype.push_back(v.second.data());
 		}
-		// Direction to which all MD data are rotated to, to later ease rotation in the FE problem. The
-		// replicas results are rotated to this referential before ensemble averaging, and the continuum
-		// tensors are rotated to this referential from the microstructure given orientation
-		std::vector<double> tmp_dir;
-		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(input_config, "molecular dynamics material").get_child("rotation common ground vector.")) {
-			tmp_dir.push_back(std::stod(v.second.data()));
-		}
-		if(tmp_dir.size()==dim){
-			for(unsigned int imd=0; imd<dim; imd++){
-				cg_dir[imd] = tmp_dir[imd];
-			}
-		}
-		
-		// Molecular dynamics simulation parameters
-		md_timestep_length = input_config.get<double>("molecular dynamics parameters.timestep length");
-		md_temperature = input_config.get<double>("molecular dynamics parameters.temperature");
-		md_nsteps_sample = input_config.get<int>("molecular dynamics parameters.number of sampling steps");
-		md_strain_rate = input_config.get<double>("molecular dynamics parameters.strain rate");
-		md_force_field = input_config.get<std::string>("molecular dynamics parameters.force field");
-		md_scripts_directory = input_config.get<std::string>("molecular dynamics parameters.scripts directory");
 
 		// Computational resources
 		machine_ppn = input_config.get<unsigned int>("computational resources.machine cores per node");
-		fecores = input_config.get<int>("computational resources.maximum number of cores for FEM simulation");
-		mdcores = input_config.get<int>("computational resources.minimum number of cores for MD simulation");
 
 		// Output and checkpointing frequencies
 		freq_checkpoint   = input_config.get<int>("output data.checkpoint frequency");
 		freq_output_lhist = input_config.get<int>("output data.analytics output frequency");
 		freq_output_lbcforce = input_config.get<int>("output data.loaded boundary force output frequency");
 		freq_output_visu  = input_config.get<int>("output data.visualisation output frequency");
-		freq_output_homog = input_config.get<int>("output data.homogenization output frequency");
 		
 		// Print a recap of all the parameters...
 		hcout << "Parameters listing:" << std::endl;
-		hcout << " - Activate MD updates (1 is true, 0 is false): "<< activate_md_update << std::endl;
-		hcout << " - Approximate MD sims with hookes law (1 is true, 0 is false): "<< approx_md_with_hookes_law << std::endl;
-		hcout << " - Use Pilot Job Manager to schedule MD jobs: "<< use_pjm_scheduler << std::endl;
 		hcout << " - FE timestep duration: "<< fe_timestep_length << std::endl;
 		hcout << " - Start timestep: "<< start_timestep << std::endl;
 		hcout << " - End timestep: "<< end_timestep << std::endl;
 		hcout << " - FE shape funciton degree: "<< fe_degree << std::endl;
 		hcout << " - FE quadrature formula: "<< quadrature_formula << std::endl;
-		hcout << " - Number of replicas: "<< nrepl << std::endl;
 		hcout << " - List of material names: "<< std::flush;
 		for(unsigned int imd=0; imd<mdtype.size(); imd++) 
 		{
 			hcout << " " << mdtype[imd] << std::flush; 
 		}
 		hcout << std::endl;
+
 		
-		hcout << " - Direction use as a common ground/referential to transfer data between nano- and micro-structures : "<< std::flush;
-		for(unsigned int imd=0; imd<dim; imd++) 
-		{
-			hcout << " " << cg_dir[imd] << std::flush; 
-		}
-		hcout << std::endl;
-		
-		hcout << " - MD timestep duration: "<< md_timestep_length << std::endl;
-		hcout << " - MD thermostat temperature: "<< md_temperature << std::endl;
-		hcout << " - MD deformation rate: "<< md_strain_rate << std::endl;
-		hcout << " - MD number of sampling steps: "<< md_nsteps_sample << std::endl;
-		hcout << " - MD force field type: "<< md_force_field << std::endl;
-		hcout << " - MD scripts directory (contains in.set, in.strain, ELASTIC/, ffield parameters): "<< md_scripts_directory << std::endl;
 		hcout << " - Number of cores per node on the machine: "<< machine_ppn << std::endl;
-		hcout << " - Maximum number of cores for FEM simulation: "<< fecores << std::endl;
-		hcout << " - Minimum number of cores for MD simulation: "<< mdcores << std::endl;
 		hcout << " - Frequency of checkpointing: "<< freq_checkpoint << std::endl;
 		hcout << " - Frequency of writing FE data files: "<< freq_output_lhist << std::endl;
 		hcout << " - Frequency of writing FE visualisation files: "<< freq_output_visu << std::endl;
-		hcout << " - Frequency of writing MD homogenization trajectory files: "<< freq_output_homog << std::endl;
 		hcout << " - FE input directory: "<< macrostatelocin << std::endl;
 		hcout << " - FE output directory: "<< macrostatelocout << std::endl;
 		hcout << " - FE restart directory: "<< macrostatelocres << std::endl;
 		hcout << " - FE log directory: "<< macrologloc << std::endl;
-		hcout << " - MD input directory: "<< nanostatelocin << std::endl;
-		hcout << " - MD output directory: "<< nanostatelocout << std::endl;
-		hcout << " - MD restart directory: "<< nanostatelocres << std::endl;
-		hcout << " - MD log directory: "<< nanologloc << std::endl;
 	}
 
 
 
 
 	template <int dim>
-	void HMMProblem<dim>::set_global_communicators ()
+	void CONTProblem<dim>::set_repositories ()
 	{
-		//Setting up DEALII communicator and related variables
-		root_fe_process = 0;
-		// Color set above 0 for processors that are going to be used
-		fe_pcolor = MPI_UNDEFINED;
-		if (this_world_process >= root_fe_process &&
-				this_world_process < root_fe_process + fecores) fe_pcolor = 0;
-		else fe_pcolor = 1;
-
-		MPI_Comm_split(world_communicator, fe_pcolor, this_world_process, &fe_communicator);
-		MPI_Comm_rank(fe_communicator, &this_fe_process);
-
-
-		//Setting up LAMMPS communicator and related variables
-		root_mmd_process = 0;
-		n_mmd_processes = n_world_processes;
-		// Color set above 0 for processors that are going to be used
-		mmd_pcolor = MPI_UNDEFINED;
-		if (this_world_process >= root_mmd_process &&
-				this_world_process < root_mmd_process + n_mmd_processes) mmd_pcolor = 0;
-		else mmd_pcolor = 1;
-
-		MPI_Comm_split(world_communicator, mmd_pcolor, this_world_process, &mmd_communicator);
-		MPI_Comm_rank(mmd_communicator, &this_mmd_process);
-		
-		create_qp_mpi_datatype(); // Creates and commits MPI_QP for communicating quadrature point info
-															// between FE and MD solvers
-	}
-
-
-
-
-	template <int dim>
-	void HMMProblem<dim>::set_repositories ()
-	{
-		if(!file_exists(macrostatelocin) || !file_exists(nanostatelocin)){
+		if(!file_exists(macrostatelocin)){
 			std::cerr << "Missing macroscale or nanoscale input directories." << std::endl;
 			exit(1);
 		}
@@ -389,24 +263,12 @@ namespace HMM
 		mkdir(macrostatelocres.c_str(), ACCESSPERMS);
 		mkdir(macrologloc.c_str(), ACCESSPERMS);
 
-		mkdir(nanostatelocout.c_str(), ACCESSPERMS);
-		mkdir(nanostatelocres.c_str(), ACCESSPERMS);
-		mkdir(nanologloc.c_str(), ACCESSPERMS);
-		nanologloctmp = nanologloc+"/tmp"; mkdir(nanologloctmp.c_str(), ACCESSPERMS);
-		nanologlochom = nanologloc+"/homog"; mkdir(nanologlochom.c_str(), ACCESSPERMS);
-
-		char fnset[1024]; sprintf(fnset, "%s/in.set.lammps", md_scripts_directory.c_str());
-		char fnstrain[1024]; sprintf(fnstrain, "%s/in.strain.lammps", md_scripts_directory.c_str());
-		char fnelastic[1024]; sprintf(fnelastic, "%s/ELASTIC", md_scripts_directory.c_str());
-
-		if(!file_exists(fnset) || !file_exists(fnstrain) || !file_exists(fnelastic)){
-			std::cerr << "Missing some MD input scripts for executing LAMMPS simulation (in 'box' directory)." << std::endl;
-			exit(1);
-		}
 	}
 
+
+
 	template <int dim>
-	void HMMProblem<dim>::share_scale_bridging_data (ScaleBridgingData &scale_bridging_data)
+	void CONTProblem<dim>::share_scale_bridging_data (ScaleBridgingData &scale_bridging_data)
 	{
 		int n_updates = scale_bridging_data.update_list.size();
 		MPI_Bcast(&n_updates , 1, MPI_INT, 0, world_communicator);
@@ -416,8 +278,10 @@ namespace HMM
 		MPI_Bcast(&(scale_bridging_data.update_list[0]), n_updates, MPI_QP, 0, world_communicator);
 	}
 
+
+
 	template <int dim>
-	void HMMProblem<dim>::do_timestep ()
+	void CONTProblem<dim>::do_timestep ()
 	{
 		// Begin walltime measuring point
 		auto wcts = std::chrono::system_clock::now(); // current time
@@ -436,9 +300,7 @@ namespace HMM
 		newtonstep = 0;
 
 		// Initialisation of timestep variables
-		if(fe_pcolor==0) fe_problem->beginstep(timestep, present_time);
-
-		MPI_Barrier(world_communicator);
+		fe_problem->beginstep(timestep, present_time);
 
 		// Solving iteratively the current timestep
 		bool continue_newton = false;
@@ -446,27 +308,26 @@ namespace HMM
 		do
 		{
 			++newtonstep;
+
+			// Might want to simplify that structure now the scale bridging is done outside
+			ScaleBridgingData scale_bridging_data;
+			fe_problem->solve(newtonstep, scale_bridging_data);
+			share_scale_bridging_data(scale_bridging_data);
 			
-			ScaleBridgingData scale_bridging_data;	
-			if(fe_pcolor==0) fe_problem->solve(newtonstep, scale_bridging_data);
+			// O_I
+			// Send strains to MD
+			//fe_problem->send_strain(scale_bridging_data);
+
+			// S
+			// Retrieve stresses
+			//fe_problem->receive_stress(scale_bridging_data);
 
 			share_scale_bridging_data(scale_bridging_data);
-
-			//hcout << "ENTERING HELL" << std::endl;
-
-			if(mmd_pcolor==0) mmd_problem->update(timestep, present_time, newtonstep, scale_bridging_data);
-			MPI_Barrier(world_communicator);
-			
-			share_scale_bridging_data(scale_bridging_data);
-
-			if(fe_pcolor==0) continue_newton = fe_problem->check(scale_bridging_data);
-
-			// Share the value of previous_res with processors outside of dealii allocation
-			MPI_Bcast(&continue_newton, 1, MPI_C_BOOL, root_fe_process, world_communicator);
+			continue_newton = fe_problem->check(scale_bridging_data);
 
 		} while (continue_newton);
 
-		if(fe_pcolor==0) fe_problem->endstep();
+		fe_problem->endstep();
 		
 		MPI_Barrier(world_communicator);
 
@@ -478,56 +339,39 @@ namespace HMM
 
 
 	template <int dim>
-	void HMMProblem<dim>::run (std::string inputfile)
+	void CONTProblem<dim>::run (std::string inputfile)
 	{
 		// Reading JSON input file (common ones only)
 		read_inputs(inputfile);
 
-		hcout << "Building the HMM problem:       " << std::endl;
-  	        // Set the dealii communicator using a limited amount of available processors
-		// because dealii fails if processors do not have assigned cells. Plus, dealii
-		// might not scale indefinitely
-		set_global_communicators();
+		hcout << "Building the FE problem:       " << std::endl;
 
 		// Setting repositories for input and creating repositories for outputs
 		set_repositories();
 
-		// Instantiation of the MMD Problem
-		if(mmd_pcolor==0) mmd_problem = new STMDSync<dim> (mmd_communicator, mmd_pcolor);
+		//
+		create_qp_mpi_datatype(); // Creates and commits MPI_QP for communicating quadrature point info
+																	// between FE and MD solvers
 
 		// Instantiation of the FE problem
-		if(fe_pcolor==0) fe_problem = new FEProblem<dim> (fe_communicator, fe_pcolor, fe_degree, quadrature_formula, n_world_processes);
-
-		MPI_Barrier(world_communicator);
+		fe_problem = new FEProblem<dim> (world_communicator, world_pcolor, fe_degree, quadrature_formula, n_world_processes);
 
 		// Initialization of time variables
 		timestep = start_timestep - 1;
 		present_time = timestep*fe_timestep_length;
 		end_time = end_timestep*fe_timestep_length;
 
-		hcout << " Initialization of the Multiple Molecular Dynamics problem...       " << std::endl;
-		if(mmd_pcolor==0) mmd_problem->init(start_timestep, md_timestep_length, md_temperature,
-											   md_nsteps_sample, md_strain_rate, md_force_field, nanostatelocin,
-											   nanostatelocout, nanostatelocres, nanologloc,
-											   nanologloctmp, nanologlochom, macrostatelocout,
-											   md_scripts_directory, freq_checkpoint, freq_output_homog,
-											   machine_ppn, mdtype, cg_dir, nrepl,
-											   use_pjm_scheduler, input_config, approx_md_with_hookes_law);
-
 		// Initialization of MMD must be done before initialization of FE, because FE needs initial
 		// materials properties obtained from MMD initialization
-		MPI_Barrier(world_communicator);
 
 		hcout << " Initiation of the Finite Element problem...       " << std::endl;
-		if(fe_pcolor==0) fe_problem->init(start_timestep, fe_timestep_length,
+		fe_problem->init(start_timestep, fe_timestep_length,
 										macrostatelocin, macrostatelocout,
 										macrostatelocres, macrologloc,
 										freq_checkpoint, freq_output_visu, freq_output_lhist, freq_output_lbcforce,
-										activate_md_update, mdtype, cg_dir,
-										twod_mesh_file, extrude_length, extrude_points, 
-										input_config, approx_md_with_hookes_law);
-                                                                                
-		MPI_Barrier(world_communicator);                                
+										mdtype,
+										twod_mesh_file, extrude_length, extrude_points,
+										input_config);
 
 		// Running the solution algorithm of the FE problem
 		hcout << "Beginning of incremental solution algorithm:       " << std::endl;
@@ -535,8 +379,7 @@ namespace HMM
 			do_timestep();
 		}
 		
-		if(mmd_pcolor==0) delete mmd_problem;
-		if(fe_pcolor==0) delete fe_problem;
+		delete fe_problem;
 	}
 }
 
@@ -546,26 +389,26 @@ int main (int argc, char **argv)
 {
 	try
 	{
-		using namespace HMM;
+		using namespace CONT;
 
 		dealii::Utilities::MPI::MPI_InitFinalize mpi_initialization(argc, argv, 1);
 
 		if(argc!=2){
-			std::cerr << "Wrong number of arguments, expected: './dealammps inputs_dealammps.json', but argc is " << argc << std::endl;
+			std::cerr << "Wrong number of arguments, expected: './dealii inputs_dealii.json', but argc is " << argc << std::endl;
 			exit(1);
 		}
 
 		std::string inputfile = argv[1];
 		if(!file_exists(inputfile)){
-			std::cerr << "Missing HMM input file." << std::endl;
+			std::cerr << "Missing dealii input file." << std::endl;
 			exit(1);
 		}
 
 		// Begin Global wall-timer
 		auto wcts = std::chrono::system_clock::now(); // current wall time
 
-		HMMProblem<3> hmm_problem;
-		hmm_problem.run(inputfile);
+		CONTProblem<3> cont_problem;
+		cont_problem.run(inputfile);
 
 		// End of global wall-timer
 		std::chrono::duration<double> wctduration = (std::chrono::system_clock::now() - wcts);

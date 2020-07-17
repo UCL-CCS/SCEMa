@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.4.1 QUIET
-  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
+  HINTS /home/uccamva/opt/dealii-9.0.0/ ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
   )
 IF(NOT ${deal.II_FOUND})
   MESSAGE(FATAL_ERROR "\n"
@@ -13,10 +13,10 @@ ENDIF()
 
 DEAL_II_INITIALIZE_CACHED_VARIABLES()
 
-PROJECT(dealammps)
+PROJECT(SCEMa)
 
-ADD_EXECUTABLE(dealammps ../dealammps.cc)
-DEAL_II_SETUP_TARGET(dealammps)
+ADD_EXECUTABLE(dealii ../dealii.cc)
+DEAL_II_SETUP_TARGET(dealii)
 
 ADD_EXECUTABLE(init_material ../init_material.cc)
 DEAL_II_SETUP_TARGET(init_material)
@@ -26,7 +26,7 @@ DEAL_II_SETUP_TARGET(strain_md)
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
-  /shared/ucl/apps/lammps/16Mar18/USERINTEL/intel-2018/lammps-16Mar18/src/
+  /home/uccamva/sources/lammps-17Nov16/src/
   )
 
 ## Include BOOST sources repository
@@ -34,11 +34,11 @@ INCLUDE_DIRECTORIES(
 #INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
 ## Include LAMMPS library shared .so (or static .a)
-TARGET_LINK_LIBRARIES(dealammps ~/.local/lib64/liblammps.so)
-TARGET_LINK_LIBRARIES(init_material ~/.local/lib64/liblammps.so)
-TARGET_LINK_LIBRARIES(strain_md ~/.local/lib64/liblammps.so)
+TARGET_LINK_LIBRARIES(dealii /home/uccamva/sources/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(init_material /home/uccamva/sources/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(strain_md /home/uccamva/sources/lammps-17Nov16/src/liblammps.so)
 
-TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(dealii LINK_PUBLIC ${Boost_LIBRARIES})
 TARGET_LINK_LIBRARIES(init_material LINK_PUBLIC ${Boost_LIBRARIES})
 
 ## Create additional targets to the standard DEAL.II targets
@@ -52,7 +52,7 @@ ADD_CUSTOM_TARGET(deepclean  COMMENT "Complete clean"
 ADD_CUSTOM_TARGET(buildclean COMMENT "Build clean"
                              DEPENDS outclean
                              COMMAND rm
-                             ARGS -rf dealammps init_material strain_md
+                             ARGS -rf dealii init_material strain_md
   )
 
 ADD_CUSTOM_TARGET(outclean COMMENT "Output clean"

@@ -523,7 +523,7 @@ std::vector< MDSim<dim> > STMDSync<dim>::prepare_md_simulations(ScaleBridgingDat
 			md_sim.checkpoint 			= checkpoint_save;
 			// Setting up location for temporary log outputs of md simulation, input strains and output stresses
 			std::string macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
-			md_sim.define_file_names(nanologloctmp);
+			if (approx_md_with_hookes_law == false) md_sim.define_file_names(nanologloctmp);
 
 			// Argument of the MD simulation: strain to apply
 			SymmetricTensor<2,dim> cg_loc_rep_strain(scale_bridging_data.update_list[qp].update_strain);
@@ -890,8 +890,10 @@ void STMDSync<dim>::store_md_simulations(std::vector<MDSim<dim> > md_simulations
 			//}
 
 			// Clean "nanoscale_logs" of the finished timestep
-			char command[1024];
-			sprintf(command, "rm -rf %s", md_simulation.log_file.c_str());
+			if (approx_md_with_hookes_law == false){
+				char command[1024];
+				sprintf(command, "rm -rf %s", md_simulation.log_file.c_str());
+			}
 			//std::cout<< "Logfile "<< md_simulation.log_file <<std::endl;
 			//int ret = system(command);
 			//if (ret!=0){

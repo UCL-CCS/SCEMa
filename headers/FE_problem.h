@@ -1140,7 +1140,8 @@ namespace HMM
 					// (iii) cells based on their id
 					if (activate_md_update
 						// otherwise MD simulation unecessary, because no significant volume change and MD will fail
-										&& local_quadrature_points_history[q].upd_strain.norm() >= min_qp_strain//> 1.0e-10
+										&& (local_quadrature_points_history[q].upd_strain.norm() >= min_qp_strain//> 1.0e-10
+											|| local_quadrature_points_history[q].to_be_updated == true)
 						)
 					//if (activate_md_update && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
 					/*if (activate_md_update && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923

@@ -356,7 +356,7 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 
 		// writing the header of the file (if file is empty)
 		if (cursor_position == 0){
-			ofile << "qp_id,material_id,time_id,temperature,strain_rate,force_field,replica_id,";
+			ofile << "qp_id,material_id,time_id,temperature,strain_rate,force_field,replica_id";
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
 					ofile << "," << "strain_" << k << l;

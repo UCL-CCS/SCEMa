@@ -1225,7 +1225,7 @@ namespace HMM
 		// Results will be stored in the Strain6D objects - a vector of all other similar strain histories (i.e. within the given threshold difference).
 		MatHistPredict::compare_histories_with_all_ranks(histories, acceptable_diff_threshold, FE_communicator);
 
-    dcout << "           " << "...writing similarities to file..." << std::endl;
+		dcout << "           " << "...writing similarities to file..." << std::endl;
 		for(uint32_t i=0; i < histories.size(); i++) {
 			char outhistfname[1024];
 			sprintf(outhistfname, "%s/last.%d.similar_hist", macrostatelocout.c_str(), histories[i]->get_ID());

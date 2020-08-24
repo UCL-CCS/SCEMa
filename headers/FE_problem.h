@@ -1220,10 +1220,12 @@ namespace HMM
 				}
 			}
 		MPI_Barrier(FE_communicator);
-		// Launch MPI communication to compare strain histories on this rank with histories on all other ranks (including this one).
+		
+    // Launch MPI communication to compare strain histories on this rank with histories on all other ranks (including this one).
 		// Results will be stored in the Strain6D objects - a vector of all other similar strain histories (i.e. within the given threshold difference).
 		MatHistPredict::compare_histories_with_all_ranks(histories, acceptable_diff_threshold, FE_communicator);
 
+    dcout << "           " << "...writing similarities to file..." << std::endl;
 		for(uint32_t i=0; i < histories.size(); i++) {
 			char outhistfname[1024];
 			sprintf(outhistfname, "%s/last.%d.similar_hist", macrostatelocout.c_str(), histories[i]->get_ID());
@@ -1236,10 +1238,10 @@ namespace HMM
 			histories[i]->all_similar_histories_to_file(outhistfname);*/
 		}
 
-		dcout << "           " << "...computing quadrature points reduced dependencies..." << std::endl;
 		// Use networkx to coarsegrain the strain similarity graph, outputting the final list of cells to update using MD (jobs_to_run.csv),
 		// and where to get the stress results for the cells to be updated (mapping.csv). Script must run on only one rank.
 		MPI_Barrier(FE_communicator);
+		dcout << "           " << "...computing quadrature points reduced dependencies..." << std::endl;
 		if(this_FE_process == 0) {
 			char command[1024];
 			sprintf(command,

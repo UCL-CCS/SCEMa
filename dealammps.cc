@@ -255,7 +255,7 @@ namespace HMM
 		// Molecular dynamics material data
 		nrepl = input_config.get<unsigned int>("molecular dynamics material.number of replicas");
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(input_config, "molecular dynamics material").get_child("list of materials.")) {
+                                input_config.get_child("molecular dynamics material.list of materials.")){
 			mdtype.push_back(v.second.data());
 		}
 		// Direction to which all MD data are rotated to, to later ease rotation in the FE problem. The
@@ -263,7 +263,7 @@ namespace HMM
 		// tensors are rotated to this referential from the microstructure given orientation
 		std::vector<double> tmp_dir;
 		BOOST_FOREACH(boost::property_tree::ptree::value_type &v,
-				get_subbptree(input_config, "molecular dynamics material").get_child("rotation common ground vector.")) {
+                                input_config.get_child("molecular dynamics material.rotation common ground vector.")){
 			tmp_dir.push_back(std::stod(v.second.data()));
 		}
 		if(tmp_dir.size()==dim){

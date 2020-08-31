@@ -890,10 +890,10 @@ void STMDSync<dim>::store_md_simulations(std::vector<MDSim<dim> > md_simulations
 			//}
 
 			// Clean "nanoscale_logs" of the finished timestep
-			if (approx_md_with_hookes_law == false){
+			/*if (approx_md_with_hookes_law == false){
 				char command[1024];
 				sprintf(command, "rm -rf %s", md_simulation.log_file.c_str());
-			}
+			}*/
 			//std::cout<< "Logfile "<< md_simulation.log_file <<std::endl;
 			//int ret = system(command);
 			//if (ret!=0){

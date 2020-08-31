@@ -28,6 +28,8 @@
 #include "read_write.h"
 #include "stmd_sync.h"
 
+//#include <boost/filesystem.hpp>
+
 namespace HMM
 {
 using namespace dealii;
@@ -80,6 +82,7 @@ STMDProblem<dim>::~STMDProblem ()
 template <int dim>
 SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 {
+	mkdir(md_sim.log_file.c_str(), ACCESSPERMS);
 	char locff[1024]; /*reaxff*/
 	if (md_sim.force_field == "reax"){
 		sprintf(locff, "%s/ffield.reax.2", md_sim.scripts_folder.c_str()); /*reaxff*/
@@ -396,6 +399,15 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 	// close down LAMMPS
 	delete lmp;
 
+	// Clean "nanoscale_logs" of the finished timestep
+	char command[1024];
+	sprintf(command, "rm -rf %s", md_sim.log_file.c_str());
+	//std::cout<< "Logfile "<< md_simulation.log_file <<std::endl;
+	int ret = system(command);
+	if (ret!=0){
+		std::cout << "Failed removing the log files of the MD simulation: " << md_sim.log_file << std::endl;
+	}
+	//boost::filesystem::remove_all(md_sim.log_file.c_str());
 	return md_sim.stress;
 }
 

@@ -51,7 +51,7 @@ namespace HMM {
 			{
     	  			log_file = nanologloctmp + "/" + time_id  + "." + std::to_string(qp_id) + "." + matid + "_" + std::to_string(replica);
 				// Preparing directory to write MD simulation log files
-				mkdir(log_file.c_str(), ACCESSPERMS);
+				//mkdir(log_file.c_str(), ACCESSPERMS);
 			}		
 		private:
 	};	

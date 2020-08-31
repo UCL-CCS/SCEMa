@@ -477,7 +477,7 @@ namespace HMM
 											{
 													local_quadrature_points_history[q].new_strain = 0;
 													local_quadrature_points_history[q].upd_strain = 0;
-													local_quadrature_points_history[q].to_be_updated = false;
+													local_quadrature_points_history[q].to_be_updated_with_md = false;
 													local_quadrature_points_history[q].new_stress = 0;
 													local_quadrature_points_history[q].qpid = cell->active_cell_index()*quadrature_formula.size() + q;
 
@@ -1138,20 +1138,20 @@ namespace HMM
 					//   (i) all cells,
 					//  (ii) cells in given location,
 					// (iii) cells based on their id
-					if (activate_md_update
+					if (stress_compute_method == 0
 						// otherwise MD simulation unecessary, because no significant volume change and MD will fail
 										&& (local_quadrature_points_history[q].upd_strain.norm() >= min_qp_strain//> 1.0e-10
-											|| local_quadrature_points_history[q].to_be_updated == true)
+											|| local_quadrature_points_history[q].to_be_updated_with_md == true)
 						)
-					//if (activate_md_update && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
-					/*if (activate_md_update && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
+					//if (stress_compute_method && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
+					/*if (stress_compute_method && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
 						|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487
 						|| cell->active_cell_index() == 2488 || cell->active_cell_index() == 2489))*/ // For debug...
 					{
-						local_quadrature_points_history[q].to_be_updated = true;
+						local_quadrature_points_history[q].to_be_updated_with_md = true;
 					}
 					else{
-						local_quadrature_points_history[q].to_be_updated = false;
+						local_quadrature_points_history[q].to_be_updated_with_md = false;
 					}
 				}
 			}
@@ -1212,7 +1212,7 @@ namespace HMM
 						ExcInternalError());
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
-					if(local_quadrature_points_history[q].to_be_updated)
+					if(local_quadrature_points_history[q].to_be_updated_with_md)
 					{
 						histories.push_back(&local_quadrature_points_history[q].hist_strain);
 						//local_quadrature_points_history[q].hist_strain.print();
@@ -1312,7 +1312,7 @@ namespace HMM
 						&quadrature_point_history.back(),
 						ExcInternalError());
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-					if(local_quadrature_points_history[q].to_be_updated
+					if(local_quadrature_points_history[q].to_be_updated_with_md
 							&& local_quadrature_points_history[q].hist_strain.run_new_md())
 					{
 						// The cell will get its stress from MD, but should it run an MD simulation?
@@ -1484,6 +1484,15 @@ namespace HMM
 	}
 
 	template <int dim>
+	SymmetricTensor<2,dim> FEProblem<dim>::compute_stress_with_surrogate(SymmetricTensor<2,dim> old_strain,
+														 	 	 	 	 SymmetricTensor<2,dim> new_strain,
+																		 SymmetricTensor<2,dim> old_stress)
+	{
+		SymmetricTensor<2,dim> new_stress = old_stress;
+		return new_stress;
+	}
+
+	template <int dim>
 	void FEProblem<dim>::update_stress_quadrature_point_history(const Vector<double>& displacement_update,
 																															ScaleBridgingData scale_bridging_data)
 	{
@@ -1523,7 +1532,7 @@ namespace HMM
 				
 					if (newtonstep == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
-					if (local_quadrature_points_history[q].to_be_updated){
+					if (local_quadrature_points_history[q].to_be_updated_with_md){
 
 						// Updating stiffness tensor
 						/*SymmetricTensor<4,dim> stmp_stiff;
@@ -1565,10 +1574,19 @@ namespace HMM
 						// Resetting the update strain tensor
 						local_quadrature_points_history[q].upd_strain = 0;
 					}
-					else{
+					else if (stress_compute_method==1){
 					// Tangent stiffness computation of the new stress tensor
 						local_quadrature_points_history[q].new_stress +=
 							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
+					}
+					else if (stress_compute_method==2){
+						local_quadrature_points_history[q].new_stress = compute_stress_with_surrogate(local_quadrature_points_history[q].old_strain,
+																									  local_quadrature_points_history[q].new_strain,
+																									  local_quadrature_points_history[q].old_stress);
+					}
+					else {
+						std::cerr << "Local stress computation method not implemented." << std::endl;
+						exit(1);
 					}
 				}
 			
@@ -1639,7 +1657,7 @@ namespace HMM
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q){
 					char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].qpid);
 
-					if(local_quadrature_points_history[q].to_be_updated
+					if(local_quadrature_points_history[q].to_be_updated_with_md
 							&& local_quadrature_points_history[q].hist_strain.run_new_md()){
 						// Removing stiffness passing file
 						//sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
@@ -2202,7 +2220,7 @@ namespace HMM
 	void FEProblem<dim>::init (int sstp, double tlength,
 							   std::string mslocin, std::string mslocout,
 							   std::string mslocres, std::string mlogloc,
-							   int fchpt, int fovis, int folhis, int folbcf, bool actmdup,
+							   int fchpt, int fovis, int folhis, int folbcf, int stress_method,
 							   std::vector<std::string> mdt, Tensor<1,dim> cgd,
 							   std::string twodmfile, double extrudel, int extrudep,
 						     boost::property_tree::ptree inconfig, 
@@ -2218,7 +2236,7 @@ namespace HMM
 		freq_output_lbcforce = folbcf;
 
 		// Setting up usage of MD to update constitutive behaviour
-		activate_md_update = actmdup;
+		stress_compute_method = stress_method;
 
 		// Setting up starting timestep number and timestep length
 		start_timestep = sstp;

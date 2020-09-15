@@ -1652,7 +1652,8 @@ namespace HMM
 				
 					if (newtonstep == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
-					if (local_quadrature_points_history[q].to_be_updated_with_md){
+					if (stress_compute_method==0){
+					   if (local_quadrature_points_history[q].to_be_updated_with_md){
 
 						// Updating stiffness tensor
 						/*SymmetricTensor<4,dim> stmp_stiff;
@@ -1693,6 +1694,9 @@ namespace HMM
 
 						// Resetting the update strain tensor
 						local_quadrature_points_history[q].upd_strain = 0;
+					   }
+					   else {
+                                                local_quadrature_points_history[q].new_stress +=                                                                                                    local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;                                                                                                                                            						}					
 					}
 					else if (stress_compute_method==1){
 					// Tangent stiffness computation of the new stress tensor

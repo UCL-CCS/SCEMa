@@ -83,6 +83,9 @@
 #include "compact_tension.h"
 #include "FE.h"
 
+// For Dongwei's surrogate function
+#include "Python.h"
+
 namespace HMM
 {
 	using namespace dealii;
@@ -1488,7 +1491,124 @@ namespace HMM
 														 	 	 	 	 SymmetricTensor<2,dim> new_strain,
 																		 SymmetricTensor<2,dim> old_stress)
 	{
-		SymmetricTensor<2,dim> new_stress = old_stress;
+		SymmetricTensor<2,dim> new_stress;
+
+		// Create sudo input data
+		std::vector<float> strain_pre; strain_pre.assign(2*dim, 1.0e-20);
+		std::vector<float> strain_cur; strain_cur.assign(2*dim, 1.0e-20);
+		std::vector<float> stress_pre; stress_pre.assign(2*dim, 1.0e-20);
+		//std::vector<float> stress_pre = {1.0e-20, 1.0e-20, 1.0e-20, 1.0e-20, 1.0e-20, 1.0e-20};
+		std::vector<float> inputs;
+
+		for(unsigned int k=0;k<2*dim;k++)
+		{
+			if (k<dim){
+				strain_pre[k] = old_strain[k][k];
+				strain_cur[k] = new_strain[k][k];
+				stress_pre[k] = old_stress[k][k];
+			}
+			else if(k==3){
+				strain_pre[k] = old_strain[0][1];
+				strain_cur[k] = new_strain[0][1];
+				stress_pre[k] = old_stress[0][1];
+			}
+			else if(k==4){
+				strain_pre[k] = old_strain[0][2];
+				strain_cur[k] = new_strain[0][2];
+				stress_pre[k] = old_stress[0][2];
+			}
+			else if(k==5){
+				strain_pre[k] = old_strain[1][2];
+				strain_cur[k] = new_strain[1][2];
+				stress_pre[k] = old_stress[1][2];
+			}
+		}
+
+		// Concatenate the data together, easy for passing to python
+		// I do it a bit urgly here... but it works
+		// You know c++ better than me, you can improve it
+		inputs.insert(inputs.end(), strain_pre.begin(), strain_pre.end());
+		inputs.insert(inputs.end(), strain_cur.begin(), strain_cur.end());
+		inputs.insert(inputs.end(), stress_pre.begin(), stress_pre.end());
+
+		/////////// From C++ to python ////////////////
+		// Start to execute the python file
+		Py_Initialize();
+		if ( !Py_IsInitialized() )
+		{
+			std::cerr << "Python kernel could not be initialised to execute the surrogate "
+					"model to compute the stress of a given QP." << std::endl;
+			exit(1);
+		}
+
+		// import some python lib
+		PyRun_SimpleString("import sys");
+		PyRun_SimpleString("import os");
+		// Check current directory
+		PyRun_SimpleString("print(os.getcwd())");
+		// Add current directory to the directory
+		PyRun_SimpleString("sys.path.append('./')");
+
+		// Set up Null variable for data passing
+		PyObject* pModule =NULL;
+		PyObject* pList = NULL;
+		PyObject* pFunc = NULL;
+		PyObject* pArgs = NULL;
+
+		// Open the .py under current direcotory
+		pModule = PyImport_ImportModule("surrogate");
+		// Load function 'surrogate_model'
+		pFunc = PyObject_GetAttrString(pModule, "surrogate_model");
+		// Open up an argument with Tuple for python to take in (size of tuple)
+		pArgs = PyTuple_New(1);
+		// Open up a list (size of len, start from size 0 for append)
+		pList = PyList_New(0);
+
+		// Add value to the list
+		for (int i = 0; i < inputs.size(); i++)
+		{
+			// Append the python list with values, 'f' means datatype float
+			PyList_Append(pList, Py_BuildValue("f", inputs[i]));
+		}
+		// Pass the list to Args
+		PyTuple_SetItem(pArgs, 0, pList);
+		// Call the surrogate_model function with args: inputs
+		PyObject* pRet = PyEval_CallObject(pFunc, pArgs);
+
+		////////////////// From python to c++ /////////////////
+		// Return value has to be a 1D list
+		// Check size of list
+		int SizeOfList = PyList_Size(pRet);
+
+		// Create a empty c++ array with size of return list:
+		std::vector<float> result;
+
+		for(int i = 0; i < SizeOfList; i++)
+		{
+			// Get every element in the list to ListItem using PyList_GetItem
+			PyObject *ListItem = PyList_GetItem(pRet, i);
+			// Take data from python float to C++ double
+			result.push_back(PyFloat_AS_DOUBLE(ListItem));
+		}
+
+		Py_Finalize();
+
+		for(unsigned int k=0;k<2*dim;k++)
+		{
+			if (k<dim){
+				new_stress[k][k] = result[k];
+			}
+			else if(k==3){
+				new_stress[0][1] = result[k];
+			}
+			else if(k==4){
+				new_stress[0][2] = result[k];
+			}
+			else if(k==5){
+				new_stress[1][2] = result[k];
+			}
+		}
+
 		return new_stress;
 	}
 

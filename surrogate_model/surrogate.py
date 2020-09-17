@@ -18,5 +18,5 @@ def surrogate_model(nlist):
 
   # convert the data back to a list
   output_list = inputs.tolist()
-
+  print(output_list)
   return output_list

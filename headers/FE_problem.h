@@ -1531,6 +1531,16 @@ namespace HMM
 		inputs.insert(inputs.end(), strain_cur.begin(), strain_cur.end());
 		inputs.insert(inputs.end(), stress_pre.begin(), stress_pre.end());
 
+    //Initialize the py function if it is not activated
+    if ( !Py_IsInitialized() )
+    {
+        Py_Initialize();
+    }
+    else
+    {
+        std::cout<<"Pyfunction activated already"<<std::endl;
+    }
+
 		/////////// From C++ to python ////////////////
 		// Start to execute the python file
 		Py_Initialize();
@@ -1575,6 +1585,8 @@ namespace HMM
 		// Call the surrogate_model function with args: inputs
 		PyObject* pRet = PyEval_CallObject(pFunc, pArgs);
 
+    std::cout << "here 1" << std::endl;
+
 		////////////////// From python to c++ /////////////////
 		// Return value has to be a 1D list
 		// Check size of list
@@ -1589,9 +1601,14 @@ namespace HMM
 			PyObject *ListItem = PyList_GetItem(pRet, i);
 			// Take data from python float to C++ double
 			result.push_back(PyFloat_AS_DOUBLE(ListItem));
+      std::cout << PyFloat_AS_DOUBLE(ListItem) << std::endl;
 		}
 
-		Py_Finalize();
+    Py_DECREF(pModule);
+    Py_DECREF(pList);
+    Py_DECREF(pFunc);
+    Py_DECREF(pArgs);
+		//Py_Finalize();
 
 		for(unsigned int k=0;k<2*dim;k++)
 		{
@@ -1608,6 +1625,14 @@ namespace HMM
 				new_stress[1][2] = result[k];
 			}
 		}
+    std::cout << "here 2" << std::endl;
+
+    for(unsigned int i=0;i<dim;i++){
+      for(unsigned int j=0;j<dim;j++){
+         std::cout << new_stress[i][j] << " ";
+      }
+      std::cout << std::endl;
+    }
 
 		return new_stress;
 	}
@@ -1704,6 +1729,7 @@ namespace HMM
 							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 					}
 					else if (stress_compute_method==2){
+            std::cout << "qpid: " << local_quadrature_points_history[q].qpid << std::endl;
 						local_quadrature_points_history[q].new_stress = compute_stress_with_surrogate(local_quadrature_points_history[q].old_strain,
 																									  local_quadrature_points_history[q].new_strain,
 																									  local_quadrature_points_history[q].old_stress);

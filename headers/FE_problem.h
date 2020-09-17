@@ -1538,7 +1538,7 @@ namespace HMM
     }
     else
     {
-        std::cout<<"Pyfunction activated already"<<std::endl;
+        //std::cout<<"Pyfunction activated already"<<std::endl;
     }
 
 		/////////// From C++ to python ////////////////
@@ -1558,6 +1558,7 @@ namespace HMM
 		PyRun_SimpleString("print(os.getcwd())");
 		// Add current directory to the directory
 		PyRun_SimpleString("sys.path.append('./')");
+		PyRun_SimpleString("sys.path.append('./surrogate_model/')");
 
 		// Set up Null variable for data passing
 		PyObject* pModule =NULL;

@@ -16,11 +16,10 @@ def surrogate_model(nlist):
   inputs_scaled = scaler.transform(inputs_reshape)
 
   # Load model and predict
-  model = models.load_model("./surrogate_model/model.bin")
+  model = models.load_model("./surrogate_model/model_small_uniaxial.bin")
   output_pred = model.predict(inputs_scaled)
   
   # convert the data back to a list
   output_list = output_pred.tolist()
   
-  print(output_list)
   return output_list

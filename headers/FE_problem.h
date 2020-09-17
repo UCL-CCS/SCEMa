@@ -1555,7 +1555,7 @@ namespace HMM
 		PyRun_SimpleString("import sys");
 		PyRun_SimpleString("import os");
 		// Check current directory
-		PyRun_SimpleString("print(os.getcwd())");
+		//PyRun_SimpleString("print(os.getcwd())");
 		// Add current directory to the directory
 		PyRun_SimpleString("sys.path.append('./')");
 		PyRun_SimpleString("sys.path.append('./surrogate_model/')");
@@ -1586,8 +1586,6 @@ namespace HMM
 		// Call the surrogate_model function with args: inputs
 		PyObject* pRet = PyEval_CallObject(pFunc, pArgs);
 
-    std::cout << "here 1" << std::endl;
-
 		////////////////// From python to c++ /////////////////
 		// Return value has to be a 1D list
 		// Check size of list
@@ -1602,7 +1600,6 @@ namespace HMM
 			PyObject *ListItem = PyList_GetItem(pRet, i);
 			// Take data from python float to C++ double
 			result.push_back(PyFloat_AS_DOUBLE(ListItem));
-      std::cout << PyFloat_AS_DOUBLE(ListItem) << std::endl;
 		}
 
     Py_DECREF(pModule);
@@ -1626,14 +1623,6 @@ namespace HMM
 				new_stress[1][2] = result[k];
 			}
 		}
-    std::cout << "here 2" << std::endl;
-
-    for(unsigned int i=0;i<dim;i++){
-      for(unsigned int j=0;j<dim;j++){
-         std::cout << new_stress[i][j] << " ";
-      }
-      std::cout << std::endl;
-    }
 
 		return new_stress;
 	}
@@ -1730,7 +1719,6 @@ namespace HMM
 							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 					}
 					else if (stress_compute_method==2){
-            std::cout << "qpid: " << local_quadrature_points_history[q].qpid << std::endl;
 						local_quadrature_points_history[q].new_stress = compute_stress_with_surrogate(local_quadrature_points_history[q].old_strain,
 																									  local_quadrature_points_history[q].new_strain,
 																									  local_quadrature_points_history[q].old_stress);

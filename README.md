@@ -176,4 +176,4 @@ Vassaux, M., Richardson, R. A., & Coveney, P. V. (2019). The heterogeneous multi
 
 Vassaux, M., Sinclair, R. C., Richardson, R. A., Suter, J. L., & Coveney, P. V. (2019). The Role of Graphene in Enhancing the Material Properties of Thermosetting Polymers. Advanced Theory and Simulations, 2(5), 1800168.
 
-Vassaux, M., Sinclair, R. C., Richardson, R. A., Suter, J. L., & Coveney, P. V. (2019). Towards high fidelity materials property prediction from multiscale modelling and simulation", Advanced Theory and Simulations. Accepted for publication.
+Vassaux, M., Sinclair, R. C., Richardson, R. A., Suter, J. L., & Coveney, P. V. (2020). Towards high fidelity materials property prediction from multiscale modelling and simulation", Advanced Theory and Simulations, 3(1), 1900122.

@@ -18,7 +18,6 @@ The bootstrap/platform infrastructure below has been tested on a number of clust
 >
 * gcc 4.9.2
 * cmake 3.5.2
-* gnu make 4.1 or greater, preferably 4.2.1
 * python 3.0 or greater (if using graph-based clustering of MD simulations)
 
 [Deal.II](https://dealii.org) needs to be compiled with the dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), namely the following dependencies: MPI, PETSc (>3.6, 64bits), METIS (>4.0), MUMPS (>5.0), BOOST (>1.58), HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, HDF5, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html).

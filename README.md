@@ -122,13 +122,14 @@ cat /path/to/simulation/inputs_testname.json
   },
   "computational resources":{
     "machine cores per node": 24,
-    "number of nodes for FEM simulation": 1,
-    "minimum nodes per MD simulation": 1
+    "maximum number of cores for FEM simulation": 1,
+    "minimum number of cores for MD simulation": 1
   },
   "output data":{
     "checkpoint frequency": 1,
     "visualisation output frequency": 1,
     "analytics output frequency": 1,
+    "loaded boundary force output frequency": 1,
     "homogenization output frequency": 1000
   },
   "directory structure":{

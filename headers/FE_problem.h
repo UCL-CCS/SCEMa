@@ -1488,7 +1488,7 @@ namespace HMM
 
 	template <int dim>
 	SymmetricTensor<2,dim> FEProblem<dim>::compute_stress_with_surrogate(SymmetricTensor<2,dim> old_strain,
-														 	 	 	 	 SymmetricTensor<2,dim> new_strain,
+																		 SymmetricTensor<2,dim> new_strain,
 																		 SymmetricTensor<2,dim> old_stress)
 	{
 		SymmetricTensor<2,dim> new_stress;
@@ -1503,43 +1503,43 @@ namespace HMM
 		for(unsigned int k=0;k<2*dim;k++)
 		{
 			if (k<dim){
-				strain_pre[k] = old_strain[k][k];
-				strain_cur[k] = new_strain[k][k];
-				stress_pre[k] = old_stress[k][k];
+				strain_cur[k] = new_strain[0][k];
+				strain_pre[k] = old_strain[0][k];
+				stress_pre[k] = old_stress[0][k];
 			}
 			else if(k==3){
-				strain_pre[k] = old_strain[0][1];
-				strain_cur[k] = new_strain[0][1];
-				stress_pre[k] = old_stress[0][1];
+				strain_cur[k] = new_strain[1][1];
+				strain_pre[k] = old_strain[1][1];
+				stress_pre[k] = old_stress[1][1];
 			}
 			else if(k==4){
-				strain_pre[k] = old_strain[0][2];
-				strain_cur[k] = new_strain[0][2];
-				stress_pre[k] = old_stress[0][2];
+				strain_cur[k] = new_strain[1][2];
+				strain_pre[k] = old_strain[1][2];
+				stress_pre[k] = old_stress[1][2];
 			}
 			else if(k==5){
-				strain_pre[k] = old_strain[1][2];
-				strain_cur[k] = new_strain[1][2];
-				stress_pre[k] = old_stress[1][2];
+				strain_cur[k] = new_strain[2][2];
+				strain_pre[k] = old_strain[2][2];
+				stress_pre[k] = old_stress[2][2];
 			}
 		}
 
 		// Concatenate the data together, easy for passing to python
 		// I do it a bit urgly here... but it works
 		// You know c++ better than me, you can improve it
-		inputs.insert(inputs.end(), strain_pre.begin(), strain_pre.end());
 		inputs.insert(inputs.end(), strain_cur.begin(), strain_cur.end());
+		inputs.insert(inputs.end(), strain_pre.begin(), strain_pre.end());
 		inputs.insert(inputs.end(), stress_pre.begin(), stress_pre.end());
 
-    //Initialize the py function if it is not activated
-    if ( !Py_IsInitialized() )
-    {
-        Py_Initialize();
-    }
-    else
-    {
-        //std::cout<<"Pyfunction activated already"<<std::endl;
-    }
+		//Initialize the py function if it is not activated
+		if ( !Py_IsInitialized() )
+		{
+			Py_Initialize();
+		}
+		else
+		{
+			//std::cout<<"Pyfunction activated already"<<std::endl;
+		}
 
 		/////////// From C++ to python ////////////////
 		// Start to execute the python file
@@ -1592,7 +1592,7 @@ namespace HMM
 		int SizeOfList = PyList_Size(pRet);
 
 		// Create a empty c++ array with size of return list:
-		std::vector<float> result;
+		std::vector<double> result;
 
 		for(int i = 0; i < SizeOfList; i++)
 		{
@@ -1602,25 +1602,26 @@ namespace HMM
 			result.push_back(PyFloat_AS_DOUBLE(ListItem));
 		}
 
-    Py_DECREF(pModule);
-    Py_DECREF(pList);
-    Py_DECREF(pFunc);
-    Py_DECREF(pArgs);
+		Py_DECREF(pModule);
+		Py_DECREF(pList);
+		Py_DECREF(pFunc);
+		Py_DECREF(pArgs);
+		Py_DECREF(pRet);
 		//Py_Finalize();
 
 		for(unsigned int k=0;k<2*dim;k++)
 		{
 			if (k<dim){
-				new_stress[k][k] = result[k];
+				new_stress[0][k] = result[k];
 			}
 			else if(k==3){
-				new_stress[0][1] = result[k];
+				new_stress[1][1] = result[k];
 			}
 			else if(k==4){
-				new_stress[0][2] = result[k];
+				new_stress[1][2] = result[k];
 			}
 			else if(k==5){
-				new_stress[1][2] = result[k];
+				new_stress[2][2] = result[k];
 			}
 		}
 
@@ -1629,7 +1630,7 @@ namespace HMM
 
 	template <int dim>
 	void FEProblem<dim>::update_stress_quadrature_point_history(const Vector<double>& displacement_update,
-																															ScaleBridgingData scale_bridging_data)
+			ScaleBridgingData scale_bridging_data)
 	{
 		FEValues<dim> fe_values (fe, quadrature_formula,
 				update_values | update_gradients);
@@ -1664,110 +1665,94 @@ namespace HMM
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					int qp_id = local_quadrature_points_history[q].hist_strain.get_ID_to_get_results_from();
-				
+
 					if (newtonstep == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
 					if (stress_compute_method==0){
-					   if (local_quadrature_points_history[q].to_be_updated_with_md){
+						if (local_quadrature_points_history[q].to_be_updated_with_md){
 
-						// Updating stiffness tensor
-						/*SymmetricTensor<4,dim> stmp_stiff;
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
-						read_tensor<dim>(filename, stmp_stiff);
+							QP qp;
+							qp = get_qp_with_id(qp_id, scale_bridging_data);
+							//sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id);
+							//load_stress = read_tensor<dim>(filename, loc_stress);
+							//std::cout << "Putting stress into quadrature_points_history" << std::endl;
+							//for (int i=0; i<6; i++){
+							//  std::cout << " " << qp.update_stress[i];
+							//} std::cout << std::endl;
+							SymmetricTensor<2,dim> loc_stress(qp.update_stress);
 
-						// Rotate the output stiffness wrt the flake angles
-						local_quadrature_points_history[q].new_stiff =
-								rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
-						 */
+							// Rotate the output stress wrt the flake angles
+							loc_stress = rotate_tensor(loc_stress, transpose(local_quadrature_points_history[q].rotam));
 
-						// Updating stress tensor
-						//bool load_stress = true;
+							if (approx_md_with_hookes_law == false){
+								local_quadrature_points_history[q].new_stress = loc_stress;
+							}
+							else {
+								local_quadrature_points_history[q].new_stress = loc_stress + local_quadrature_points_history[q].old_stress;
+							}
 
-						/*SymmetricTensor<4,dim> loc_stiffness;
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
-						read_tensor<dim>(filename, loc_stiffness);*/
-
-						QP qp;
-						qp = get_qp_with_id(qp_id, scale_bridging_data);
-						//sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id);
-						//load_stress = read_tensor<dim>(filename, loc_stress);
-			//std::cout << "Putting stress into quadrature_points_history" << std::endl;
-      //for (int i=0; i<6; i++){
-      //  std::cout << " " << qp.update_stress[i];
-      //} std::cout << std::endl;
-						SymmetricTensor<2,dim> loc_stress(qp.update_stress);
-
-						// Rotate the output stress wrt the flake angles
-						loc_stress = rotate_tensor(loc_stress, transpose(local_quadrature_points_history[q].rotam));
-
-						if (approx_md_with_hookes_law == false){
-							local_quadrature_points_history[q].new_stress = loc_stress;
+							// Resetting the update strain tensor
+							local_quadrature_points_history[q].upd_strain = 0;
 						}
 						else {
-							local_quadrature_points_history[q].new_stress = loc_stress + local_quadrature_points_history[q].old_stress;
-						}
-
-						// Resetting the update strain tensor
-						local_quadrature_points_history[q].upd_strain = 0;
-					   }
-					   else {
-                                                local_quadrature_points_history[q].new_stress +=                                                                                                    local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;                                                                                                                                            						}					
+							local_quadrature_points_history[q].new_stress +=                                                                                                    local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;                                                                                                                                            						}
 					}
-					else if (stress_compute_method==1){
-					// Tangent stiffness computation of the new stress tensor
+					else if (stress_compute_method==1
+							//|| (local_quadrature_points_history[q].qpid != 0)
+							){
+						// Tangent stiffness computation of the new stress tensor
 						local_quadrature_points_history[q].new_stress +=
-							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
+								local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 					}
 					else if (stress_compute_method==2){
+						std::cout << local_quadrature_points_history[q].qpid << " " << std::endl;
+						std::cout << local_quadrature_points_history[q].new_strain << " " << std::endl;
 						local_quadrature_points_history[q].new_stress = compute_stress_with_surrogate(local_quadrature_points_history[q].old_strain,
-																									  local_quadrature_points_history[q].new_strain,
-																									  local_quadrature_points_history[q].old_stress);
+								local_quadrature_points_history[q].new_strain,
+								local_quadrature_points_history[q].old_stress);
+						std::cout << local_quadrature_points_history[q].new_stress << " " << std::endl;
+						std::cout << " -- -- -- " << std::endl;
 					}
 					else {
 						std::cerr << "Local stress computation method not implemented." << std::endl;
 						exit(1);
 					}
 				}
-			
-					// Secant stiffness computation of the new stress tensor
-					//local_quadrature_points_history[q].new_stress =
-					//		local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].new_strain;
+			}
+		}
+		/*MPI_Barrier(FE_communicator);
+		// Retrieving all quadrature points computation and storing them in the
+		// quadrature_points_history structure
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell){
+			if (cell->is_locally_owned())
+			{
+				SymmetricTensor<2,dim> avg_upd_strain_tensor;
+				//SymmetricTensor<2,dim> avg_stress_tensor;
 
-					// Write stress tensor for each gauss point
-					/*sprintf(filename, "%s/last.%s-%d.stress", macrostatelocout.c_str(), cell_id,q);
-					write_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);*/
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
+				fe_values.reinit (cell);
+				fe_values.get_function_gradients (displacement_update,
+						displacement_update_grads);
 
-					// Apply rotation of the sample to the new state tensors.
-					// Only needed if the mesh is modified...
-					/*const Tensor<2,dim> rotation
-					= get_rotation_matrix (displacement_update_grads[q]);
-
-					const SymmetricTensor<2,dim> rotated_new_stress
-					= symmetrize(transpose(rotation) *
-							static_cast<Tensor<2,dim> >
-					(local_quadrature_points_history[q].new_stress) *
-					rotation);
-
-					const SymmetricTensor<2,dim> rotated_new_strain
-					= symmetrize(transpose(rotation) *
-							static_cast<Tensor<2,dim> >
-					(local_quadrature_points_history[q].new_strain) *
-					rotation);
-
-					const SymmetricTensor<2,dim> rotated_upd_strain
-					= symmetrize(transpose(rotation) *
-							static_cast<Tensor<2,dim> >
-					(local_quadrature_points_history[q].upd_strain) *
-					rotation);
-
-					local_quadrature_points_history[q].new_stress
-					= rotated_new_stress;
-					local_quadrature_points_history[q].new_strain
-					= rotated_new_strain;
-					local_quadrature_points_history[q].upd_strain
-					= rotated_upd_strain;*/
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+				{
+					if (local_quadrature_points_history[q].qpid % 100 != 0){
+						std::cout << local_quadrature_points_history[q].qpid << " " << std::flush;
+						std::cout << local_quadrature_points_history[q].new_strain << " " << std::flush;
+						std::cout << local_quadrature_points_history[q].new_stress << " " << std::endl;
+					}
 				}
 			}
+		}*/
 	}
 
 

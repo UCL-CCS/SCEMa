@@ -1705,13 +1705,9 @@ namespace HMM
 								local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 					}
 					else if (stress_compute_method==2){
-						std::cout << local_quadrature_points_history[q].qpid << " " << std::endl;
-						std::cout << local_quadrature_points_history[q].new_strain << " " << std::endl;
 						local_quadrature_points_history[q].new_stress = compute_stress_with_surrogate(local_quadrature_points_history[q].old_strain,
 								local_quadrature_points_history[q].new_strain,
 								local_quadrature_points_history[q].old_stress);
-						std::cout << local_quadrature_points_history[q].new_stress << " " << std::endl;
-						std::cout << " -- -- -- " << std::endl;
 					}
 					else {
 						std::cerr << "Local stress computation method not implemented." << std::endl;

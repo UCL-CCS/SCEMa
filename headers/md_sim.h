@@ -20,7 +20,7 @@ namespace HMM {
 			}
 	
 			int qp_id;
-      int most_recent_qp_id;
+			int most_recent_qp_id;
 			int replica;
 			int material;
 			std::string matid;
@@ -47,10 +47,11 @@ namespace HMM {
 			bool output_homog; // what is this? seems to add an extra dump of atom coords	
 			bool checkpoint;
 
-			void define_file_names(std::string nanologloctmp)
+			void define_file_names(std::string nanologloc)
 			{
-    	  			log_file = nanologloctmp + "/" + time_id  + "." + std::to_string(qp_id) + "." + matid + "_" + std::to_string(replica);
-				// Preparing directory to write MD simulation log files
+    	  		if(nanologloc != "none") log_file = nanologloc + "/" + time_id  + "." + std::to_string(qp_id) + "." + matid + "_" + std::to_string(replica);
+    	  		else log_file = "none";
+    	  		// Preparing directory to write MD simulation log files
 				//mkdir(log_file.c_str(), ACCESSPERMS);
 			}		
 		private:

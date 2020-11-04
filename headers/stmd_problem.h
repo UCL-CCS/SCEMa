@@ -82,7 +82,11 @@ STMDProblem<dim>::~STMDProblem ()
 template <int dim>
 SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 {
-	mkdir(md_sim.log_file.c_str(), ACCESSPERMS);
+	bool store_log = true;
+	if (md_sim.log_file == "none") store_log = false;
+
+	if(store_log) mkdir(md_sim.log_file.c_str(), ACCESSPERMS);
+
 	char locff[1024]; /*reaxff*/
 	if (md_sim.force_field == "reax"){
 		sprintf(locff, "%s/ffield.reax.2", md_sim.scripts_folder.c_str()); /*reaxff*/
@@ -95,8 +99,10 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 	sprintf(initdata, "%s/init.%s.bin", md_sim.output_folder.c_str(), mdstate);
 
 	char homogdata_time[1024];
-	sprintf(homogdata_time, "%s/%s.%d.%s.lammpstrj", md_sim.log_file.c_str(),
-			md_sim.time_id.c_str(), md_sim.qp_id, mdstate);
+	if(store_log) {
+		sprintf(homogdata_time, "%s/%s.%d.%s.lammpstrj", md_sim.log_file.c_str(),
+				md_sim.time_id.c_str(), md_sim.qp_id, mdstate);
+	}
 
 	char straindata_lcts[1024];
 	sprintf(straindata_lcts, "%s/lcts.%d.%s.dump", md_sim.restart_folder.c_str(),
@@ -141,7 +147,8 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 	lmparg[2] = (char *) "none";
 	lmparg[3] = (char *) "-log";
 	lmparg[4] = new char[1024];
-	sprintf(lmparg[4], "%s/log.stress_strain", md_sim.log_file.c_str());
+	if(store_log) sprintf(lmparg[4], "%s/log.stress_strain", md_sim.log_file.c_str());
+	else sprintf(lmparg[4], "none");
 
 	// Creating LAMMPS instance
 	LAMMPS *lmp = NULL;
@@ -149,7 +156,7 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 
 	// Passing location for output as variable
 	sprintf(cline, "variable mdt string %s", md_sim.matid.c_str()); lammps_command(lmp,cline);
-	sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);
+	if(store_log) {sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);}
 	sprintf(cline, "variable locs string %s", md_sim.scripts_folder.c_str()); lammps_command(lmp,cline);
 
 	// Setting testing temperature
@@ -271,10 +278,11 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 				<< "Homogenization of stiffness and stress using in.elastic.lammps...       " << std::endl;*/
 
 	// Creating LAMMPS instance
-	sprintf(lmparg[4], "%s/log.homogenization", md_sim.log_file.c_str());
+	if(store_log) sprintf(lmparg[4], "%s/log.homogenization", md_sim.log_file.c_str());
+	else sprintf(lmparg[4], "none");
 	lmp = new LAMMPS(nargs,lmparg,md_batch_communicator);
 
-	sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);
+	if(store_log) {sprintf(cline, "variable loco string %s", md_sim.log_file.c_str()); lammps_command(lmp,cline);}
 	sprintf(cline, "variable locs string %s", md_sim.scripts_folder.c_str()); lammps_command(lmp,cline);
 
 	// Setting testing temperature
@@ -301,7 +309,7 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 
 	sprintf(cline, "variable dts equal %f", md_sim.timestep_length); lammps_command(lmp,cline);
 
-	if(md_sim.output_homog){
+	if(md_sim.output_homog && store_log){
 		// Setting dumping of atom positions for post analysis of the MD simulation
 		// DO NOT USE CUSTOM DUMP: WRONG ATOM POSITIONS...
 		sprintf(cline, "dump atom_dump all atom %d %s", 1, homogdata_time); lammps_command(lmp,cline);
@@ -399,15 +407,17 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 	// close down LAMMPS
 	delete lmp;
 
-	// Clean "nanoscale_logs" of the finished timestep
-	char command[1024];
-	sprintf(command, "rm -rf %s", md_sim.log_file.c_str());
-	//std::cout<< "Logfile "<< md_simulation.log_file <<std::endl;
-	int ret = system(command);
-	if (ret!=0){
-		std::cout << "Failed removing the log files of the MD simulation: " << md_sim.log_file << std::endl;
+	if(store_log) {
+		// Clean "nanoscale_logs" of the finished timestep
+		char command[1024];
+		sprintf(command, "rm -rf %s", md_sim.log_file.c_str());
+		//std::cout<< "Logfile "<< md_simulation.log_file <<std::endl;
+		int ret = system(command);
+		if (ret!=0){
+			std::cout << "Failed removing the log files of the MD simulation: " << md_sim.log_file << std::endl;
+		}
+		//boost::filesystem::remove_all(md_sim.log_file.c_str());
 	}
-	//boost::filesystem::remove_all(md_sim.log_file.c_str());
 	return md_sim.stress;
 }
 

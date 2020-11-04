@@ -62,7 +62,7 @@ public:
 	~STMDSync ();
 	void init (int sstp, double mdtlength, double mdtemp, int nss, double strr, std::string ffi,
 			std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
-			std::string nlogloctmp,std::string nloglochom, std::string mslocout, std::string mdsdir,
+			std::string mslocout, std::string mdsdir,
 			int fchpt, int fohom, unsigned int mppn,
 			std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
 			boost::property_tree::ptree inconfig, bool approx_md_with_hookes_law);
@@ -147,8 +147,6 @@ private:
 	std::string							nanostatelocout;
 	std::string							nanostatelocres;
 	std::string							nanologloc;
-	std::string							nanologloctmp;
-	std::string							nanologlochom;
 
 	std::string							md_scripts_directory;
 	bool								use_pjm_scheduler;
@@ -368,7 +366,7 @@ void STMDSync<dim>::load_replica_equilibration_data ()
 			stressoutputfile[imdrun] = nanostatelocin + "/init." + mdtype[imdt] + "_" + std::to_string(numrepl) + ".stress";
 			stiffoutputfile[imdrun] = nanostatelocin + "/init." + mdtype[imdt] + "_" + std::to_string(numrepl) + ".stiff";
 			systemoutputfile[imdrun] = nanostatelocin + "/init." + mdtype[imdt] + "_" + std::to_string(numrepl) + ".bin";
-			qpreplogloc[imdrun] = nanologloctmp + "/init" + "." + mdtype[imdt] + "_" + std::to_string(numrepl);
+			qpreplogloc[imdrun] = nanologloc + "/init" + "." + mdtype[imdt] + "_" + std::to_string(numrepl);
 		}
 	}
 
@@ -523,7 +521,7 @@ std::vector< MDSim<dim> > STMDSync<dim>::prepare_md_simulations(ScaleBridgingDat
 			md_sim.checkpoint 			= checkpoint_save;
 			// Setting up location for temporary log outputs of md simulation, input strains and output stresses
 			std::string macrostatelocout = input_config.get<std::string>("directory structure.macroscale output");
-			if (approx_md_with_hookes_law == false) md_sim.define_file_names(nanologloctmp);
+			if (approx_md_with_hookes_law == false) md_sim.define_file_names(nanologloc);
 
 			// Argument of the MD simulation: strain to apply
 			SymmetricTensor<2,dim> cg_loc_rep_strain(scale_bridging_data.update_list[qp].update_strain);
@@ -745,7 +743,7 @@ void STMDSync<dim>::generate_job_list(bool& elmj, int& tta, char* filenamelist)
 
 	sprintf(command, "python ../optimization_pjm/optimization_hmm.py %s %d %d %s %s %s %s",
 			macrostatelocout.c_str(), 1, nrepl, time_id.c_str(),
-			nanostatelocout.c_str(), nanologloctmp.c_str(), filenamelist);
+			nanostatelocout.c_str(), nanologloc.c_str(), filenamelist);
 
 	// Executing the job list optimization script with fscanf to parse the printed values from the python script
 	FILE* in = popen(command, "r");
@@ -918,8 +916,7 @@ void STMDSync<dim>::store_md_simulations(std::vector<MDSim<dim> > md_simulations
 
 template <int dim>
 void STMDSync<dim>::init (int sstp, double mdtlength, double mdtemp, int nss, double strr, std::string ffi,
-		std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc,
-		std::string nlogloctmp,std::string nloglochom, std::string mslocout,
+		std::string nslocin, std::string nslocout, std::string nslocres, std::string nlogloc, std::string mslocout,
 		std::string mdsdir, int fchpt, int fohom, unsigned int mppn,
 		std::vector<std::string> mdt, Tensor<1,dim> cgd, unsigned int nr, bool ups,
 		boost::property_tree::ptree inconfig, bool hookeslaw){
@@ -939,8 +936,6 @@ void STMDSync<dim>::init (int sstp, double mdtlength, double mdtemp, int nss, do
 	nanostatelocout = nslocout;
 	nanostatelocres = nslocres;
 	nanologloc = nlogloc;
-	nanologloctmp = nlogloctmp;
-	nanologlochom = nloglochom;
 
 	macrostatelocout = mslocout;
 	md_scripts_directory = mdsdir;

@@ -101,7 +101,6 @@ namespace HMM
 		std::string                         nanostatelocin;
 		std::string							nanostatelocout;
 		std::string							nanologloc;
-		std::string							nanologloctmp;
 
 		std::string							md_scripts_directory;
 
@@ -238,8 +237,9 @@ namespace HMM
 			exit(1);
 		}
 
-		mkdir(nanologloc.c_str(), ACCESSPERMS);
-		nanologloctmp = nanologloc+"/tmp"; mkdir(nanologloctmp.c_str(), ACCESSPERMS);
+		if(nanologloc != "none"){
+			mkdir(nanologloc.c_str(), ACCESSPERMS);
+		}
 
 		char fnset[1024]; sprintf(fnset, "%s/in.set.lammps", md_scripts_directory.c_str());
 		char fnstrain[1024]; sprintf(fnstrain, "%s/in.strain.lammps", md_scripts_directory.c_str());

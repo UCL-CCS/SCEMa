@@ -58,7 +58,8 @@ ll /path/to/simulation
 ... lammps_scripts_ffname -> /path/to/SCEMa/lammps_scripts_opls
 ... macroscale_input
 ... nanoscale_input
-... clustering -> /path/to/SCEMa/clustering
+... clustering -> /path/to/SCEMa/clustering # when using clustering algorithm to determine and eliminate redundant molecular simulations
+... surrogate_model -> /path/to/SCEMa/surrogate_model # when using a surrogate for molecular simulations ("stress computation method: 2")
 ```
 
 Most, if not all, of the simulation parameters are found in the configuration file `inputs_testname.json`:
@@ -70,7 +71,7 @@ cat /path/to/simulation/inputs_testname.json
 		"strain rate": 0.002
  	},
   "scale-bridging":{
-    "activate md update": 1,
+    "stress computation method": 0,
     "approximate md with hookes law": 0,
     "use pjm scheduler": 0
   },
@@ -140,7 +141,7 @@ cat /path/to/simulation/inputs_testname.json
     "macroscale restart": "./macroscale_restart",
     "nanoscale restart": "./nanoscale_restart",
     "macroscale log": "./macroscale_log",
-    "nanoscale log": "./nanoscale_log"
+    "nanoscale log": "none"
   }
 }
 ```

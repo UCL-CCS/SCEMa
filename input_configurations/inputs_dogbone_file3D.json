@@ -46,8 +46,8 @@
     "timestep length": 2.0,
     "strain rate": 2.0e-4,
     "number of sampling steps": 100,
-    "scripts directory": "./lammps_scripts_opls",
-    "force field": "opls"
+    "scripts directory": "./lammps_scripts_reax",
+    "force field": "reax"
   },
   "computational resources":{
     "machine cores per node": 24,
@@ -69,6 +69,6 @@
     "macroscale restart": "./macroscale_restart",
     "nanoscale restart": "./nanoscale_restart",
     "macroscale log": "./macroscale_log",
-    "nanoscale log": "./nanoscale_log"
+    "nanoscale log": "none"
   }
 }

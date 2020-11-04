@@ -184,8 +184,6 @@ namespace HMM
 		std::string			nanostatelocout;
 		std::string			nanostatelocres;
 		std::string			nanologloc;
-		std::string			nanologloctmp;
-		std::string			nanologlochom;
 
 		std::string			md_scripts_directory;
 		
@@ -391,9 +389,9 @@ namespace HMM
 
 		mkdir(nanostatelocout.c_str(), ACCESSPERMS);
 		mkdir(nanostatelocres.c_str(), ACCESSPERMS);
-		mkdir(nanologloc.c_str(), ACCESSPERMS);
-		nanologloctmp = nanologloc+"/tmp"; mkdir(nanologloctmp.c_str(), ACCESSPERMS);
-		nanologlochom = nanologloc+"/homog"; mkdir(nanologlochom.c_str(), ACCESSPERMS);
+		if(nanologloc != "none"){
+			mkdir(nanologloc.c_str(), ACCESSPERMS);
+		}
 
 		char fnset[1024]; sprintf(fnset, "%s/in.set.lammps", md_scripts_directory.c_str());
 		char fnstrain[1024]; sprintf(fnstrain, "%s/in.strain.lammps", md_scripts_directory.c_str());
@@ -508,8 +506,7 @@ namespace HMM
 		hcout << " Initialization of the Multiple Molecular Dynamics problem...       " << std::endl;
 		if(mmd_pcolor==0) mmd_problem->init(start_timestep, md_timestep_length, md_temperature,
 											   md_nsteps_sample, md_strain_rate, md_force_field, nanostatelocin,
-											   nanostatelocout, nanostatelocres, nanologloc,
-											   nanologloctmp, nanologlochom, macrostatelocout,
+											   nanostatelocout, nanostatelocres, nanologloc, macrostatelocout,
 											   md_scripts_directory, freq_checkpoint, freq_output_homog,
 											   machine_ppn, mdtype, cg_dir, nrepl,
 											   use_pjm_scheduler, input_config, approx_md_with_hookes_law);

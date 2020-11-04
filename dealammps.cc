@@ -159,7 +159,7 @@ namespace HMM
 		Tensor<1,dim> 			cg_dir;
 		boost::property_tree::ptree	input_config;
 
-		bool				activate_md_update;
+		int					stress_compute_method;
 		bool				approx_md_with_hookes_law;
 		bool				use_pjm_scheduler;
 
@@ -236,7 +236,7 @@ namespace HMM
 	    quadrature_formula 	= input_config.get<int>("continuum mesh.quadrature formula");
 
 	    // Scale-bridging parameters
-	    activate_md_update 	= input_config.get<bool>("scale-bridging.activate md update");
+	    stress_compute_method 	= input_config.get<int>("scale-bridging.stress computation method");
 	    approx_md_with_hookes_law	=input_config.get<bool>("scale-bridging.approximate md with hookes law");
 	    use_pjm_scheduler 	= input_config.get<bool>("scale-bridging.use pjm scheduler");
 
@@ -294,7 +294,7 @@ namespace HMM
 		
 		// Print a recap of all the parameters...
 		hcout << "Parameters listing:" << std::endl;
-		hcout << " - Activate MD updates (1 is true, 0 is false): "<< activate_md_update << std::endl;
+		hcout << " - Method to compute local stresses (0 - LAMMPS, 1 - Hooke's law, 2 - ML surrogate model): "<< stress_compute_method << std::endl;
 		hcout << " - Approximate MD sims with hookes law (1 is true, 0 is false): "<< approx_md_with_hookes_law << std::endl;
 		hcout << " - Use Pilot Job Manager to schedule MD jobs: "<< use_pjm_scheduler << std::endl;
 		hcout << " - FE timestep duration: "<< fe_timestep_length << std::endl;
@@ -523,7 +523,7 @@ namespace HMM
 										macrostatelocin, macrostatelocout,
 										macrostatelocres, macrologloc,
 										freq_checkpoint, freq_output_visu, freq_output_lhist, freq_output_lbcforce,
-										activate_md_update, mdtype, cg_dir,
+										stress_compute_method, mdtype, cg_dir,
 										twod_mesh_file, extrude_length, extrude_points, 
 										input_config, approx_md_with_hookes_law);
                                                                                 

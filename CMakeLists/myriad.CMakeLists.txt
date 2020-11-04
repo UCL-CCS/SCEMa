@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)
 
 FIND_PACKAGE(deal.II 8.4.1 QUIET
-  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
+  HINTS /home/uccamva/opt/dealii-9.0.0/ ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
   )
 IF(NOT ${deal.II_FOUND})
   MESSAGE(FATAL_ERROR "\n"
@@ -26,7 +26,8 @@ DEAL_II_SETUP_TARGET(strain_md)
 
 ## Include LAMMPS sources repository
 INCLUDE_DIRECTORIES(
-  /shared/ucl/apps/lammps/16Mar18/USERINTEL/intel-2018/lammps-16Mar18/src/
+  /home/uccamva/sources/lammps-17Nov16/src/
+  /home/uccamva/.conda/envs/surrogate/include/python3.8/
   )
 
 ## Include BOOST sources repository
@@ -34,9 +35,10 @@ INCLUDE_DIRECTORIES(
 #INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
 ## Include LAMMPS library shared .so (or static .a)
-TARGET_LINK_LIBRARIES(dealammps ~/.local/lib64/liblammps.so)
-TARGET_LINK_LIBRARIES(init_material ~/.local/lib64/liblammps.so)
-TARGET_LINK_LIBRARIES(strain_md ~/.local/lib64/liblammps.so)
+TARGET_LINK_LIBRARIES(dealammps /home/uccamva/sources/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(dealammps /home/uccamva/.conda/envs/surrogate/lib/libpython3.8.so)
+TARGET_LINK_LIBRARIES(init_material /home/uccamva/sources/lammps-17Nov16/src/liblammps.so)
+TARGET_LINK_LIBRARIES(strain_md /home/uccamva/sources/lammps-17Nov16/src/liblammps.so)
 
 TARGET_LINK_LIBRARIES(dealammps LINK_PUBLIC ${Boost_LIBRARIES})
 TARGET_LINK_LIBRARIES(init_material LINK_PUBLIC ${Boost_LIBRARIES})

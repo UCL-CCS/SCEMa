@@ -96,7 +96,7 @@ namespace HMM
 		SymmetricTensor<2,dim> upd_strain;
 		SymmetricTensor<2,dim> newton_strain;
 		MatHistPredict::Strain6D hist_strain;
-		bool to_be_updated;
+		bool to_be_updated_with_md;
 
 		// Characteristics
 		unsigned int qpid;
@@ -233,7 +233,7 @@ namespace HMM
 
 							void init (int sstp, double tlength, std::string mslocin, std::string mslocout,
 											std::string mslocres, std::string mlogloc, int fchpt, int fovis, int folhis, int folbcf,
-											bool actmdup, std::vector<std::string> mdt, Tensor<1,dim> cgd, 
+											int stress_method, std::vector<std::string> mdt, Tensor<1,dim> cgd,
 											std::string twodmfile, double extrudel, int extrudep, 
 											boost::property_tree::ptree inconfig, bool hookeslaw);
 							void beginstep (int tstp, double ptime);
@@ -272,6 +272,9 @@ namespace HMM
 							void gather_qp_update_list(ScaleBridgingData &scale_bridging_data);
 							template <typename T>
 							std::vector<T> gather_vector(std::vector<T> local_vector);
+							SymmetricTensor<2,dim> compute_stress_with_surrogate(SymmetricTensor<2,dim> old_strain,
+																				 SymmetricTensor<2,dim> new_strain,
+																				 SymmetricTensor<2,dim> old_stress);
 							void update_stress_quadrature_point_history
 									(const Vector<double>& displacement_update, ScaleBridgingData scale_bridging_data);
 							void clean_transfer();
@@ -360,7 +363,7 @@ namespace HMM
 							int									freq_output_lhist;
 							int									freq_output_lbcforce;
 
-							bool 								activate_md_update;
+							int 								stress_compute_method;
 
 							std::string		twod_mesh_file;
 							double                  extrude_length;

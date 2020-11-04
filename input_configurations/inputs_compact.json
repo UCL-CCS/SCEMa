@@ -4,7 +4,7 @@
     "velocity": 0.00010
  	},
   "scale-bridging":{
-    "activate md update": 1,
+    "stress computation method": 0,
     "approximate md with hookes law": 0,
     "use pjm scheduler": 0
   },

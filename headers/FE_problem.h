@@ -83,6 +83,9 @@
 #include "compact_tension.h"
 #include "FE.h"
 
+// For Dongwei's surrogate function
+#include "Python.h"
+
 namespace HMM
 {
 	using namespace dealii;
@@ -477,7 +480,7 @@ namespace HMM
 											{
 													local_quadrature_points_history[q].new_strain = 0;
 													local_quadrature_points_history[q].upd_strain = 0;
-													local_quadrature_points_history[q].to_be_updated = false;
+													local_quadrature_points_history[q].to_be_updated_with_md = false;
 													local_quadrature_points_history[q].new_stress = 0;
 													local_quadrature_points_history[q].qpid = cell->active_cell_index()*quadrature_formula.size() + q;
 
@@ -1138,20 +1141,20 @@ namespace HMM
 					//   (i) all cells,
 					//  (ii) cells in given location,
 					// (iii) cells based on their id
-					if (activate_md_update
+					if (stress_compute_method == 0
 						// otherwise MD simulation unecessary, because no significant volume change and MD will fail
 										&& (local_quadrature_points_history[q].upd_strain.norm() >= min_qp_strain//> 1.0e-10
-											|| local_quadrature_points_history[q].to_be_updated == true)
+											|| local_quadrature_points_history[q].to_be_updated_with_md == true)
 						)
-					//if (activate_md_update && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
-					/*if (activate_md_update && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
+					//if (stress_compute_method && cell->barycenter()(1) <  3.0*tt && cell->barycenter()(0) <  1.10*(ww - aa) && cell->barycenter()(0) > 0.0*(ww - aa))
+					/*if (stress_compute_method && (cell->active_cell_index() == 2922 || cell->active_cell_index() == 2923
 						|| cell->active_cell_index() == 2924 || cell->active_cell_index() == 2487
 						|| cell->active_cell_index() == 2488 || cell->active_cell_index() == 2489))*/ // For debug...
 					{
-						local_quadrature_points_history[q].to_be_updated = true;
+						local_quadrature_points_history[q].to_be_updated_with_md = true;
 					}
 					else{
-						local_quadrature_points_history[q].to_be_updated = false;
+						local_quadrature_points_history[q].to_be_updated_with_md = false;
 					}
 				}
 			}
@@ -1212,7 +1215,7 @@ namespace HMM
 						ExcInternalError());
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
-					if(local_quadrature_points_history[q].to_be_updated)
+					if(local_quadrature_points_history[q].to_be_updated_with_md)
 					{
 						histories.push_back(&local_quadrature_points_history[q].hist_strain);
 						//local_quadrature_points_history[q].hist_strain.print();
@@ -1312,7 +1315,7 @@ namespace HMM
 						&quadrature_point_history.back(),
 						ExcInternalError());
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
-					if(local_quadrature_points_history[q].to_be_updated
+					if(local_quadrature_points_history[q].to_be_updated_with_md
 							&& local_quadrature_points_history[q].hist_strain.run_new_md())
 					{
 						// The cell will get its stress from MD, but should it run an MD simulation?
@@ -1484,8 +1487,150 @@ namespace HMM
 	}
 
 	template <int dim>
+	SymmetricTensor<2,dim> FEProblem<dim>::compute_stress_with_surrogate(SymmetricTensor<2,dim> old_strain,
+																		 SymmetricTensor<2,dim> new_strain,
+																		 SymmetricTensor<2,dim> old_stress)
+	{
+		SymmetricTensor<2,dim> new_stress;
+
+		// Create sudo input data
+		std::vector<float> strain_pre; strain_pre.assign(2*dim, 1.0e-20);
+		std::vector<float> strain_cur; strain_cur.assign(2*dim, 1.0e-20);
+		std::vector<float> stress_pre; stress_pre.assign(2*dim, 1.0e-20);
+		//std::vector<float> stress_pre = {1.0e-20, 1.0e-20, 1.0e-20, 1.0e-20, 1.0e-20, 1.0e-20};
+		std::vector<float> inputs;
+
+		for(unsigned int k=0;k<2*dim;k++)
+		{
+			if (k<dim){
+				strain_cur[k] = new_strain[0][k];
+				strain_pre[k] = old_strain[0][k];
+				stress_pre[k] = old_stress[0][k];
+			}
+			else if(k==3){
+				strain_cur[k] = new_strain[1][1];
+				strain_pre[k] = old_strain[1][1];
+				stress_pre[k] = old_stress[1][1];
+			}
+			else if(k==4){
+				strain_cur[k] = new_strain[1][2];
+				strain_pre[k] = old_strain[1][2];
+				stress_pre[k] = old_stress[1][2];
+			}
+			else if(k==5){
+				strain_cur[k] = new_strain[2][2];
+				strain_pre[k] = old_strain[2][2];
+				stress_pre[k] = old_stress[2][2];
+			}
+		}
+
+		// Concatenate the data together, easy for passing to python
+		// I do it a bit urgly here... but it works
+		// You know c++ better than me, you can improve it
+		inputs.insert(inputs.end(), strain_cur.begin(), strain_cur.end());
+		inputs.insert(inputs.end(), strain_pre.begin(), strain_pre.end());
+		inputs.insert(inputs.end(), stress_pre.begin(), stress_pre.end());
+
+		//Initialize the py function if it is not activated
+		if ( !Py_IsInitialized() )
+		{
+			Py_Initialize();
+		}
+		else
+		{
+			//std::cout<<"Pyfunction activated already"<<std::endl;
+		}
+
+		/////////// From C++ to python ////////////////
+		// Start to execute the python file
+		Py_Initialize();
+		if ( !Py_IsInitialized() )
+		{
+			std::cerr << "Python kernel could not be initialised to execute the surrogate "
+					"model to compute the stress of a given QP." << std::endl;
+			exit(1);
+		}
+
+		// import some python lib
+		PyRun_SimpleString("import sys");
+		PyRun_SimpleString("import os");
+		// Check current directory
+		//PyRun_SimpleString("print(os.getcwd())");
+		// Add current directory to the directory
+		PyRun_SimpleString("sys.path.append('./')");
+		PyRun_SimpleString("sys.path.append('./surrogate_model/')");
+
+		// Set up Null variable for data passing
+		PyObject* pModule =NULL;
+		PyObject* pList = NULL;
+		PyObject* pFunc = NULL;
+		PyObject* pArgs = NULL;
+
+		// Open the .py under current direcotory
+		pModule = PyImport_ImportModule("surrogate");
+		// Load function 'surrogate_model'
+		pFunc = PyObject_GetAttrString(pModule, "surrogate_model");
+		// Open up an argument with Tuple for python to take in (size of tuple)
+		pArgs = PyTuple_New(1);
+		// Open up a list (size of len, start from size 0 for append)
+		pList = PyList_New(0);
+
+		// Add value to the list
+		for (int i = 0; i < inputs.size(); i++)
+		{
+			// Append the python list with values, 'f' means datatype float
+			PyList_Append(pList, Py_BuildValue("f", inputs[i]));
+		}
+		// Pass the list to Args
+		PyTuple_SetItem(pArgs, 0, pList);
+		// Call the surrogate_model function with args: inputs
+		PyObject* pRet = PyEval_CallObject(pFunc, pArgs);
+
+		////////////////// From python to c++ /////////////////
+		// Return value has to be a 1D list
+		// Check size of list
+		int SizeOfList = PyList_Size(pRet);
+
+		// Create a empty c++ array with size of return list:
+		std::vector<double> result;
+
+		for(int i = 0; i < SizeOfList; i++)
+		{
+			// Get every element in the list to ListItem using PyList_GetItem
+			PyObject *ListItem = PyList_GetItem(pRet, i);
+			// Take data from python float to C++ double
+			result.push_back(PyFloat_AS_DOUBLE(ListItem));
+		}
+
+		Py_DECREF(pModule);
+		Py_DECREF(pList);
+		Py_DECREF(pFunc);
+		Py_DECREF(pArgs);
+		Py_DECREF(pRet);
+		//Py_Finalize();
+
+		for(unsigned int k=0;k<2*dim;k++)
+		{
+			if (k<dim){
+				new_stress[0][k] = result[k];
+			}
+			else if(k==3){
+				new_stress[1][1] = result[k];
+			}
+			else if(k==4){
+				new_stress[1][2] = result[k];
+			}
+			else if(k==5){
+				new_stress[2][2] = result[k];
+			}
+		}
+
+		return new_stress;
+	}
+
+	template <int dim>
 	void FEProblem<dim>::update_stress_quadrature_point_history(const Vector<double>& displacement_update,
-																															ScaleBridgingData scale_bridging_data)
+			ScaleBridgingData scale_bridging_data)
 	{
 		FEValues<dim> fe_values (fe, quadrature_formula,
 				update_values | update_gradients);
@@ -1520,97 +1665,90 @@ namespace HMM
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
 				{
 					int qp_id = local_quadrature_points_history[q].hist_strain.get_ID_to_get_results_from();
-				
+
 					if (newtonstep == 0) local_quadrature_points_history[q].inc_stress = 0.;
 
-					if (local_quadrature_points_history[q].to_be_updated){
+					if (stress_compute_method==0){
+						if (local_quadrature_points_history[q].to_be_updated_with_md){
 
-						// Updating stiffness tensor
-						/*SymmetricTensor<4,dim> stmp_stiff;
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
-						read_tensor<dim>(filename, stmp_stiff);
+							QP qp;
+							qp = get_qp_with_id(qp_id, scale_bridging_data);
+							//sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id);
+							//load_stress = read_tensor<dim>(filename, loc_stress);
+							//std::cout << "Putting stress into quadrature_points_history" << std::endl;
+							//for (int i=0; i<6; i++){
+							//  std::cout << " " << qp.update_stress[i];
+							//} std::cout << std::endl;
+							SymmetricTensor<2,dim> loc_stress(qp.update_stress);
 
-						// Rotate the output stiffness wrt the flake angles
-						local_quadrature_points_history[q].new_stiff =
-								rotate_tensor(stmp_stiff, transpose(local_quadrature_points_history[q].rotam));
-						 */
+							// Rotate the output stress wrt the flake angles
+							loc_stress = rotate_tensor(loc_stress, transpose(local_quadrature_points_history[q].rotam));
 
-						// Updating stress tensor
-						//bool load_stress = true;
+							if (approx_md_with_hookes_law == false){
+								local_quadrature_points_history[q].new_stress = loc_stress;
+							}
+							else {
+								local_quadrature_points_history[q].new_stress = loc_stress + local_quadrature_points_history[q].old_stress;
+							}
 
-						/*SymmetricTensor<4,dim> loc_stiffness;
-						sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
-						read_tensor<dim>(filename, loc_stiffness);*/
-
-						QP qp;
-						qp = get_qp_with_id(qp_id, scale_bridging_data);
-						//sprintf(filename, "%s/last.%s.stress", macrostatelocout.c_str(), cell_id);
-						//load_stress = read_tensor<dim>(filename, loc_stress);
-			//std::cout << "Putting stress into quadrature_points_history" << std::endl;
-      //for (int i=0; i<6; i++){
-      //  std::cout << " " << qp.update_stress[i];
-      //} std::cout << std::endl;
-						SymmetricTensor<2,dim> loc_stress(qp.update_stress);
-
-						// Rotate the output stress wrt the flake angles
-						loc_stress = rotate_tensor(loc_stress, transpose(local_quadrature_points_history[q].rotam));
-
-						if (approx_md_with_hookes_law == false){
-							local_quadrature_points_history[q].new_stress = loc_stress;
+							// Resetting the update strain tensor
+							local_quadrature_points_history[q].upd_strain = 0;
 						}
 						else {
-							local_quadrature_points_history[q].new_stress = loc_stress + local_quadrature_points_history[q].old_stress;
-						}
-
-						// Resetting the update strain tensor
-						local_quadrature_points_history[q].upd_strain = 0;
+							local_quadrature_points_history[q].new_stress +=                                                                                                    local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;                                                                                                                                            						}
 					}
-					else{
-					// Tangent stiffness computation of the new stress tensor
+					else if (stress_compute_method==1
+							//|| (local_quadrature_points_history[q].qpid != 0)
+							){
+						// Tangent stiffness computation of the new stress tensor
 						local_quadrature_points_history[q].new_stress +=
-							local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
+								local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].newton_strain;
 					}
-				}
-			
-					// Secant stiffness computation of the new stress tensor
-					//local_quadrature_points_history[q].new_stress =
-					//		local_quadrature_points_history[q].new_stiff*local_quadrature_points_history[q].new_strain;
-
-					// Write stress tensor for each gauss point
-					/*sprintf(filename, "%s/last.%s-%d.stress", macrostatelocout.c_str(), cell_id,q);
-					write_tensor<dim>(filename, local_quadrature_points_history[q].new_stress);*/
-
-					// Apply rotation of the sample to the new state tensors.
-					// Only needed if the mesh is modified...
-					/*const Tensor<2,dim> rotation
-					= get_rotation_matrix (displacement_update_grads[q]);
-
-					const SymmetricTensor<2,dim> rotated_new_stress
-					= symmetrize(transpose(rotation) *
-							static_cast<Tensor<2,dim> >
-					(local_quadrature_points_history[q].new_stress) *
-					rotation);
-
-					const SymmetricTensor<2,dim> rotated_new_strain
-					= symmetrize(transpose(rotation) *
-							static_cast<Tensor<2,dim> >
-					(local_quadrature_points_history[q].new_strain) *
-					rotation);
-
-					const SymmetricTensor<2,dim> rotated_upd_strain
-					= symmetrize(transpose(rotation) *
-							static_cast<Tensor<2,dim> >
-					(local_quadrature_points_history[q].upd_strain) *
-					rotation);
-
-					local_quadrature_points_history[q].new_stress
-					= rotated_new_stress;
-					local_quadrature_points_history[q].new_strain
-					= rotated_new_strain;
-					local_quadrature_points_history[q].upd_strain
-					= rotated_upd_strain;*/
+					else if (stress_compute_method==2){
+						local_quadrature_points_history[q].new_stress = compute_stress_with_surrogate(local_quadrature_points_history[q].old_strain,
+								local_quadrature_points_history[q].new_strain,
+								local_quadrature_points_history[q].old_stress);
+					}
+					else {
+						std::cerr << "Local stress computation method not implemented." << std::endl;
+						exit(1);
+					}
 				}
 			}
+		}
+		/*MPI_Barrier(FE_communicator);
+		// Retrieving all quadrature points computation and storing them in the
+		// quadrature_points_history structure
+		for (typename DoFHandler<dim>::active_cell_iterator
+				cell = dof_handler.begin_active();
+				cell != dof_handler.end(); ++cell){
+			if (cell->is_locally_owned())
+			{
+				SymmetricTensor<2,dim> avg_upd_strain_tensor;
+				//SymmetricTensor<2,dim> avg_stress_tensor;
+
+				PointHistory<dim> *local_quadrature_points_history
+				= reinterpret_cast<PointHistory<dim> *>(cell->user_pointer());
+				Assert (local_quadrature_points_history >=
+						&quadrature_point_history.front(),
+						ExcInternalError());
+				Assert (local_quadrature_points_history <
+						&quadrature_point_history.back(),
+						ExcInternalError());
+				fe_values.reinit (cell);
+				fe_values.get_function_gradients (displacement_update,
+						displacement_update_grads);
+
+				for (unsigned int q=0; q<quadrature_formula.size(); ++q)
+				{
+					if (local_quadrature_points_history[q].qpid % 100 != 0){
+						std::cout << local_quadrature_points_history[q].qpid << " " << std::flush;
+						std::cout << local_quadrature_points_history[q].new_strain << " " << std::flush;
+						std::cout << local_quadrature_points_history[q].new_stress << " " << std::endl;
+					}
+				}
+			}
+		}*/
 	}
 
 
@@ -1639,7 +1777,7 @@ namespace HMM
 				for (unsigned int q=0; q<quadrature_formula.size(); ++q){
 					char cell_id[1024]; sprintf(cell_id, "%d", local_quadrature_points_history[q].qpid);
 
-					if(local_quadrature_points_history[q].to_be_updated
+					if(local_quadrature_points_history[q].to_be_updated_with_md
 							&& local_quadrature_points_history[q].hist_strain.run_new_md()){
 						// Removing stiffness passing file
 						//sprintf(filename, "%s/last.%s.stiff", macrostatelocout.c_str(), cell_id);
@@ -2202,7 +2340,7 @@ namespace HMM
 	void FEProblem<dim>::init (int sstp, double tlength,
 							   std::string mslocin, std::string mslocout,
 							   std::string mslocres, std::string mlogloc,
-							   int fchpt, int fovis, int folhis, int folbcf, bool actmdup,
+							   int fchpt, int fovis, int folhis, int folbcf, int stress_method,
 							   std::vector<std::string> mdt, Tensor<1,dim> cgd,
 							   std::string twodmfile, double extrudel, int extrudep,
 						     boost::property_tree::ptree inconfig, 
@@ -2218,7 +2356,7 @@ namespace HMM
 		freq_output_lbcforce = folbcf;
 
 		// Setting up usage of MD to update constitutive behaviour
-		activate_md_update = actmdup;
+		stress_compute_method = stress_method;
 
 		// Setting up starting timestep number and timestep length
 		start_timestep = sstp;

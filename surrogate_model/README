@@ -1,0 +1,7 @@
+Load standard modules required to build and run deal.ii and lammps
+
+Set the python environment in order to be able to import Keras and Tensorflow:
+source env_surrogate # which should include keras and tensorflow > 2.2
+
+Set a symlink in the execution directory to surrogate.py:
+ln -s /path/to/SCEMa/surrogate_model/surrogate.py

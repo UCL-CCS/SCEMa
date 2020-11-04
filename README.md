@@ -16,12 +16,11 @@ At the moment, there are __strong dependencies__ on the versions of various pack
 The bootstrap/platform infrastructure below has been tested on a number of clusters/supercomputers (running linux) and is therefore recommended.
 
 >
-* gcc 6.3.0
+* gcc 4.9.2
 * cmake 3.5.2
-* gnu make 4.1 or greater, preferably 4.2.1
 * python 3.0 or greater (if using graph-based clustering of MD simulations)
 
-[Deal.II](https://dealii.org) needs to be compiled with the dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), namely the following dependencies: MPI (MPICH or Intel MPI), PETSc (>3.6, 64bits), METIS (>4.0), MUMPS (>5.0), BOOST (>1.58), HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, HDF5, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html). The MPI support for DealII and its dependencies must be built with __MPICH__ (will not work with OpenMPI!).
+[Deal.II](https://dealii.org) needs to be compiled with the dependencies required to run the tutorial [step-18](https://www.dealii.org/8.4.1/doxygen/deal.II/step_18.html#ElasticProblemoutput_results), namely the following dependencies: MPI, PETSc (>3.6, 64bits), METIS (>4.0), MUMPS (>5.0), BOOST (>1.58), HDF5, LAPACK, MUPARSER, NETCDF, ZLIB, HDF5, and UMFPACK. Complete instructions can be found [here](https://dealii.org/8.4.1/index.html).
 ```sh
 cd /path/to/dealii-8.4.1/build/
 cmake -DCMAKE_INSTALL_PREFIX=/path/to/install/dealii-8.4.1/ -DDEAL_II_WITH_MPI=ON -DDEAL_II_WITH_PETSC=ON ..
@@ -123,13 +122,14 @@ cat /path/to/simulation/inputs_testname.json
   },
   "computational resources":{
     "machine cores per node": 24,
-    "number of nodes for FEM simulation": 1,
-    "minimum nodes per MD simulation": 1
+    "maximum number of cores for FEM simulation": 1,
+    "minimum number of cores for MD simulation": 1
   },
   "output data":{
     "checkpoint frequency": 1,
     "visualisation output frequency": 1,
     "analytics output frequency": 1,
+    "loaded boundary force output frequency": 1,
     "homogenization output frequency": 1000
   },
   "directory structure":{
@@ -176,4 +176,4 @@ Vassaux, M., Richardson, R. A., & Coveney, P. V. (2019). The heterogeneous multi
 
 Vassaux, M., Sinclair, R. C., Richardson, R. A., Suter, J. L., & Coveney, P. V. (2019). The Role of Graphene in Enhancing the Material Properties of Thermosetting Polymers. Advanced Theory and Simulations, 2(5), 1800168.
 
-Vassaux, M., Sinclair, R. C., Richardson, R. A., Suter, J. L., & Coveney, P. V. (2019). Towards high fidelity materials property prediction from multiscale modelling and simulation", Advanced Theory and Simulations. Accepted for publication.
+Vassaux, M., Sinclair, R. C., Richardson, R. A., Suter, J. L., & Coveney, P. V. (2020). Towards high fidelity materials property prediction from multiscale modelling and simulation, Advanced Theory and Simulations, 3(1), 1900122.

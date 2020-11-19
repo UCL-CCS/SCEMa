@@ -205,24 +205,50 @@ void STMDSync<dim>::set_md_procs (int nmdruns)
 	// Dispatch of the available processes on to different groups for parallel
 	// update of quadrature points
 
-	// Setting the minimum number of cores per MD sim to 1
-	int npbtch_min = input_config.get<int>("computational resources.minimum number of cores for MD simulation");
-	//int nbtch_max = int(n_world_processes/npbtch_min);
+	// Setting the minimum possible allocation per MD sim
+	unsigned int npbtch_min = input_config.get<unsigned int>("computational resources.minimum number of cores for MD simulation");
 
-	//int nrounds = int(nmdruns/nbtch_max)+1;
-	//int nmdruns_round = nmdruns/nrounds;
-	int fair_npbtch;
+	// Setting the number of cores per node
+	unsigned int npnode = input_config.get<unsigned int>("computational resources.machine cores per node");
+
+	unsigned int fair_npbtch;
 	if (nmdruns > 0){
 		fair_npbtch = int(mmd_n_processes/(nmdruns));
+		if (fair_npbtch == 0) fair_npbtch = 1;
 	}
 	else {
 		fair_npbtch = mmd_n_processes;
 	}
-	int npb = std::max(fair_npbtch, npbtch_min);
-	//int nbtch = int(n_world_processes/npbtch);
 
-	// Arbitrary setting of NB and NT
-	md_batch_n_processes = npb;
+	// Building the list of admissible core count:
+	// multiple or factors of the core count per node
+	// in the range from minimum possible allocation (npbtch_min) to total core count (mmd_n_processes)
+	std::vector<unsigned int> list_possible_cores_per_job;
+	for(unsigned int ic=npbtch_min; ic<=mmd_n_processes; ic++){
+		if(ic<=npnode){
+			if(npnode%ic==0) list_possible_cores_per_job.push_back(ic);
+		}
+		else{
+			if(ic%npnode==0) list_possible_cores_per_job.push_back(ic);
+		}
+
+	}
+
+	// Setting core allocation as the largest admissible core count inferior to the fair core count
+	for(unsigned int ic=0; ic<list_possible_cores_per_job.size(); ic++){
+		if (list_possible_cores_per_job[ic] > fair_npbtch) break;
+		// Setting the number of processes per md simulation "md_batch_n_processes"
+		md_batch_n_processes = list_possible_cores_per_job[ic];
+	}
+
+	// Throw error if md_batch_n_processes is not set in the range
+	// from minimum possible allocation (npbtch_min) to total core count (mmd_n_processes)
+	// and not set as either a factor or a multiple of the number of cores per node (npnode)
+	if (md_batch_n_processes < npbtch_min || md_batch_n_processes > mmd_n_processes
+			|| (npnode%md_batch_n_processes!=0 and md_batch_n_processes%npnode!=0)){
+		std::cout << "Error: The number of cores per MD simulation batch (md_batch_n_processes) is not well set!" << std::endl;
+		exit(1);
+	}
 
 	n_md_batches = int(mmd_n_processes/md_batch_n_processes);
 	if(n_md_batches == 0) {n_md_batches=1; md_batch_n_processes=mmd_n_processes;}

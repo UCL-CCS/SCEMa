@@ -25,6 +25,20 @@
 // 3. surrogate modelling
 // 4. load balancing of MD simulations
 
+#include <cstdlib>
+#include <cinttypes>
+#include <random>
+
+#include <libmuscle/libmuscle.hpp>
+#include <ymmsl/ymmsl.hpp>
+
+
+using libmuscle::Data;
+using libmuscle::Instance;
+using libmuscle::Message;
+using ymmsl::Operator;
+using ymmsl::Settings;
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -108,7 +122,7 @@ namespace CONT
 	public:
 		CONTProblem ();
 		~CONTProblem ();
-		void run (std::string inputfile);
+		void continuum (std::string inputfile);
 
 	private:
 		void read_inputs(std::string inputfile);
@@ -314,13 +328,26 @@ namespace CONT
 			fe_problem->solve(newtonstep, scale_bridging_data);
 			share_scale_bridging_data(scale_bridging_data);
 			
+	        // configure output port
+	        if (!instance.is_resizable("parameters_out")) {
+	                instance.error_shutdown("This component needs a resizable"
+	                    " parameters_out port, but it is connected to something"
+	                    " that cannot be resized. Maybe try adding a load"
+	                    " balancer.");
+	                exit(1);
+	        }
+
 			// O_I
-			// Send strains to MD
+			// Send collection of configurations (QP) to load_balancer as a ScaleBridgingData structure
 			//fe_problem->send_strain(scale_bridging_data);
+	        Message msg(0.0, scale_bridging_data);
+	        instance.send("macro_strains_out", msg);
 
 			// S
-			// Retrieve stresses
+			// Retrieve updated collection of configurations (QP) to load_balancer as a ScaleBridgingData structure
 			//fe_problem->receive_stress(scale_bridging_data);
+            Message msg = instance.receive_with_settings("macro_stresses_in", sample);
+            scale_bridging_data = msg.data();
 
 			share_scale_bridging_data(scale_bridging_data);
 			continue_newton = fe_problem->check(scale_bridging_data);
@@ -339,45 +366,57 @@ namespace CONT
 
 
 	template <int dim>
-	void CONTProblem<dim>::run (std::string inputfile)
+	void CONTProblem<dim>::continuum (std::string inputfile)
 	{
-		// Reading JSON input file (common ones only)
-		read_inputs(inputfile);
+	    Instance instance(argc, argv, {
+	            {Operator::O_I, {"macro_strains_out[]"}},
+	            {Operator::S, {"micro_stresses_in[]"}},
+	            {Operator::O_F, {"not_sure_needed"}}});
 
-		hcout << "Building the FE problem:       " << std::endl;
+	    while (instance.reuse_instance()) {
+	        // F_INIT
+	        // inputs reading could done from the molecular_continuum.ymmsl file instead of passing a JSON file.
+	        //int64_t n_samples = instance.get_setting_as<int64_t>("n_samples");
+			// Reading JSON input file (common ones only)
+			read_inputs(inputfile);
 
-		// Setting repositories for input and creating repositories for outputs
-		set_repositories();
+			hcout << "Building the FE problem:       " << std::endl;
 
-		//
-		create_qp_mpi_datatype(); // Creates and commits MPI_QP for communicating quadrature point info
-																	// between FE and MD solvers
+			// Setting repositories for input and creating repositories for outputs
+			set_repositories();
 
-		// Instantiation of the FE problem
-		fe_problem = new FEProblem<dim> (world_communicator, world_pcolor, fe_degree, quadrature_formula, n_world_processes);
+			// Creates and commits MPI_QP for communicating quadrature point info between FE and MD solvers
+			create_qp_mpi_datatype();
 
-		// Initialization of time variables
-		timestep = start_timestep - 1;
-		present_time = timestep*fe_timestep_length;
-		end_time = end_timestep*fe_timestep_length;
+			// Instantiation of the FE problem
+			fe_problem = new FEProblem<dim> (world_communicator, world_pcolor, fe_degree, quadrature_formula, n_world_processes);
 
-		// Initialization of MMD must be done before initialization of FE, because FE needs initial
-		// materials properties obtained from MMD initialization
+			// Initialization of time variables
+			timestep = start_timestep - 1;
+			present_time = timestep*fe_timestep_length;
+			end_time = end_timestep*fe_timestep_length;
 
-		hcout << " Initiation of the Finite Element problem...       " << std::endl;
-		fe_problem->init(start_timestep, fe_timestep_length,
-										macrostatelocin, macrostatelocout,
-										macrostatelocres, macrologloc,
-										freq_checkpoint, freq_output_visu, freq_output_lhist, freq_output_lbcforce,
-										mdtype,
-										twod_mesh_file, extrude_length, extrude_points,
-										input_config);
+			// Initialization of MMD must be done before initialization of FE, because FE needs initial
+			// materials properties obtained from MMD initialization
 
-		// Running the solution algorithm of the FE problem
-		hcout << "Beginning of incremental solution algorithm:       " << std::endl;
-		while (present_time < end_time){
-			do_timestep();
-		}
+			hcout << " Initiation of the Finite Element problem...       " << std::endl;
+			fe_problem->init(start_timestep, fe_timestep_length,
+											macrostatelocin, macrostatelocout,
+											macrostatelocres, macrologloc,
+											freq_checkpoint, freq_output_visu, freq_output_lhist, freq_output_lbcforce,
+											mdtype,
+											twod_mesh_file, extrude_length, extrude_points,
+											input_config);
+
+			// Running the solution algorithm of the FE problem
+			hcout << "Beginning of incremental solution algorithm:       " << std::endl;
+			while (present_time < end_time){
+				do_timestep();
+			}
+
+			// Muscle3 can send back a message to the outer world as well
+	        //instance.send("not_sure_needed", Message(t_max, means));
+	    }
 		
 		delete fe_problem;
 	}
@@ -408,7 +447,7 @@ int main (int argc, char **argv)
 		auto wcts = std::chrono::system_clock::now(); // current wall time
 
 		CONTProblem<3> cont_problem;
-		cont_problem.run(inputfile);
+		cont_problem.continuum(inputfile);
 
 		// End of global wall-timer
 		std::chrono::duration<double> wctduration = (std::chrono::system_clock::now() - wcts);
@@ -443,5 +482,5 @@ int main (int argc, char **argv)
 		return 1;
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }

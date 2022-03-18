@@ -340,7 +340,8 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 		}
 
 	// (stress distribution) Retrieve a vector of stress tensors (vectorised stress tensor)
-	std::vector <SymmetricTensor<2,dim>> stress_dist;
+	// this is commented because I cannot extract data from stress time series correctly (wrong ordering)
+	/*std::vector <SymmetricTensor<2,dim>> stress_dist;
 	for(unsigned int k=0;k<md_sim.nsteps_sample;k++){
 		SymmetricTensor<2,dim>  stress_sample;
 		for(unsigned int l=0;l<2*dim;l++)
@@ -355,7 +356,7 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 			lammps_free(dptr);
 		}
 		stress_dist.push_back(stress_sample);
-	}
+	}*/
 
 	// (stress distribution) Append molecular model data file
 	if(this_md_batch_process == 0){
@@ -367,7 +368,7 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 
 		// writing the header of the file (if file is empty)
 		if (cursor_position == 0){
-			ofile << "qp_id,material_id,time_id,temperature,strain_rate,force_field,replica_id";
+			ofile << "qp_id,material_id,homog_time_id,temperature,strain_rate,force_field,replica_id";
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
 					ofile << "," << "strain_" << k << l;
@@ -376,9 +377,28 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 					ofile << "," << "stress_" << k << l;
 			ofile << std::endl;
 		}
+		
+		// writing averaged data over homogenisation time steps
+		ofile << md_sim.qp_id
+				 << "," << md_sim.matid
+				 << "," << "averaged"
+				 << "," << md_sim.temperature
+				 << "," << md_sim.strain_rate
+				 << "," << md_sim.force_field
+				 << "," << md_sim.replica;
+		for(unsigned int k=0;k<dim;k++)
+			  for(unsigned int l=k;l<dim;l++){
+				  ofile << "," << std::setprecision(16) << md_sim.strain[k][l];
+			  }
+		for(unsigned int k=0;k<dim;k++)
+			  for(unsigned int l=k;l<dim;l++){
+				  ofile << "," << std::setprecision(16) << stress_dist[t][k][l];
+			  }
+		ofile << std::endl;
 
 		// writing current time data
-		for(unsigned int t=0;t<md_sim.nsteps_sample;t++){
+		// this is commented because I cannot extract data from stress time series correctly (wrong ordering)
+		/*for(unsigned int t=0;t<md_sim.nsteps_sample;t++){
 		   ofile << md_sim.qp_id
 				 << "," << md_sim.matid
 				 << "," << md_sim.time_id
@@ -395,7 +415,7 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 				  ofile << "," << std::setprecision(16) << stress_dist[t][k][l];
 			  }
 		   ofile << std::endl;
-		}
+		}*/
 
 	}
 

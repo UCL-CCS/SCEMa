@@ -392,7 +392,7 @@ SymmetricTensor<2,dim> STMDProblem<dim>::stress_from_hookes_law (SymmetricTensor
 }
 
 template <int dim>
-void STMDProblem<dim>::write_local_data(md_sim/*, stress_sample*/)
+void STMDProblem<dim>::write_local_data(MDSim<dim>& md_sim md_sim/*, SymmetricTensor<2,dim> stress_sample*/)
 {
 	// (stress distribution) Append molecular model data file
 	if(this_md_batch_process == 0){
@@ -485,7 +485,7 @@ void STMDProblem<dim>::strain (MDSim<dim>& md_sim, bool approx_md_with_hookes_la
 		md_sim.stress_updated = true;
 	}
 	
-	write_local_data(mdsim);
+	write_local_data(md_sim);
 
 	MPI_Barrier(md_batch_communicator);
 	if(this_md_batch_process == 0)

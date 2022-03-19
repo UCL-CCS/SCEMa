@@ -360,9 +360,6 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 	}
 	write_local_data(md_sim, stress_sample);*/
 
-
-	}
-
 	if(md_sim.output_homog){
 		// Unetting dumping of atom positions
 		sprintf(cline, "undump atom_dump"); lammps_command(lmp,cline);
@@ -395,7 +392,7 @@ SymmetricTensor<2,dim> STMDProblem<dim>::stress_from_hookes_law (SymmetricTensor
 }
 
 template <int dim>
-void write_local_data(md_sim/*, stress_sample*/)
+void STMDProblem<dim>::write_local_data(md_sim/*, stress_sample*/)
 {
 	// (stress distribution) Append molecular model data file
 	if(this_md_batch_process == 0){

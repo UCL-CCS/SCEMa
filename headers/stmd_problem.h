@@ -48,7 +48,7 @@ private:
 
 	SymmetricTensor<2,dim> lammps_straining(MDSim<dim> md_sim);
 	SymmetricTensor<2,dim> stress_from_hookes_law (SymmetricTensor<2,dim> strain, SymmetricTensor<4,dim> stiffness);
-	void write_local_data (MDSim<dim> md_sim/*, SymmetricTensor<2,dim> stress_sample*/);
+	void write_local_data (MDSim<dim>& md_sim /*, SymmetricTensor<2,dim> stress_sample*/);
 
 	MPI_Comm 							md_batch_communicator;
 	const int 							md_batch_n_processes;

@@ -48,6 +48,7 @@ private:
 
 	SymmetricTensor<2,dim> lammps_straining(MDSim<dim> md_sim);
 	SymmetricTensor<2,dim> stress_from_hookes_law (SymmetricTensor<2,dim> strain, SymmetricTensor<4,dim> stiffness);
+	void write_local_data (MDSim<dim> md_sim/*, SymmetricTensor<2,dim> stress_sample*/);
 
 	MPI_Comm 							md_batch_communicator;
 	const int 							md_batch_n_processes;
@@ -356,66 +357,9 @@ SymmetricTensor<2,dim> STMDProblem<dim>::lammps_straining (MDSim<dim> md_sim)
 			lammps_free(dptr);
 		}
 		stress_dist.push_back(stress_sample);
-	}*/
+	}
+	write_local_data(md_sim, stress_sample);*/
 
-	// (stress distribution) Append molecular model data file
-	if(this_md_batch_process == 0){
-
-		// Initialization of the molecular data file
-		char filename[1024]; sprintf(filename, "%s/mddata_qpid%d_repl%d.csv", md_sim.output_folder.c_str(), md_sim.qp_id, md_sim.replica);
-		std::ofstream  ofile(filename, std::ios_base::app);
-		long cursor_position = ofile.tellp();
-
-		// writing the header of the file (if file is empty)
-		if (cursor_position == 0){
-			ofile << "qp_id,material_id,homog_time_id,temperature,strain_rate,force_field,replica_id";
-			for(unsigned int k=0;k<dim;k++)
-				for(unsigned int l=k;l<dim;l++)
-					ofile << "," << "strain_" << k << l;
-			for(unsigned int k=0;k<dim;k++)
-				for(unsigned int l=k;l<dim;l++)
-					ofile << "," << "stress_" << k << l;
-			ofile << std::endl;
-		}
-		
-		// writing averaged data over homogenisation time steps
-		ofile << md_sim.qp_id
-				 << "," << md_sim.matid
-				 << "," << "averaged"
-				 << "," << md_sim.temperature
-				 << "," << md_sim.strain_rate
-				 << "," << md_sim.force_field
-				 << "," << md_sim.replica;
-		for(unsigned int k=0;k<dim;k++)
-			  for(unsigned int l=k;l<dim;l++){
-				  ofile << "," << std::setprecision(16) << md_sim.strain[k][l];
-			  }
-		for(unsigned int k=0;k<dim;k++)
-			  for(unsigned int l=k;l<dim;l++){
-				  ofile << "," << std::setprecision(16) << md_sim.stress[k][l];
-			  }
-		ofile << std::endl;
-
-		// writing current time data
-		// this is commented because I cannot extract data from stress time series correctly (wrong ordering)
-		/*for(unsigned int t=0;t<md_sim.nsteps_sample;t++){
-		   ofile << md_sim.qp_id
-				 << "," << md_sim.matid
-				 << "," << md_sim.time_id
-				 << "," << md_sim.temperature
-				 << "," << md_sim.strain_rate
-				 << "," << md_sim.force_field
-				 << "," << md_sim.replica;
-		   for(unsigned int k=0;k<dim;k++)
-			  for(unsigned int l=k;l<dim;l++){
-				  ofile << "," << std::setprecision(16) << md_sim.strain[k][l];
-			  }
-		   for(unsigned int k=0;k<dim;k++)
-			  for(unsigned int l=k;l<dim;l++){
-				  ofile << "," << std::setprecision(16) << stress_dist[t][k][l];
-			  }
-		   ofile << std::endl;
-		}*/
 
 	}
 
@@ -450,6 +394,68 @@ SymmetricTensor<2,dim> STMDProblem<dim>::stress_from_hookes_law (SymmetricTensor
 	return stress;
 }
 
+template <int dim>
+void write_local_data(md_sim/*, stress_sample*/)
+{
+	// (stress distribution) Append molecular model data file
+	if(this_md_batch_process == 0){
+
+	// Initialization of the molecular data file
+	char filename[1024]; sprintf(filename, "%s/mddata_qpid%d_repl%d.csv", md_sim.output_folder.c_str(), md_sim.qp_id, md_sim.replica);
+	std::ofstream  ofile(filename, std::ios_base::app);
+	long cursor_position = ofile.tellp();
+
+	// writing the header of the file (if file is empty)
+	if (cursor_position == 0){
+		ofile << "qp_id,material_id,homog_time_id,temperature,strain_rate,force_field,replica_id";
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+				ofile << "," << "strain_" << k << l;
+		for(unsigned int k=0;k<dim;k++)
+			for(unsigned int l=k;l<dim;l++)
+				ofile << "," << "stress_" << k << l;
+		ofile << std::endl;
+	}
+
+	// writing averaged data over homogenisation time steps
+	ofile << md_sim.qp_id
+			 << "," << md_sim.matid
+			 << "," << "averaged"
+			 << "," << md_sim.temperature
+			 << "," << md_sim.strain_rate
+			 << "," << md_sim.force_field
+			 << "," << md_sim.replica;
+	for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k;l<dim;l++){
+			  ofile << "," << std::setprecision(16) << md_sim.strain[k][l];
+		  }
+	for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k;l<dim;l++){
+			  ofile << "," << std::setprecision(16) << md_sim.stress[k][l];
+		  }
+	ofile << std::endl;
+		
+	// writing current time data
+	// this is commented because I cannot extract data from stress time series correctly (wrong ordering)
+	/*for(unsigned int t=0;t<md_sim.nsteps_sample;t++){
+	   ofile << md_sim.qp_id
+			 << "," << md_sim.matid
+			 << "," << md_sim.time_id
+			 << "," << md_sim.temperature
+			 << "," << md_sim.strain_rate
+			 << "," << md_sim.force_field
+			 << "," << md_sim.replica;
+	   for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k;l<dim;l++){
+			  ofile << "," << std::setprecision(16) << md_sim.strain[k][l];
+		  }
+	   for(unsigned int k=0;k<dim;k++)
+		  for(unsigned int l=k;l<dim;l++){
+			  ofile << "," << std::setprecision(16) << stress_dist[t][k][l];
+		  }
+	   ofile << std::endl;
+	}*/
+}
 
 template <int dim>
 void STMDProblem<dim>::strain (MDSim<dim>& md_sim, bool approx_md_with_hookes_law)
@@ -481,6 +487,8 @@ void STMDProblem<dim>::strain (MDSim<dim>& md_sim, bool approx_md_with_hookes_la
 		md_sim.stress = lammps_straining(md_sim);
 		md_sim.stress_updated = true;
 	}
+	
+	write_local_data(mdsim);
 
 	MPI_Barrier(md_batch_communicator);
 	if(this_md_batch_process == 0)

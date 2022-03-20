@@ -404,7 +404,7 @@ void STMDProblem<dim>::write_local_data(MDSim<dim>& md_sim /*, SymmetricTensor<2
 
 		// writing the header of the file (if file is empty)
 		if (cursor_position == 0){
-			ofile << "qp_id,material_id,homog_time_id,temperature,strain_rate,force_field,replica_id";
+			ofile << "qp_id,material_id,time_id,temperature,strain_rate,force_field,replica_id";
 			for(unsigned int k=0;k<dim;k++)
 				for(unsigned int l=k;l<dim;l++)
 					ofile << "," << "strain_" << k << l;
@@ -417,7 +417,7 @@ void STMDProblem<dim>::write_local_data(MDSim<dim>& md_sim /*, SymmetricTensor<2
 		// writing averaged data over homogenisation time steps
 		ofile << md_sim.qp_id
 				 << "," << md_sim.matid
-				 << "," << "averaged"
+				 << "," << md_sim.time_id
 				 << "," << md_sim.temperature
 				 << "," << md_sim.strain_rate
 				 << "," << md_sim.force_field
